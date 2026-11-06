@@ -6,3 +6,75 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  shop         Shop?
+}
+
+model Shop {
+  id             String   @id @default(uuid()) @db.Uuid
+  ownerId        String   @unique @db.Uuid
+  owner          User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  name           String
+  tone           String   @default("")
+  shipping       String   @default("")
+  payment        String   @default("")
+  workingHours   String   @default("")
+  handoffMessage String   @default("برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.")
+  createdAt      DateTime @default(now())
+  products       Product[]
+  variants       Variant[]
+  movements      StockMovement[]
+}
+
+model Product {
+  id          String    @id @default(uuid()) @db.Uuid
+  shopId      String    @db.Uuid
+  shop        Shop      @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  title       String
+  description String    @default("")
+  category    String    @default("")
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  variants    Variant[]
+  @@unique([shopId, id])
+  @@index([shopId, title])
+}
+
+model Variant {
+  id             String          @id @default(uuid()) @db.Uuid
+  shopId         String          @db.Uuid
+  productId      String          @db.Uuid
+  shop           Shop            @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  product        Product         @relation(fields: [shopId, productId], references: [shopId, id], onDelete: Restrict)
+  sku            String?
+  size           String          @default("")
+  color          String          @default("")
+  price          Int
+  stock          Int             @default(0)
+  stockUpdatedAt DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  movements      StockMovement[]
+  @@unique([shopId, id])
+  @@unique([shopId, sku])
+  @@index([shopId, productId])
+}
+
+model StockMovement {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @db.Uuid
+  variantId String   @db.Uuid
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  variant   Variant  @relation(fields: [shopId, variantId], references: [shopId, id], onDelete: Restrict)
+  delta     Int
+  reason    String
+  actorId   String   @db.Uuid
+  createdAt DateTime @default(now())
+  @@index([shopId, variantId, createdAt])
+}

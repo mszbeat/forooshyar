@@ -1,19 +1,16 @@
 import 'reflect-metadata';
-import { Controller, Get, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { CacheService, createCacheService } from './cache/cache.service';
+import helmet from 'helmet';
+import { AppModule } from './app.module';
 import { loadConfig } from './config';
-
-@Controller('health')
-class HealthController {
-  @Get() health() { return { status: 'ok' }; }
-}
-@Module({ controllers: [HealthController], providers: [{ provide: CacheService, useFactory: () => createCacheService(loadConfig(process.env)) }] })
-class AppModule {}
 
 async function bootstrap() {
   const config = loadConfig(process.env);
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.use(helmet());
+  // Explicit body size limit prevents oversized unauthenticated payloads.
+  const express = await import('express');
+  app.use(express.json({ limit: '64kb' }));
   app.enableShutdownHooks();
   await app.listen(config.PORT, '0.0.0.0');
 }
