@@ -35,7 +35,7 @@ export class CatalogService {
       throw error;
     }
   }
-  async updateVariant(shopId: string, id: string, data: { sku?: string | null; size?: string; color?: string; price?: number }) {
+  async updateVariant(shopId: string, id: string, data: { sku?: string | null; size?: string; color?: string; price?: number; active?: boolean }) {
     try {
       const result = await this.db.variant.updateMany({ where: { shopId, id }, data });
       if (!result.count) throw new NotFoundException('Variant not found');
@@ -45,9 +45,42 @@ export class CatalogService {
       throw error;
     }
   }
+  async getVariant(shopId: string, id: string) {
+    const variant = await this.db.variant.findFirst({ where: { shopId, id } });
+    if (!variant) throw new NotFoundException('Variant not found');
+    return variant;
+  }
+  async sell(shopId: string, userId: string, variantId: string, quantity: number, requestKey?: string) {
+    if (!requestKey) return this.changeStock(shopId, userId, variantId, -quantity, 'sale');
+    try {
+      return await this.db.$transaction(async tx => {
+        const operation = await tx.stockOperation.create({ data: { shopId, variantId, requestKey, quantity } });
+        const updated = await tx.variant.updateMany({ where: { id: variantId, shopId, active: true, product: { active: true }, stock: { gte: quantity } }, data: { stock: { decrement: quantity }, stockUpdatedAt: new Date() } });
+        if (!updated.count) {
+          const variant = await tx.variant.findFirst({ where: { id: variantId, shopId } });
+          if (!variant) throw new NotFoundException('Variant not found');
+          throw new ConflictException('Insufficient stock or inactive product');
+        }
+        const variant = await tx.variant.findFirstOrThrow({ where: { id: variantId, shopId } });
+        await tx.stockMovement.create({ data: { shopId, variantId, delta: -quantity, reason: 'sale', actorId: userId } });
+        await tx.stockOperation.update({ where: { id: operation.id }, data: { resultStock: variant.stock } });
+        return variant;
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const prior = await this.db.stockOperation.findUnique({ where: { shopId_requestKey: { shopId, requestKey } } });
+        if (!prior || prior.variantId !== variantId || prior.quantity !== quantity || prior.resultStock === null) throw new ConflictException('Idempotency key already used for a different sale');
+        const variant = await this.getVariant(shopId, variantId);
+        return { ...variant, stock: prior.resultStock };
+      }
+      // Composite FK prevents a request with an id from another tenant.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') throw new NotFoundException('Variant not found');
+      throw error;
+    }
+  }
   async changeStock(shopId: string, userId: string, variantId: string, delta: number, reason: string) {
     return this.db.$transaction(async tx => {
-      const result = await tx.variant.updateMany({ where: { id: variantId, shopId, stock: delta < 0 ? { gte: -delta } : { lte: 2147483647 - delta } }, data: { stock: { increment: delta }, stockUpdatedAt: new Date() } });
+      const result = await tx.variant.updateMany({ where: { id: variantId, shopId, ...(reason === 'sale' ? { active: true, product: { active: true } } : {}), stock: delta < 0 ? { gte: -delta } : { lte: 2147483647 - delta } }, data: { stock: { increment: delta }, stockUpdatedAt: new Date() } });
       if (!result.count) {
         const exists = await tx.variant.findFirst({ where: { id: variantId, shopId }, select: { id: true } });
         if (!exists) throw new NotFoundException('Variant not found');

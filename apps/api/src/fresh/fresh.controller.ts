@@ -15,7 +15,7 @@ export class FreshController {
     const shopId = req.principal.shopId;
     const [shop, products] = await Promise.all([
       this.db.shop.findUniqueOrThrow({ where: { id: shopId }, select: { shipping: true, payment: true, workingHours: true, handoffMessage: true } }),
-      this.db.product.findMany({ where: { shopId, active: true }, take: 501, select: { title: true, variants: { take: 2, select: { size: true, color: true, price: true, stock: true } } } }),
+      this.db.product.findMany({ where: { shopId, active: true }, take: 501, select: { title: true, variants: { where: { active: true }, take: 2, select: { size: true, color: true, price: true, stock: true } } } }),
     ]);
     if (products.length > 500) return { kind: 'handoff', text: shop.handoffMessage.trim() || 'برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.' };
     return answerFresh(message, shop, products);

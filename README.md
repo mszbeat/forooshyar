@@ -6,7 +6,7 @@
 
 **Phase 1 is in progress, not production-ready.** Implemented: NestJS API, email/password registration and login with one-hour JWT, one owner/shop, shop settings, product/variant creation and editing, guarded stock decrement and adjustment, stock movement ledger in PostgreSQL, and CSV/XLSX catalog import with row-level results. A real PostgreSQL integration test covers concurrent sales and selected cross-tenant access attempts. Cache is optional and is not used for catalog data. A deterministic Persian Fresh preview reads live tenant-scoped catalog data; it is not connected to any messaging channel.
 
-Missing: full CRUD (including variant deletion), comprehensive tenant-isolation coverage, the remaining domain models, structured logging, production deployment/security hardening, Telegram, workers, OpenRouter, seller panel and post recognition. The Persian RTL web app supports registration/login, shop settings, product creation, variant creation, single-unit sales import and a Fresh preview; it is an early panel, not the complete seller panel. Authentication is stored in memory only, so reloading logs the user out. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the target design.
+Missing: comprehensive tenant-isolation coverage, the remaining domain models, structured logging, production deployment/security hardening, Telegram, workers, OpenRouter, seller panel and post recognition. The Persian RTL web app supports registration/login, shop settings, product creation, variant creation, single-unit sales import and a Fresh preview; it is an early panel, not the complete seller panel. Authentication is stored in memory only, so reloading logs the user out. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the target design.
 
 ## Principles
 
@@ -85,7 +85,7 @@ curl -X POST "http://localhost:3001/variants/$VARIANT_ID/sell" -H "Authorization
 curl "http://localhost:3001/variants/$VARIANT_ID/movements" -H "Authorization: Bearer $TOKEN"
 ```
 
-Prices are integer **toman**, limited to PostgreSQL signed 32-bit integers; stock is nonnegative integer. `POST /variants/:id/stock` takes `{ "delta": 3, "reason": "restock" }` (reason `restock` or `manual`). `PATCH /variants/:id` changes price/size/color/SKU, not stock. Products can be deactivated with `PATCH /products/:id` and `{ "active": false }`. `GET /products` and movements currently return at most 100 entries, without pagination. Stock operations are not idempotent: retrying a successful sale can decrement twice; client-side retries must be avoided until idempotency is implemented. API rate limits are in-memory per process and are not suitable for distributed deployments.
+Prices are integer **toman**, limited to PostgreSQL signed 32-bit integers; stock is nonnegative integer. `POST /variants/:id/stock` takes `{ "delta": 3, "reason": "restock" }` (reason `restock` or `manual`). `PATCH /variants/:id` changes price/size/color/SKU, not stock. Products can be deactivated with `PATCH /products/:id` and `{ "active": false }`. `GET /products` and movements currently return at most 100 entries, without pagination. Sales support an optional `Idempotency-Key` header (8–128 letters, digits, `_` or `-`): retries with the same key, shop, variant and quantity return the original result without another stock movement; reuse with different sale parameters returns 409. The web panel creates a key for each sale. Without this header, retries can decrement twice. Manual stock adjustments and imports are not idempotent. `DELETE /products/:id` and `DELETE /variants/:id` archive rather than physically delete, preserving the ledger; archived variants and products cannot be sold. Products can be reactivated using PATCH; variants can be reactivated using `{ "active": true }` on PATCH. API rate limits are in-memory per process and are not suitable for distributed deployments.
 
 ## Fresh reply preview
 
@@ -123,7 +123,7 @@ npm run build -w @forooshyar/api
 npm run test:integration -w @forooshyar/api
 ```
 
-The integration test creates and deletes its own shops and data; never point it at production. If `TEST_DATABASE_URL` is absent, the integration test is skipped. The test exercises selected tenant boundaries, Fresh preview isolation, concurrent stock changes, and CSV/XLSX imports, not an exhaustive security proof.
+The integration test creates and deletes its own shops and data; never point it at production. If `TEST_DATABASE_URL` is absent, the integration test is skipped. The test exercises selected tenant boundaries, Fresh preview isolation, concurrent stock changes, idempotent sales, archival, and CSV/XLSX imports, not an exhaustive security proof.
 
 ## Glossary
 

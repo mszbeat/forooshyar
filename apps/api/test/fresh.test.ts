@@ -44,3 +44,10 @@ test('multiple variants and ambiguous products never invent facts', () => {
   assert.equal(answerFresh('قیمت و ارسال مانتو آبی', shop, products).kind, 'handoff');
   assert.equal(answerFresh('ارسال دارید؟', { ...shop, shipping: '' }, products).kind, 'handoff');
 });
+
+test('explicit mismatching size or color is never answered with another variant', () => {
+  for (const message of ['مانتو آبی سایز ۴۲ موجوده؟', 'قیمت مانتو آبی سایز 42 چنده؟', 'مانتو آبی رنگ قرمز موجوده؟', 'مانتو آبی سایز بزرگ موجوده؟']) {
+    assert.equal(answerFresh(message, shop, products).kind, 'handoff', message);
+  }
+  assert.equal(answerFresh('مانتو آبی سایز ۴۰ موجوده؟', shop, products).kind, 'answer');
+});

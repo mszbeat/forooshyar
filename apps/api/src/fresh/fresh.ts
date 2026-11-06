@@ -38,6 +38,18 @@ export function answerFresh(message: string, shop: FreshShop, products: FreshPro
     const product = matches[0];
     if (product.variants.length !== 1) return { kind: 'clarify', text: 'لطفاً سایز و رنگ دقیق محصول را مشخص کنید تا فروشنده بررسی کند.' };
     const variant = product.variants[0];
+    // A request mentioning another size or color must not receive this variant's
+    // price/stock. Never infer a match from a product title alone.
+    const normalizedSize = normalizePersian(variant.size);
+    const titleNumbers = new Set(normalizePersian(product.title).match(/\d+/g) ?? []);
+    const requestedNumbers = (q.match(/\d+/g) ?? []).filter(number => !titleNumbers.has(number));
+    if (requestedNumbers.some(number => !normalizedSize.split(' ').includes(number))) return handoff();
+    const sizeRequest = q.match(/سایز\s+(?:های\s+|رو\s+|به\s+)?([\p{L}\p{N}]+)/u)?.[1];
+    const ignoredSizeWords = new Set(['داره', 'دارید', 'دارین', 'موجوده', 'موجود', 'هست', 'چنده', 'قیمت', 'چی', 'چه']);
+    if (sizeRequest && !ignoredSizeWords.has(sizeRequest) && !normalizedSize.split(' ').includes(sizeRequest)) return handoff();
+    const colorRequest = q.match(/رنگ\s+(?:های\s+|رو\s+|به\s+)?([\p{L}\p{N}]+)/u)?.[1];
+    const ignoredColorWords = new Set(['داره', 'دارید', 'دارین', 'موجوده', 'موجود', 'هست', 'چنده', 'قیمت', 'چی', 'چه']);
+    if (colorRequest && !ignoredColorWords.has(colorRequest) && !normalizePersian(variant.color).split(' ').includes(colorRequest)) return handoff();
     const description = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
     const prefix = `${product.title}${description ? ` (${description})` : ''}`;
     const pieces: string[] = [];

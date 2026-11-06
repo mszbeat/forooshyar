@@ -20,8 +20,8 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
   child.stdout.on('data', data => { logs += data.toString(); });
   child.stderr.on('data', data => { logs += data.toString(); });
   const base = `http://127.0.0.1:${port}`;
-  const request = async (path: string, method = 'GET', body?: unknown, token?: string) => {
-    const res = await fetch(base + path, { method, headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
+  const request = async (path: string, method = 'GET', body?: unknown, token?: string, extraHeaders: Record<string,string> = {}) => {
+    const res = await fetch(base + path, { method, headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extraHeaders }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     return { status: res.status, data: await res.json() as any };
   };
   try {
@@ -71,6 +71,21 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
     assert.equal(ledger.data.reduce((sum: number, row: { delta: number }) => sum + row.delta, 0), 0);
     assert.equal((await request(`/variants/${variantId}/movements`, 'GET', undefined, tokenB)).status, 404);
     assert.equal((await request(`/variants/${variantId}/stock`, 'POST', { delta: 3, reason: 'restock' }, tokenA)).data.stock, 3);
+    const idempotencyKey = `sale_${run}`;
+    const keyed = await Promise.all(Array.from({ length: 10 }, () => request(`/variants/${variantId}/sell`, 'POST', { quantity: 1 }, tokenA, { 'Idempotency-Key': idempotencyKey })));
+    assert.ok(keyed.every(item => item.status === 201), JSON.stringify(keyed));
+    assert.ok(keyed.every(item => item.data.stock === 2));
+    assert.equal((await request(`/variants/${variantId}`, 'GET', undefined, tokenA)).data.stock, 2);
+    assert.equal((await request(`/variants/${variantId}/sell`, 'POST', { quantity: 2 }, tokenA, { 'Idempotency-Key': idempotencyKey })).status, 409);
+    assert.equal((await request(`/variants/${variantId}/sell`, 'POST', { quantity: 1 }, tokenB, { 'Idempotency-Key': `other_${run}` })).status, 404);
+    assert.equal((await request(`/variants/${variantId}`, 'DELETE', undefined, tokenB)).status, 404);
+    assert.equal((await request(`/variants/${variantId}`, 'DELETE', undefined, tokenA)).status, 200);
+    assert.equal((await request(`/variants/${variantId}/sell`, 'POST', { quantity: 1 }, tokenA)).status, 409);
+    const archivedPreview = await request('/bot/preview', 'POST', { message: 'قیمت مانتو آبی چنده؟' }, tokenA);
+    assert.notEqual(archivedPreview.data.kind, 'answer');
+    assert.equal((await request(`/products/${id}`, 'DELETE', undefined, tokenB)).status, 404);
+    assert.equal((await request(`/products/${id}`, 'DELETE', undefined, tokenA)).status, 200);
+
     const upload = async (token: string | undefined, name: string, bytes: Buffer) => {
       const form = new FormData();
       form.append('file', new Blob([new Uint8Array(bytes)]), name);
@@ -115,6 +130,7 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
     }
     const users = await db.user.findMany({ where: { email: { in: emails } }, include: { shop: true } });
     const shopIds = users.flatMap(u => u.shop ? [u.shop.id] : []);
+    await db.stockOperation.deleteMany({ where: { shopId: { in: shopIds } } });
     await db.stockMovement.deleteMany({ where: { shopId: { in: shopIds } } });
     await db.variant.deleteMany({ where: { shopId: { in: shopIds } } });
     await db.product.deleteMany({ where: { shopId: { in: shopIds } } });

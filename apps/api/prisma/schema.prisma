@@ -29,6 +29,7 @@ model Shop {
   products       Product[]
   variants       Variant[]
   movements      StockMovement[]
+  operations     StockOperation[]
 }
 
 model Product {
@@ -57,10 +58,12 @@ model Variant {
   color          String          @default("")
   price          Int
   stock          Int             @default(0)
+  active         Boolean         @default(true)
   stockUpdatedAt DateTime        @default(now())
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   movements      StockMovement[]
+  operations     StockOperation[]
   @@unique([shopId, id])
   @@unique([shopId, sku])
   @@index([shopId, productId])
@@ -77,4 +80,19 @@ model StockMovement {
   actorId   String   @db.Uuid
   createdAt DateTime @default(now())
   @@index([shopId, variantId, createdAt])
+}
+
+// A successful sale and its idempotency record commit atomically.
+model StockOperation {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @db.Uuid
+  variantId   String   @db.Uuid
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  variant     Variant  @relation(fields: [shopId, variantId], references: [shopId, id], onDelete: Restrict)
+  requestKey  String
+  quantity    Int
+  resultStock Int?
+  createdAt   DateTime @default(now())
+  @@unique([shopId, requestKey])
+  @@index([shopId, variantId])
 }
