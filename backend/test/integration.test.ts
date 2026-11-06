@@ -15,7 +15,7 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
   const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   const run = randomUUID();
   const emails = [`a-${run}@example.com`, `b-${run}@example.com`];
-  const child = spawn(process.execPath, ['dist/main.js'], { cwd: process.cwd(), env: { ...process.env, DATABASE_URL: databaseUrl!, JWT_SECRET: 'test-only-secret-at-least-32-characters-long', CACHE_ENABLED: 'false', CORS_ORIGINS: 'https://panel.example.com', PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['dist/main.js'], { cwd: process.cwd(), env: { ...process.env, DATABASE_URL: databaseUrl!, DB_HOST: '', DB_PORT: '', DB_USERNAME: '', DB_PASSWORD: '', DB_NAME: '', JWT_SECRET: 'test-only-secret-at-least-32-characters-long', CACHE_ENABLED: 'false', CORS_ORIGINS: 'https://panel.example.com', PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   child.stdout.on('data', data => { logs += data.toString(); });
   child.stderr.on('data', data => { logs += data.toString(); });

@@ -25,3 +25,11 @@ test('CORS accepts explicit origins and rejects paths and wildcards', () => {
   assert.throws(() => loadConfig({ ...valid, CORS_ORIGINS: 'https://panel.example.com/path' }));
   assert.throws(() => loadConfig({ ...valid, CORS_ORIGINS: 'https://panel.example.com/' }));
 });
+
+test('separate database fields generate an encoded PostgreSQL URL and validate missing fields', () => {
+  const config = loadConfig({ DB_HOST: 'localhost', DB_PORT: '5432', DB_USERNAME: 'seller', DB_PASSWORD: 'a@b:c', DB_NAME: 'shop', JWT_SECRET: 'x'.repeat(32), DB_SSL_MODE: 'verify-full' });
+  assert.match(config.DATABASE_URL, /seller:a%40b%3Ac@localhost:5432/);
+  assert.match(config.DATABASE_URL, /sslmode=verify-full/);
+  assert.throws(() => loadConfig({ DB_HOST: 'localhost', JWT_SECRET: 'x'.repeat(32) }));
+  assert.throws(() => loadConfig({ DB_HOST: 'localhost/evil', DB_USERNAME: 'seller', DB_PASSWORD: 'pass', DB_NAME: 'shop', JWT_SECRET: 'x'.repeat(32) }));
+});

@@ -1,6 +1,6 @@
 # Architecture and target design
 
-The target is a TypeScript npm-workspaces monorepo: `apps/api` (NestJS REST API and worker entry point), `apps/web` (Next.js App Router, Persian RTL), `packages/shared` (transport types and validation primitives). PostgreSQL is the source of truth, accessed through Prisma; Redis is optional for caching, controlled by `CACHE_ENABLED`; Redis and BullMQ are planned for asynchronous delivery separately from caching. API and Next.js web run as separate independently deployed services, without Docker. Explicit backend CORS origins and a build-time public API URL connect the browser to the backend. The current implementation has owner-only shops, JWT authentication, product/variant endpoints, transactional stock movements and bounded row-by-row CSV/XLSX imports; a limited deterministic Fresh preview also exists; no channel or LLM integration exists yet.
+The target is a TypeScript repository with independently installed applications: `backend` (NestJS REST API and worker entry point), `frontend` (Next.js App Router, Persian RTL), shared transport types when needed. PostgreSQL is the source of truth, accessed through Prisma; Redis is optional for caching, controlled by `CACHE_ENABLED`; Redis and BullMQ are planned for asynchronous delivery separately from caching. API and Next.js web run as separate independently deployed services, without Docker. Explicit backend CORS origins and a build-time public API URL connect the browser to the backend. The current implementation has owner-only shops, JWT authentication, product/variant endpoints, transactional stock movements and bounded row-by-row CSV/XLSX imports; a limited deterministic Fresh preview also exists; no channel or LLM integration exists yet.
 
 ## Intended API modules
 
@@ -32,3 +32,6 @@ See `.env.example`: PostgreSQL, optional Redis cache, JWT, channel encryption ke
 ## Phasing
 
 Implement and test P1 before Telegram/Fresh (P2), Polish/handoff/eval (P3), seller panel (P4), then post matching (P5). Instagram requires fresh verification against official Meta documentation, app review and availability from Iran before implementation; no unofficial automation. `PROJECT_PLAN.md` retains original task IDs and acceptance criteria.
+
+
+The user requested a future migration to TypeORM and DB_* configuration. DB_* configuration is supported, but the runtime and migrations still use Prisma; TypeORM migration is incomplete. Automatic synchronization is intentionally disabled; use reviewed migrations.

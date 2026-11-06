@@ -1,5 +1,6 @@
 import { Controller, Get, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthController } from './auth/auth.controller';
@@ -18,7 +19,7 @@ import { FreshController } from './fresh/fresh.controller';
 @Controller('health')
 class HealthController { @Get() health() { return { status: 'ok' }; } }
 @Module({
-  imports: [JwtModule.registerAsync({ useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), JwtModule.registerAsync({ useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])],
   controllers: [HealthController, AuthController, ShopController, CatalogController, ImportController, FreshController],
   providers: [PrismaService, AuthGuard, AuthService, CatalogService, ImportService, { provide: CacheService, useFactory: () => createCacheService(loadConfig(process.env)) }, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

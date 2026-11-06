@@ -23,4 +23,25 @@ const schema = z.object({
   }
 });
 export type AppConfig = z.infer<typeof schema>;
-export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => schema.parse(env);
+export function databaseUrl(env: NodeJS.ProcessEnv): string {
+  const fields = ['DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_NAME'] as const;
+  if (fields.some(key => env[key] !== undefined && env[key] !== '')) {
+    const parsed = z.object({
+      DB_HOST: z.string().min(1), DB_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
+      DB_USERNAME: z.string().min(1), DB_PASSWORD: z.string().min(1), DB_NAME: z.string().min(1),
+      DB_SSL_MODE: z.enum(['disable', 'require', 'verify-full']).default('disable'),
+    }).parse(env);
+    const url = new URL('postgresql://localhost');
+    url.hostname = parsed.DB_HOST;
+    if (url.hostname !== parsed.DB_HOST) throw new Error('Invalid DB_HOST');
+    url.port = String(parsed.DB_PORT);
+    url.username = parsed.DB_USERNAME;
+    url.password = parsed.DB_PASSWORD;
+    url.pathname = `/${encodeURIComponent(parsed.DB_NAME)}`;
+    url.searchParams.set('schema', 'public');
+    url.searchParams.set('sslmode', parsed.DB_SSL_MODE);
+    return url.toString();
+  }
+  return env.DATABASE_URL ?? '';
+}
+export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => schema.parse({ ...env, DATABASE_URL: databaseUrl(env) });
