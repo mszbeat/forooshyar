@@ -127,7 +127,7 @@ export default function ImportPage() {
               tabIndex={0}
               onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click(); }}
             >
-              <div className="empty-ico" style={{ width: 46, height: 46, borderRadius: 14 }}>
+              <div className="empty-ico" style={{ width: 46, height: 46 }}>
                 <IconUpload size={22} />
               </div>
               <div className="strong" style={{ fontSize: 'var(--fs-md)' }}>فایل را اینجا رها کنید یا کلیک کنید</div>
@@ -136,9 +136,9 @@ export default function ImportPage() {
             </div>
 
             {file && (
-              <div className="row-between" style={{ padding: '10px 14px', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', background: 'var(--surface-2)' }}>
+              <div className="row-between" style={{ padding: '10px 14px', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', background: 'var(--surface-2)' }}>
                 <div className="row" style={{ gap: 10 }}>
-                  <span className="avatar avatar-brand" style={{ borderRadius: 9 }}><IconFile size={16} /></span>
+                  <span className="avatar avatar-brand"><IconFile size={15} /></span>
                   <div>
                     <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>{file.name}</div>
                     <div className="small muted">{faNum(Math.max(1, Math.round(file.size / 1024)))} کیلوبایت</div>

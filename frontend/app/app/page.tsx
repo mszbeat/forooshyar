@@ -104,10 +104,10 @@ export default function DashboardPage() {
       />
 
       {empty && (
-        <div className="card card-pad" style={{ borderColor: 'var(--brand-100)', background: 'linear-gradient(160deg, var(--brand-50), #fff 60%)' }}>
+        <div className="card card-pad">
           <div className="row-between" style={{ alignItems: 'center' }}>
             <div className="row" style={{ gap: 14 }}>
-              <span className="stat-ico" style={{ width: 44, height: 44, borderRadius: 13 }}><IconSparkles size={22} /></span>
+              <span className="stat-ico" style={{ width: 38, height: 38 }}><IconSparkles size={18} /></span>
               <div>
                 <div className="strong">کاتالوگ شما هنوز خالی است</div>
                 <div className="small muted">با افزودن اولین محصول، دستیار پاسخ‌گو می‌تواند قیمت و موجودی را از کاتالوگ بخواند.</div>
@@ -121,7 +121,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid g-4">
+      <div className="stat-strip">
         <StatCard
           icon={<IconMoney />}
           label="فروش امروز"
@@ -185,7 +185,7 @@ export default function DashboardPage() {
           </div>
           <div className="card-foot row-between">
             <span className="small muted">مجموع هفته: <strong className="strong" style={{ color: 'var(--ink)' }}>{toman(sales.week.revenue)}</strong></span>
-            <Link href="/app/products" className="small" style={{ color: 'var(--brand)', fontWeight: 700 }}>مدیریت موجودی ←</Link>
+            <Link href="/app/products" className="small" style={{ color: 'var(--brand)', fontWeight: 500 }}>مدیریت موجودی ←</Link>
           </div>
         </section>
 
@@ -296,18 +296,18 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <section className="card card-pad" style={{ background: 'linear-gradient(135deg, #0a4f43, #0f7a6a)', border: 0, color: '#fff' }}>
+      <section className="dark-band">
         <div className="row-between">
           <div>
             <div className="row" style={{ gap: 10 }}>
-              <IconSparkles size={20} />
-              <strong style={{ fontSize: 'var(--fs-lg)' }}>پاسخ دستیار را قبل از انتشار ببینید</strong>
+              <IconSparkles size={19} />
+              <strong className="dark-title">پاسخ دستیار را قبل از انتشار ببینید</strong>
             </div>
-            <p className="small" style={{ opacity: 0.82, marginTop: 4 }}>
+            <p className="dark-desc">
               گفتگوی آزمایشی، همان منطق واقعی پاسخ‌گویی را اجرا می‌کند — بدون ارسال پیام و بدون تغییر داده.
             </p>
           </div>
-          <Link href="/app/assistant" className="btn btn-lg" style={{ background: '#fff', color: 'var(--brand-700)', border: 0 }}>
+          <Link href="/app/assistant" className="btn btn-lg btn-on-dark">
             شروع تست
             <IconArrowLeft size={17} />
           </Link>

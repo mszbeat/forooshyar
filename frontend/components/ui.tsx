@@ -112,12 +112,12 @@ export function StatCard({
   icon, label, value, unit, foot, tone,
 }: { icon: ReactNode; label: string; value: string; unit?: string; foot?: ReactNode; tone?: 'brand' | 'amber' | 'danger' }) {
   const style = tone === 'amber'
-    ? { background: 'var(--amber-soft)', color: 'var(--amber)' }
+    ? { background: 'var(--amber-soft)', color: 'var(--amber)', borderColor: 'var(--amber-line)' }
     : tone === 'danger'
-      ? { background: 'var(--danger-soft)', color: 'var(--danger)' }
+      ? { background: 'var(--danger-soft)', color: 'var(--danger)', borderColor: 'var(--danger-line)' }
       : undefined;
   return (
-    <div className="card stat">
+    <div className="stat">
       <div className="stat-top">
         <span className="stat-ico" style={style}>{icon}</span>
         <span className="stat-label">{label}</span>
@@ -148,7 +148,7 @@ export function SkeletonRows({ rows = 4 }: { rows?: number }) {
     <div className="list" aria-busy="true">
       {Array.from({ length: rows }).map((_, index) => (
         <div className="list-row" key={index}>
-          <div className="skeleton" style={{ width: 34, height: 34, borderRadius: 10 }} />
+          <div className="skeleton" style={{ width: 34, height: 34, borderRadius: 'var(--r-xs)' }} />
           <div className="list-main" style={{ display: 'grid', gap: 8 }}>
             <div className="skeleton" style={{ height: 11, width: `${58 - index * 6}%` }} />
             <div className="skeleton" style={{ height: 9, width: '34%' }} />
@@ -160,7 +160,7 @@ export function SkeletonRows({ rows = 4 }: { rows?: number }) {
 }
 
 export function SkeletonBlock({ height = 120 }: { height?: number }) {
-  return <div className="skeleton" style={{ height, borderRadius: 14 }} aria-busy="true" />;
+  return <div className="skeleton" style={{ height, borderRadius: 'var(--r-sm)' }} aria-busy="true" />;
 }
 
 /* ---------------------------------------------------------------- Spinner */
