@@ -1,6 +1,6 @@
-# Target architecture (not yet implemented)
+# Architecture and target design
 
-The target is a TypeScript npm-workspaces monorepo: `apps/api` (NestJS REST API and worker entry point), `apps/web` (Next.js App Router, Persian RTL), `packages/shared` (transport types and validation primitives). PostgreSQL is the source of truth, accessed through Prisma; Redis is optional for caching, controlled by `CACHE_ENABLED`; Redis and BullMQ are planned for asynchronous delivery separately from caching. Services run without Docker. No channel or LLM integration exists yet.
+The target is a TypeScript repository with independently installed applications: `backend` (NestJS REST API and worker entry point), `frontend` (Next.js App Router, Persian RTL), shared transport types when needed. PostgreSQL is the source of truth, accessed through Prisma; Redis is optional for caching, controlled by `CACHE_ENABLED`; Redis and BullMQ are planned for asynchronous delivery separately from caching. API and Next.js web run as separate independently deployed services, without Docker. Explicit backend CORS origins and a build-time public API URL connect the browser to the backend. The current implementation has owner-only shops, JWT authentication, product/variant endpoints, transactional stock movements and bounded row-by-row CSV/XLSX imports; a limited deterministic Fresh preview also exists; no channel or LLM integration exists yet.
 
 ## Intended API modules
 
@@ -10,10 +10,11 @@ The target is a TypeScript npm-workspaces monorepo: `apps/api` (NestJS REST API 
 - `channels/telegram`, `channels/bale`, `channels/instagram`: adapters implementing shared incoming/outgoing contracts; authenticated webhooks enqueue quickly and workers handle retries/idempotency.
 - `fresh`: Persian normalization, deterministic intent, scoped catalog retrieval and templates. `polish`: provider-neutral LLM client, OpenRouter, budgets and guardrails; never send arbitrary catalog data across tenants.
 - `posts`, `usage`, `subscriptions`: post links and drafts, metering and plan settings.
+- `reports`: implemented (`GET /reports/summary`, `GET /reports/attention`). Read-only, shop-scoped aggregates over the catalog and the stock ledger: today/week sales, inventory value, out-of-stock, low-stock and stale variants, plus the recent movement feed. Nothing here is cached or estimated; every figure is computed from PostgreSQL.
 
 ## Data design
 
-Use UUID IDs, timestamps and explicit `shopId` on every tenant-owned table. Composite unique keys and foreign keys including `shopId` prevent cross-tenant relations; all services derive tenant from authenticated membership, never a client-provided tenant alone. Users can have memberships in shops; initial onboarding creates a single owner membership. Enforce membership and tenant predicates on every read and write, with integration tests against real PostgreSQL. Global user identity is not tenant-owned.
+Use UUID IDs, timestamps and explicit `shopId` on every tenant-owned table. Composite unique keys and foreign keys including `shopId` prevent cross-tenant relations; all services derive tenant from authenticated membership, never a client-provided tenant alone. The current implementation creates one shop per owner and has no membership table; multi-user memberships are a future design. Enforce membership and tenant predicates on every read and write, with integration tests against real PostgreSQL. Global user identity is not tenant-owned.
 
 - `users`: unique normalized email, password hash; `shops`: name, tone, shipping/payment/hours/handoff settings; `shop_memberships`: user, shop, role.
 - `channel_connections`: platform, encrypted token, encryption version, status, platform identifier; use authenticated encryption with a separate environment-provided key. Never log tokens.
@@ -23,7 +24,7 @@ Use UUID IDs, timestamps and explicit `shopId` on every tenant-owned table. Comp
 - `posts`, `post_product_links`: tenant-scoped platform identifiers and product associations; unique channel/post identity.
 - `usage_logs`, `subscriptions`: shop, usage/tokens/cost, plan, limits and model configuration; reserve daily budget atomically before external calls to avoid parallel overspend.
 
-This is a design, not an applied schema. Add migrations and appropriate indexes/check constraints as each phase is implemented. Never trust an LLM for price or availability: use deterministic replies where possible; number validation alone cannot prevent semantic or stock errors, so Polish must also be constrained by deterministic facts and fall back safely. Treat customer text as untrusted data. Avoid logging personal messages or credentials.
+Only users, shops, products, variants and stock movements are currently implemented in Prisma; the remaining models and memberships are design targets. Add migrations and appropriate indexes/check constraints as each phase is implemented. Never trust an LLM for price or availability: use deterministic replies where possible; number validation alone cannot prevent semantic or stock errors, so Polish must also be constrained by deterministic facts and fall back safely. Treat customer text as untrusted data. Avoid logging personal messages or credentials.
 
 ## Configuration and deployment
 
@@ -32,3 +33,6 @@ See `.env.example`: PostgreSQL, optional Redis cache, JWT, channel encryption ke
 ## Phasing
 
 Implement and test P1 before Telegram/Fresh (P2), Polish/handoff/eval (P3), seller panel (P4), then post matching (P5). Instagram requires fresh verification against official Meta documentation, app review and availability from Iran before implementation; no unofficial automation. `PROJECT_PLAN.md` retains original task IDs and acceptance criteria.
+
+
+The user requested a future migration to TypeORM and DB_* configuration. DB_* configuration is supported, but the runtime and migrations still use Prisma; TypeORM migration is incomplete. Automatic synchronization is intentionally disabled; use reviewed migrations.

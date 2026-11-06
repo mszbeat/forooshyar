@@ -1,0 +1,165 @@
+/** Typed API client. The browser always talks to the same origin; Next proxies `/api/*`. */
+
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || '/api').replace(/\/$/, '');
+const TOKEN_KEY = 'forooshyar.token';
+
+export type Variant = {
+  id: string; productId: string; sku: string | null; size: string; color: string;
+  price: number; stock: number; active: boolean; stockUpdatedAt: string;
+};
+export type Product = {
+  id: string; title: string; description: string; category: string;
+  active: boolean; createdAt: string; updatedAt: string; variants: Variant[];
+};
+export type Shop = {
+  id: string; name: string; tone: string; shipping: string; payment: string;
+  workingHours: string; handoffMessage: string;
+};
+export type Movement = {
+  id: string; delta: number; reason: string; createdAt: string;
+  variant: { id: string; size: string; color: string; price: number; product: { id: string; title: string } };
+};
+export type Summary = {
+  products: { total: number; active: number };
+  variants: { total: number; outOfStock: number; lowStock: number; stale: number };
+  inventory: { totalStock: number; value: number; lowStockThreshold: number };
+  sales: {
+    today: { units: number; revenue: number };
+    week: { units: number; revenue: number };
+    series: { date: string; units: number; revenue: number }[];
+  };
+  recent: Movement[];
+};
+export type AttentionItem = {
+  id: string; size: string; color: string; price: number; stock: number;
+  stockUpdatedAt: string; severity: 'out' | 'low' | 'stale';
+  product: { id: string; title: string };
+};
+export type ImportResult = {
+  imported: number; failed: number;
+  results: { row: number; status: string; errors?: string[] }[];
+};
+export type BotReply = { kind: 'answer' | 'clarify' | 'handoff'; text: string };
+export type SaleResult = Variant & { stock: number };
+export type AuthResult = { accessToken: string; tokenType: string; expiresIn: number };
+
+export class ApiError extends Error {
+  status: number;
+  details?: unknown;
+  constructor(message: string, status: number, details?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.details = details;
+  }
+}
+
+export const tokenStore = {
+  get(): string | null {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(TOKEN_KEY);
+  },
+  set(token: string) { window.localStorage.setItem(TOKEN_KEY, token); },
+  clear() { window.localStorage.removeItem(TOKEN_KEY); },
+};
+
+const messages: Record<number, string> = {
+  400: 'اطلاعات ارسالی معتبر نیست. مقادیر فرم را بررسی کنید.',
+  401: 'نشست شما پایان یافته است. دوباره وارد شوید.',
+  404: 'موردی با این شناسه پیدا نشد.',
+  409: 'این عملیات با وضعیت فعلی موجودی یا داده‌های تکراری سازگار نیست.',
+  413: 'حجم فایل بیش از حد مجاز است (حداکثر ۲ مگابایت).',
+  429: 'تعداد درخواست‌ها زیاد بود؛ چند لحظه بعد دوباره تلاش کنید.',
+  500: 'خطای غیرمنتظره‌ای در سرور رخ داد.',
+};
+
+/** Pull the first human-readable message out of a Nest/Zod error payload. */
+function describe(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const body = payload as Record<string, unknown>;
+  const flatten = body.message ?? body.error;
+  if (typeof flatten === 'string') return flatten;
+  if (Array.isArray(flatten) && typeof flatten[0] === 'string') return flatten[0];
+  if (flatten && typeof flatten === 'object') {
+    const fieldErrors = (flatten as { fieldErrors?: Record<string, string[]> }).fieldErrors;
+    const first = fieldErrors && Object.values(fieldErrors).find(list => list?.length);
+    if (first?.[0]) return first[0];
+  }
+  return null;
+}
+
+type Options = Omit<RequestInit, 'body'> & { body?: unknown; auth?: boolean };
+
+export async function request<T>(path: string, { body, auth = true, headers = {}, ...rest }: Options = {}): Promise<T> {
+  const token = auth ? tokenStore.get() : null;
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...rest,
+    headers: {
+      ...(body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(headers as Record<string, string>),
+    },
+    ...(body !== undefined ? { body: isForm ? (body as FormData) : JSON.stringify(body) } : {}),
+  });
+
+  const text = await response.text();
+  let payload: unknown = null;
+  if (text) { try { payload = JSON.parse(text); } catch { payload = text; } }
+
+  if (!response.ok) {
+    if (response.status === 401 && auth && typeof window !== 'undefined') {
+      tokenStore.clear();
+      if (!window.location.pathname.startsWith('/login')) window.location.assign('/login');
+    }
+    const detail = describe(payload);
+    throw new ApiError(detail || messages[response.status] || `درخواست انجام نشد (${response.status}).`, response.status, payload);
+  }
+  return payload as T;
+}
+
+export const api = {
+  login: (email: string, password: string) =>
+    request<AuthResult>('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
+  register: (email: string, password: string, shopName: string) =>
+    request<AuthResult>('/auth/register', { method: 'POST', body: { email, password, shopName }, auth: false }),
+
+  shop: () => request<Shop>('/shop'),
+  updateShop: (body: Partial<Shop>) => request<Shop>('/shop', { method: 'PATCH', body }),
+
+  products: () => request<Product[]>('/products'),
+  product: (id: string) => request<Product>(`/products/${id}`),
+  createProduct: (body: { title: string; description?: string; category?: string }) =>
+    request<Product>('/products', { method: 'POST', body }),
+  updateProduct: (id: string, body: Partial<Pick<Product, 'title' | 'description' | 'category' | 'active'>>) =>
+    request<Product>(`/products/${id}`, { method: 'PATCH', body }),
+  archiveProduct: (id: string) => request<Product>(`/products/${id}`, { method: 'DELETE' }),
+
+  createVariant: (productId: string, body: { sku?: string; size?: string; color?: string; price: number; stock: number }) =>
+    request<Variant>(`/products/${productId}/variants`, { method: 'POST', body }),
+  updateVariant: (id: string, body: { sku?: string | null; size?: string; color?: string; price?: number; active?: boolean }) =>
+    request<Variant>(`/variants/${id}`, { method: 'PATCH', body }),
+  archiveVariant: (id: string) => request<Variant>(`/variants/${id}`, { method: 'DELETE' }),
+
+  sell: (id: string, quantity = 1) =>
+    request<SaleResult>(`/variants/${id}/sell`, {
+      method: 'POST',
+      body: { quantity },
+      headers: { 'Idempotency-Key': `web-${crypto.randomUUID()}` },
+    }),
+  adjustStock: (id: string, delta: number, reason: 'restock' | 'manual' = 'manual') =>
+    request<Variant>(`/variants/${id}/stock`, { method: 'POST', body: { delta, reason } }),
+  movements: (variantId: string) =>
+    request<{ id: string; delta: number; reason: string; createdAt: string }[]>(`/variants/${variantId}/movements`),
+
+  importCatalog: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<ImportResult>('/catalog/import', { method: 'POST', body: form });
+  },
+
+  botPreview: (message: string) => request<BotReply>('/bot/preview', { method: 'POST', body: { message } }),
+
+  summary: () => request<Summary>('/reports/summary'),
+  attention: () => request<AttentionItem[]>('/reports/attention'),
+};
