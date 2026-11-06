@@ -1,104 +1,210 @@
-'use client';
+import Link from 'next/link';
+import './landing.css';
+import {
+  IconArrowLeft, IconBolt, IconChat, IconCheckCircle, IconLogo, IconPackage,
+  IconShield, IconSparkles, IconStore, IconTrendUp, IconUpload, IconClock,
+} from '@/components/icons';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import './styles.css';
+const features = [
+  {
+    icon: <IconChat />,
+    title: 'پاسخ خودکار از کاتالوگ زنده',
+    text: 'مشتری می‌پرسد «این مانتو موجوده؟» و پاسخ در همان لحظه از موجودی ثبت‌شده خودتان ساخته می‌شود؛ بدون اسکریپت، بدون حدس.',
+  },
+  {
+    icon: <IconPackage />,
+    title: 'موجودی و دفتر گردش',
+    text: 'هر فروش، هر شارژ و هر اصلاح دستی در یک تراکنش اتمیک ثبت می‌شود. تاریخچه کامل هر واریانت همیشه در دسترس است.',
+  },
+  {
+    icon: <IconUpload />,
+    title: 'آپلود اکسل و CSV',
+    text: 'کل کاتالوگ را یک‌جا وارد کنید. سیستم هر ردیف را جدا بررسی می‌کند و خطای دقیق همان ردیف را به شما برمی‌گرداند.',
+  },
+  {
+    icon: <IconBolt />,
+    title: 'دکمه «فروخته شد»',
+    text: 'در چند ثانیه از گوشی ثبت کنید. کاهش موجودی محافظت‌شده است و در شرایط هم‌زمانی هرگز منفی نمی‌شود.',
+  },
+  {
+    icon: <IconTrendUp />,
+    title: 'داشبورد تصمیم‌گیری',
+    text: 'فروش امروز و هفته، ارزش انبار، محصولات کم‌موجود و موجودی قدیمی که باید بازبینی شود — همه در یک صفحه.',
+  },
+  {
+    icon: <IconSparkles />,
+    title: 'تست پاسخ پیش از انتشار',
+    text: 'گفتگوی آزمایشی داخل پنل: ببینید بات به هر سؤال چه جوابی می‌دهد و چه زمان تصمیم می‌گیرد کار را به شما بسپارد.',
+  },
+];
 
-type Variant = { active: boolean; id: string; size: string; color: string; price: number; stock: number; stockUpdatedAt: string };
-type Product = { id: string; title: string; active: boolean; variants: Variant[] };
-type Shop = { name: string; tone: string; shipping: string; payment: string; workingHours: string; handoffMessage: string };
-type ImportResult = { imported: number; failed: number; results: { row: number; status: string; errors?: string[] }[] };
-const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
-const faNumber = (value: number) => value.toLocaleString('fa-IR');
+const principles = [
+  { icon: <IconShield />, title: 'قیمت فقط از دیتابیس', text: 'هیچ عددی از مدل زبانی ساخته نمی‌شود؛ منبع قیمت و موجودی همیشه پایگاه داده شماست.' },
+  { icon: <IconCheckCircle />, title: 'اگر مطمئن نیست، ارجاع می‌دهد', text: 'سؤال مبهم یا خارج از کاتالوگ به شما ارجاع داده می‌شود. حدس‌زدن دربارهٔ قیمت و موجودی ممنوع است.' },
+  { icon: <IconStore />, title: 'جداسازی کامل فروشگاه‌ها', text: 'هر رکورد به فروشگاه خودش قفل است و هر کوئری با شناسه فروشگاه فیلتر می‌شود.' },
+];
 
-export default function Home() {
-  const [token, setToken] = useState('');
-  const [register, setRegister] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [report, setReport] = useState<ImportResult | null>(null);
-  const [preview, setPreview] = useState<{kind: string; text: string} | null>(null);
+export default function LandingPage() {
+  return (
+    <div className="land">
+      <nav className="land-nav">
+        <div className="brand">
+          <span className="brand-mark"><IconLogo size={20} /></span>
+          <div>
+            <div className="brand-name">فروش‌یار</div>
+            <div className="brand-sub">دستیار فروش فارسی</div>
+          </div>
+        </div>
+        <div className="land-links">
+          <a href="#features">امکانات</a>
+          <a href="#how">چطور کار می‌کند</a>
+          <a href="#principles">اصول</a>
+        </div>
+        <div className="land-nav-actions">
+          <Link className="btn btn-ghost btn-sm" href="/login">ورود</Link>
+          <Link className="btn btn-primary btn-sm" href="/login?mode=register">
+            ساخت فروشگاه
+            <IconArrowLeft size={15} />
+          </Link>
+        </div>
+      </nav>
 
-  const request = useCallback(async <T,>(path: string, options: RequestInit = {}, auth = token): Promise<T> => {
-    if (!apiBase) throw new Error('آدرس API تنظیم نشده است.');
-    const response = await fetch(`${apiBase}${path}`, { ...options, headers: { ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...(auth ? { Authorization: `Bearer ${auth}` } : {}), ...options.headers } });
-    if (!response.ok) {
-      if (response.status === 401) throw new Error('اطلاعات ورود نامعتبر است یا نشست شما پایان یافته است.');
-      if (response.status === 409) throw new Error('عملیات با وضعیت فعلی موجودی یا اطلاعات تکراری سازگار نیست.');
-      if (response.status === 429) throw new Error('درخواست‌ها بیش از حد است؛ کمی بعد دوباره تلاش کنید.');
-      throw new Error(`درخواست انجام نشد (خطای ${response.status}).`);
-    }
-    return response.json() as Promise<T>;
-  }, [token]);
-  const refresh = useCallback(async () => {
-    const [list, settings] = await Promise.all([request<Product[]>('/products'), request<Shop>('/shop')]);
-    setProducts(list); setShop(settings);
-  }, [request]);
-  useEffect(() => { if (token) void refresh().catch((e: Error) => setError(e.message)); }, [token, refresh]);
-  async function action(fn: () => Promise<void>) {
-    setError(''); setNotice(''); setBusy(true);
-    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : 'خطای ناشناخته'); } finally { setBusy(false); }
-  }
-  function json(value: object) { return JSON.stringify(value); }
-  function input(form: HTMLFormElement) { return new FormData(form); }
-  async function authenticate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const data = input(event.currentTarget);
-    await action(async () => {
-      const body = { email: String(data.get('email')), password: String(data.get('password')), ...(register ? { shopName: String(data.get('shopName')) } : {}) };
-      const result = await request<{ accessToken: string }>(register ? '/auth/register' : '/auth/login', { method: 'POST', body: json(body) }, '');
-      setToken(result.accessToken);
-    });
-  }
-  async function addProduct(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const data = input(form);
-    await action(async () => { await request('/products', { method: 'POST', body: json({ title: String(data.get('title')) }) }); form.reset(); await refresh(); setNotice('محصول ایجاد شد؛ اکنون واریانت آن را اضافه کنید.'); });
-  }
-  async function addVariant(event: FormEvent<HTMLFormElement>, productId: string) {
-    event.preventDefault(); const form = event.currentTarget; const data = input(form);
-    await action(async () => { await request(`/products/${productId}/variants`, { method: 'POST', body: json({ price: Number(data.get('price')), stock: Number(data.get('stock')), size: String(data.get('size')), color: String(data.get('color')) }) }); form.reset(); await refresh(); setNotice('واریانت اضافه شد.'); });
-  }
-  async function editVariant(event: FormEvent<HTMLFormElement>, variant: Variant) {
-    event.preventDefault(); const data = input(event.currentTarget);
-    await action(async () => { await request(`/variants/${variant.id}`, { method: 'PATCH', body: json({ price: Number(data.get('price')), size: String(data.get('size')), color: String(data.get('color')) }) }); await refresh(); setNotice('واریانت ویرایش شد.'); });
-  }
-  async function adjustStock(event: FormEvent<HTMLFormElement>, variant: Variant) {
-    event.preventDefault(); const form = event.currentTarget; const data = input(form);
-    await action(async () => { await request(`/variants/${variant.id}/stock`, { method: 'POST', body: json({ delta: Number(data.get('delta')), reason: 'manual' }) }); form.reset(); await refresh(); setNotice('موجودی اصلاح شد.'); });
-  }
-  async function saveSettings(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const data = input(event.currentTarget);
-    await action(async () => { await request('/shop', { method: 'PATCH', body: json(Object.fromEntries(data.entries())) }); await refresh(); setNotice('تنظیمات ذخیره شد.'); });
-  }
-  async function previewReply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const data = input(event.currentTarget);
-    await action(async () => { setPreview(await request<{kind: string; text: string}>('/bot/preview', { method: 'POST', body: json({ message: String(data.get('message')) }) })); });
-  }
-  async function upload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); const form = event.currentTarget; const data = input(form);
-    await action(async () => { const result = await request<ImportResult>('/catalog/import', { method: 'POST', body: data }); setReport(result); await refresh(); setNotice('پردازش فایل انجام شد.'); });
-  }
-  return <main className="shell">
-    <header><div><span className="eyebrow">دستیار فروش فارسی</span><h1>فروش‌یار</h1></div>{token && <button className="secondary" onClick={() => { setToken(''); setProducts([]); setShop(null); setReport(null); setPreview(null); }}>خروج</button>}</header>
-    {!apiBase && <p role="alert" className="error">متغیر NEXT_PUBLIC_API_BASE_URL برای فرانت تنظیم نشده است.</p>}
-    {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status" className="success">{notice}</p>}
-    {!token ? <section className="card auth"><h2>{register ? 'ساخت فروشگاه' : 'ورود به فروشگاه'}</h2><p>مدیریت کاتالوگ و موجودی در یک جا</p><form onSubmit={authenticate}>
-      {register && <label>نام فروشگاه<input name="shopName" required maxLength={200} /></label>}
-      <label>ایمیل<input name="email" type="email" required autoComplete="username" dir="ltr" /></label>
-      <label>رمز عبور<input name="password" type="password" minLength={10} maxLength={128} required autoComplete={register ? 'new-password' : 'current-password'} dir="ltr" /></label>
-      <button disabled={busy}>{register ? 'ثبت‌نام' : 'ورود'}</button></form><button type="button" className="link" onClick={() => setRegister(!register)}>{register ? 'حساب دارید؟ وارد شوید' : 'حساب ندارید؟ ثبت‌نام کنید'}</button></section>
-      : <><section className="card"><h2>محصولات {shop && `«${shop.name}»`}</h2><p>قیمت‌ها به تومان هستند. موجودی هنگام فروش از پایگاه داده کم می‌شود.</p>
-        <form className="row" onSubmit={addProduct}><label>نام محصول<input name="title" required maxLength={200} /></label><button disabled={busy}>افزودن محصول</button></form>
-        {products.length === 0 && <p>هنوز محصولی ثبت نشده است.</p>}
-        <div className="products">{products.map(product => <article className="product" key={product.id}><div className="productHead"><h3>{product.title}</h3><span>{product.active ? 'فعال' : 'غیرفعال'}</span></div><button className="link" disabled={busy} onClick={() => void action(async () => { const title = window.prompt('نام جدید محصول', product.title); if (title === null) return; await request(`/products/${product.id}`, { method: 'PATCH', body: json({ title }) }); await refresh(); })}>ویرایش نام</button><button className="link" disabled={busy} onClick={() => void action(async () => { await request(`/products/${product.id}`, { method: 'PATCH', body: json({ active: !product.active }) }); await refresh(); })}>{product.active ? 'غیرفعال‌سازی محصول' : 'فعال‌سازی محصول'}</button>
-          {product.variants.filter(variant => variant.active).map(variant => <div className="variant" key={variant.id}><div><strong>{variant.color || 'بدون رنگ'} · {variant.size || 'بدون سایز'}</strong><p>{faNumber(variant.price)} تومان · موجودی {faNumber(variant.stock)}</p></div><button disabled={busy || !product.active || variant.stock === 0} onClick={() => void action(async () => { await request(`/variants/${variant.id}/sell`, { method: 'POST', headers: { 'Idempotency-Key': crypto.randomUUID() }, body: json({ quantity: 1 }) }); await refresh(); setNotice('فروش ثبت شد.'); })}>فروخته شد</button><details><summary>ویرایش</summary><form className="grid" onSubmit={event => void editVariant(event, variant)}><label>قیمت (تومان)<input name="price" type="number" min="0" max="2147483647" defaultValue={variant.price} required /></label><label>سایز<input name="size" defaultValue={variant.size} /></label><label>رنگ<input name="color" defaultValue={variant.color} /></label><button disabled={busy}>ذخیره</button></form><form className="row" onSubmit={event => void adjustStock(event, variant)}><label>تغییر موجودی (مثلاً ۲ یا ۱-)<input name="delta" type="number" min="-2147483647" max="2147483647" required /></label><button disabled={busy}>ثبت تغییر</button></form><button className="link" disabled={busy} onClick={() => { if (window.confirm('این واریانت غیرفعال شود؟')) void action(async () => { await request(`/variants/${variant.id}`, { method: 'DELETE' }); await refresh(); }); }}>غیرفعال‌سازی واریانت</button></details></div>)}
-          <details><summary>افزودن واریانت</summary><form className="grid" onSubmit={event => void addVariant(event, product.id)}><label>قیمت (تومان)<input name="price" type="number" min="0" max="2147483647" required /></label><label>موجودی<input name="stock" type="number" min="0" max="2147483647" required /></label><label>سایز<input name="size" /></label><label>رنگ<input name="color" /></label><button disabled={busy}>ثبت واریانت</button></form></details>
-        </article>)}</div></section>
-        <section className="card"><h2>ورود کاتالوگ</h2><p>فایل CSV یا Excel را طبق نمونه آماده کنید؛ هر ردیف یک محصول جدید می‌سازد.</p><form className="row" onSubmit={upload}><label>فایل<input type="file" name="file" accept=".csv,.xlsx" required /></label><button disabled={busy}>بارگذاری</button></form>{report && <div><p>موفق: {faNumber(report.imported)} · ناموفق: {faNumber(report.failed)}</p>{report.results.filter(row => row.errors?.length).map(row => <p key={row.row}>ردیف {faNumber(row.row)}: {row.errors?.some(item => item.includes('SKU')) ? 'شناسهٔ کالا تکراری است.' : row.errors?.some(item => item.includes('Formula')) ? 'فرمول یا مقدار پشتیبانی‌نشده در فایل وجود دارد.' : 'نام، قیمت یا موجودی را بررسی کنید.'}</p>)}</div>}</section>
-        <section className="card"><h2>پیش‌نمایش پاسخ</h2><p>این فقط یک آزمایش است؛ پیامی ارسال یا ارجاعی ثبت نمی‌شود.</p><form className="row" onSubmit={previewReply}><label>پیام مشتری<input name="message" maxLength={2000} required /></label><button disabled={busy}>مشاهده پاسخ</button></form>{preview && <div className="preview"><strong>{preview.kind === 'handoff' ? 'نیازمند پاسخ فروشنده' : preview.kind === 'clarify' ? 'نیازمند توضیح بیشتر' : 'پاسخ پیشنهادی'}</strong><p>{preview.text}</p></div>}</section>
-        {shop && <section className="card"><h2>تنظیمات فروشگاه</h2><form className="grid" onSubmit={saveSettings}>{([['name','نام فروشگاه'],['tone','لحن'],['shipping','ارسال'],['payment','پرداخت'],['workingHours','ساعات کاری'],['handoffMessage','پیام ارجاع']] as const).map(([field, label]) => <label key={field}>{label}<input name={field} defaultValue={shop[field]} required={field === 'name'} maxLength={field === 'name' ? 200 : 2000} /></label>)}<button disabled={busy}>ذخیره تنظیمات</button></form></section>}
-      </>}
-    <footer>بخش گفتگو و پاسخ‌گوی خودکار هنوز آماده نیست.</footer>
-  </main>;
+      <header className="land-hero">
+        <div>
+          <span className="hero-badge">
+            <span className="dot" />
+            ساخته‌شده برای فروشگاه‌های فارسی‌زبان
+          </span>
+          <h1 className="hero-title">
+            دستیاری که <em>قیمت و موجودی</em> را<br />
+            از کاتالوگ خودت می‌خواند
+          </h1>
+          <p className="hero-lead">
+            فروش‌یار به سؤال‌های تکراری مشتری‌ها در تلگرام و اینستاگرام پاسخ می‌دهد،
+            موجودی را برایتان دقیق نگه می‌دارد و هر جا مطمئن نبود، گفتگو را به شما می‌سپارد.
+          </p>
+          <div className="hero-actions">
+            <Link className="btn btn-primary btn-lg" href="/login?mode=register">
+              شروع رایگان
+              <IconArrowLeft size={18} />
+            </Link>
+            <Link className="btn btn-outline btn-lg" href="/login">
+              ورود به پنل
+            </Link>
+          </div>
+          <div className="hero-proof">
+            <span><IconCheckCircle size={15} /> راه‌اندازی در کمتر از ۱۵ دقیقه</span>
+            <span><IconClock size={15} /> پاسخ در همان لحظه</span>
+            <span><IconShield size={15} /> داده‌های هر فروشگاه جدا</span>
+          </div>
+        </div>
+
+        <div className="mock" aria-hidden="true">
+          <div className="mock-bar">
+            <span className="mock-dot" /><span className="mock-dot" /><span className="mock-dot" />
+          </div>
+          <div className="mock-body">
+            <div className="mock-side">
+              <div className="mock-pill on" style={{ height: 30 }} />
+              <div className="mock-pill" /><div className="mock-pill" /><div className="mock-pill" />
+              <div className="mock-pill" style={{ width: '70%' }} />
+              <div className="mock-pill" style={{ width: '55%', marginTop: 'auto' }} />
+            </div>
+            <div>
+              <div className="mock-cards">
+                <div className="mock-card"><div className="k">فروش امروز</div><div className="v">۴٫۲ م</div></div>
+                <div className="mock-card"><div className="k">موجودی کل</div><div className="v">۸۴</div></div>
+              </div>
+              <div className="mock-chart">
+                {[38, 62, 30, 78, 46, 90, 58].map((height, index) => (
+                  <i key={index} style={{ height: `${height}%` }} />
+                ))}
+              </div>
+              <div className="mock-card" style={{ marginTop: 10 }}>
+                <div className="k">آخرین گفتگو</div>
+                <div style={{ fontSize: 11, marginTop: 3, color: 'var(--ink-2)' }}>
+                  «سلام، مانتو کتان سایز M موجوده؟»
+                </div>
+                <div style={{ fontSize: 11, marginTop: 4, color: 'var(--brand)', fontWeight: 600 }}>
+                  بله، ۱۲ عدد موجود است — ۸۹۰٬۰۰۰ تومان
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section className="land-section" id="features">
+        <div className="section-eyebrow">امکانات</div>
+        <h2 className="section-title">هر چیزی که برای فروش دقیق لازم دارید</h2>
+        <p className="section-lead">
+          پنل فروشنده فروش‌یار حول یک اصل ساخته شده: اطلاعات فروشگاه شما باید همیشه درست، به‌روز و قابل اعتماد باشد.
+        </p>
+        <div className="feature-grid">
+          {features.map(feature => (
+            <article className="feature" key={feature.title}>
+              <div className="feature-ico">{feature.icon}</div>
+              <h3>{feature.title}</h3>
+              <p>{feature.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="land-section" id="how">
+        <div className="section-eyebrow">شروع سریع</div>
+        <h2 className="section-title">سه قدم تا اولین پاسخ خودکار</h2>
+        <div className="steps">
+          <div className="step">
+            <h3>فروشگاه را بسازید</h3>
+            <p>نام فروشگاه، لحن پاسخ، شرایط ارسال و پرداخت را وارد کنید. همین چند فیلد برای شروع کافی است.</p>
+          </div>
+          <div className="step">
+            <h3>کاتالوگ را وارد کنید</h3>
+            <p>محصول و سایزها را دستی اضافه کنید یا فایل اکسل/CSV را یک‌جا بارگذاری کنید.</p>
+          </div>
+          <div className="step">
+            <h3>پاسخ را تست کنید</h3>
+            <p>در گفتگوی آزمایشی ببینید بات چه می‌گوید و کجا تصمیم می‌گیرد سؤال را به شما ارجاع دهد.</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="land-section" id="principles">
+        <div className="section-eyebrow">اصول طراحی</div>
+        <h2 className="section-title">چرا می‌توانید به پاسخ‌ها اعتماد کنید</h2>
+        <div className="principles">
+          {principles.map(principle => (
+            <div className="principle" key={principle.title}>
+              {principle.icon}
+              <div>
+                <strong>{principle.title}</strong>
+                <span>{principle.text}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="cta-band">
+        <div>
+          <h2>همین امروز کاتالوگ‌تان را وارد کنید</h2>
+          <p>راه‌اندازی بدون تنظیمات پیچیده؛ اولین محصول را در چند دقیقه ثبت کنید و پاسخ‌های خودکار را ببینید.</p>
+        </div>
+        <Link className="btn btn-lg" href="/login?mode=register">
+          ساخت فروشگاه
+          <IconArrowLeft size={18} />
+        </Link>
+      </section>
+
+      <footer className="land-footer">
+        <span>© ۱۴۰۵ فروش‌یار — دستیار فروش فارسی</span>
+        <div className="links">
+          <span>حریم خصوصی</span>
+          <span>شرایط استفاده</span>
+          <span>پشتیبانی</span>
+        </div>
+      </footer>
+    </div>
+  );
 }

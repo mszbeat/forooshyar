@@ -10,6 +10,7 @@ The target is a TypeScript repository with independently installed applications:
 - `channels/telegram`, `channels/bale`, `channels/instagram`: adapters implementing shared incoming/outgoing contracts; authenticated webhooks enqueue quickly and workers handle retries/idempotency.
 - `fresh`: Persian normalization, deterministic intent, scoped catalog retrieval and templates. `polish`: provider-neutral LLM client, OpenRouter, budgets and guardrails; never send arbitrary catalog data across tenants.
 - `posts`, `usage`, `subscriptions`: post links and drafts, metering and plan settings.
+- `reports`: implemented (`GET /reports/summary`, `GET /reports/attention`). Read-only, shop-scoped aggregates over the catalog and the stock ledger: today/week sales, inventory value, out-of-stock, low-stock and stale variants, plus the recent movement feed. Nothing here is cached or estimated; every figure is computed from PostgreSQL.
 
 ## Data design
 
