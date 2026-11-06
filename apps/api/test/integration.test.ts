@@ -15,7 +15,7 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
   const db = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   const run = randomUUID();
   const emails = [`a-${run}@example.com`, `b-${run}@example.com`];
-  const child = spawn(process.execPath, ['dist/main.js'], { cwd: process.cwd(), env: { ...process.env, DATABASE_URL: databaseUrl!, JWT_SECRET: 'test-only-secret-at-least-32-characters-long', CACHE_ENABLED: 'false', PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['dist/main.js'], { cwd: process.cwd(), env: { ...process.env, DATABASE_URL: databaseUrl!, JWT_SECRET: 'test-only-secret-at-least-32-characters-long', CACHE_ENABLED: 'false', CORS_ORIGINS: 'https://panel.example.com', PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
   let logs = '';
   child.stdout.on('data', data => { logs += data.toString(); });
   child.stderr.on('data', data => { logs += data.toString(); });
@@ -32,6 +32,10 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     assert.ok(ready, `API did not start: ${logs}`);
+    const preflight = await fetch(base + '/products', { method: 'OPTIONS', headers: { Origin: 'https://panel.example.com', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,content-type' } });
+    assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://panel.example.com');
+    const rejectedOrigin = await fetch(base + '/health', { headers: { Origin: 'https://evil.example.com' } });
+    assert.equal(rejectedOrigin.headers.get('access-control-allow-origin'), null);
     const register = async (email: string) => request('/auth/register', 'POST', { email, password: 'long-test-password', shopName: 'فروشگاه آزمایشی' });
     const a = await register(emails[0]); const b = await register(emails[1]);
     assert.equal(a.status, 201); assert.equal(b.status, 201);

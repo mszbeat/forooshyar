@@ -6,7 +6,7 @@
 
 **Phase 1 is in progress, not production-ready.** Implemented: NestJS API, email/password registration and login with one-hour JWT, one owner/shop, shop settings, product/variant creation and editing, guarded stock decrement and adjustment, stock movement ledger in PostgreSQL, and CSV/XLSX catalog import with row-level results. A real PostgreSQL integration test covers concurrent sales and selected cross-tenant access attempts. Cache is optional and is not used for catalog data.
 
-Missing: full CRUD (including variant deletion), comprehensive tenant-isolation coverage, the remaining domain models, structured logging, production deployment/security hardening, Telegram, workers, OpenRouter, seller panel and post recognition. The web app remains a Persian RTL landing placeholder. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the target design.
+Missing: full CRUD (including variant deletion), comprehensive tenant-isolation coverage, the remaining domain models, structured logging, production deployment/security hardening, Telegram, workers, OpenRouter, seller panel and post recognition. The Persian RTL web app supports registration/login, shop settings, product creation, variant creation, single-unit sales and import; it is an early panel, not the complete seller panel. Authentication is stored in memory only, so reloading logs the user out. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the target design.
 
 ## Principles
 
@@ -26,7 +26,7 @@ apps/api/src/shop/       Owner shop settings
 apps/api/src/cache/      Optional tenant-scoped Redis cache
 apps/api/prisma/         PostgreSQL schema and migrations
 apps/api/test/           Unit tests and PostgreSQL integration test
-apps/web/                Next.js App Router scaffold
+apps/web/                Next.js App Router early seller panel
 packages/shared/         Shared TypeScript types
 examples/catalog.csv     Sample import file
 ARCHITECTURE.md          Target architecture and data model
@@ -49,9 +49,19 @@ npm run prisma:deploy -w @forooshyar/api
 npm run dev:api
 ```
 
-The app does not automatically read `.env`; export it into the shell as shown (use shell-safe values). `npm ci` generates Prisma Client via the API workspace's postinstall script. `prisma:deploy` applies committed migrations to the configured database; back up important data before applying migrations. The example connection string must be replaced with your PostgreSQL credentials; URL-encode special characters in the password. In another terminal run `npm run dev:web`. Web: `http://localhost:3000`. API health: `GET http://localhost:3001/health` (liveness only; does not check PostgreSQL or Redis).
+The app does not automatically read `.env`; export it into the shell as shown (use shell-safe values). `npm ci` generates Prisma Client via the API workspace's postinstall script. `prisma:deploy` applies committed migrations to the configured database; back up important data before applying migrations. The example connection string must be replaced with your PostgreSQL credentials; URL-encode special characters in the password. In another terminal, export the same `.env` values and run `npm run dev:web`. The frontend reads `NEXT_PUBLIC_API_BASE_URL`, and the API accepts browser requests only from configured `CORS_ORIGINS`. Web: `http://localhost:3000`. API health: `GET http://localhost:3001/health` (liveness only; does not check PostgreSQL or Redis).
 
 `CACHE_ENABLED=false` disables caching and does not require Redis. To enable the optional cache, run Redis separately and set `CACHE_ENABLED=true` and `REDIS_URL=redis://localhost:6379` (or `rediss://` for TLS). Cache failures become misses; no feature currently uses the cache. Prices, stock and authorization decisions must always come from PostgreSQL. Future BullMQ workers may require Redis independently of this flag.
+
+## Separate frontend and backend deployment (target setup)
+
+The applications remain in one repository but run on **two independently deployed services**. No Docker is required. These are setup guidelines for testing; production hardening, full features and an end-to-end production deployment are not yet complete.
+
+**Backend service** (Node.js 20, private PostgreSQL, optional Redis): install from the repository root with `npm ci`, then run `npm run build -w @forooshyar/api`. Set `DATABASE_URL`, a strong unique `JWT_SECRET`, `PORT` and `CORS_ORIGINS` on that service. Set `CORS_ORIGINS` to the exact HTTPS origin of the frontend, e.g. `https://panel.example.com` (no trailing slash or path); comma-separate multiple exact origins. Apply `npm run prisma:deploy -w @forooshyar/api`, then start `npm run start -w @forooshyar/api`. Keep PostgreSQL/Redis private; use a TLS reverse proxy for the API. Current rate limits are in-memory per process.
+
+**Frontend service**: install with `npm ci` at the repository root, set `NEXT_PUBLIC_API_BASE_URL=https://api.example.com` **at build time**, build with `npm run build -w @forooshyar/web`, then run `npm run start -w @forooshyar/web`. Next.js embeds the public API URL in browser JavaScript, so rebuild after changing it. Never put secrets in `NEXT_PUBLIC_*` variables. Use HTTPS for both services to avoid browser mixed-content restrictions. Configure the API origin before building the web service.
+
+CORS is a browser policy, not authentication. API JWT validation and tenant checks remain required for every protected route. The current authentication token is stored only in React memory and is lost on refresh; robust session handling is not yet implemented. Neither service is production-ready.
 
 ## API quick start
 

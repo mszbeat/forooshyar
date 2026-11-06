@@ -18,3 +18,10 @@ test('configuration rejects weak secrets and invalid databases', () => {
   assert.throws(() => loadConfig({ ...valid, JWT_SECRET: 'short' }));
   assert.throws(() => loadConfig({ ...valid, DATABASE_URL: 'https://example.com' }));
 });
+
+test('CORS accepts explicit origins and rejects paths and wildcards', () => {
+  assert.equal(loadConfig({ ...valid, CORS_ORIGINS: 'https://panel.example.com,http://localhost:3000' }).CORS_ORIGINS, 'https://panel.example.com,http://localhost:3000');
+  assert.throws(() => loadConfig({ ...valid, CORS_ORIGINS: '*' }));
+  assert.throws(() => loadConfig({ ...valid, CORS_ORIGINS: 'https://panel.example.com/path' }));
+  assert.throws(() => loadConfig({ ...valid, CORS_ORIGINS: 'https://panel.example.com/' }));
+});

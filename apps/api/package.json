@@ -10,7 +10,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "postinstall": "prisma generate",
-    "test:integration": "node --import tsx --test test/integration.test.ts"
+    "test:integration": "node --import tsx --test test/integration.test.ts",
+    "start": "node dist/main.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
