@@ -1,0 +1,203 @@
+{
+  "layout": {
+    "candidates": [
+      {
+        "cls": "banner_content_container",
+        "w": 827,
+        "left": 307,
+        "maxW": "1440px",
+        "pad": "16px/16px",
+        "ml": "0px"
+      },
+      {
+        "cls": "navbar_links_wrapper",
+        "w": 679,
+        "left": 376,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "200.188px"
+      },
+      {
+        "cls": "column z-index-10",
+        "w": 628,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "logowall_wrap",
+        "w": 1280,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "logowall_cms w-dyn-list",
+        "w": 1280,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "logowall_list w-dyn-items",
+        "w": 1280,
+        "left": 80,
+        "maxW": "1280px",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "flex_horizontal_space_between",
+        "w": 1280,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "width-full w-dyn-list",
+        "w": 1280,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "case_study_list w-dyn-items",
+        "w": 1280,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "flex_vertical_center alignment_center",
+        "w": 1280,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "product_tabs",
+        "w": 1280,
+        "left": 80,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "product_tab_links",
+        "w": 1034,
+        "left": 203,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      }
+    ],
+    "bodyMaxWidth": "none",
+    "bodyPadding": "0px"
+  },
+  "headerAtTop": {
+    "h": 111,
+    "position": "sticky",
+    "bg": "rgba(0, 0, 0, 0)",
+    "backdrop": "none",
+    "border": "0px none rgb(248, 248, 248)",
+    "transition": "top 0.35s"
+  },
+  "headerAfterScroll": {
+    "h": 111,
+    "position": "sticky",
+    "bg": "rgba(0, 0, 0, 0)",
+    "backdrop": "none",
+    "border": "0px none rgb(248, 248, 248)",
+    "boxShadow": "none",
+    "top": -47
+  },
+  "paragraphs": [
+    [
+      "16px/24px 400 rgb(248, 248, 248)",
+      37
+    ],
+    [
+      "20px/26px 400 rgb(248, 248, 248)",
+      12
+    ],
+    [
+      "24px/31.2px 400 rgb(248, 248, 248)",
+      8
+    ],
+    [
+      "20px/26px 600 rgb(255, 255, 255)",
+      8
+    ],
+    [
+      "14px/21px 400 rgba(255, 255, 255, 0.9)",
+      8
+    ],
+    [
+      "32px/38.4px 600 rgb(248, 248, 248)",
+      5
+    ],
+    [
+      "40px/48px 600 rgb(248, 248, 248)",
+      3
+    ],
+    [
+      "24px/31.2px 400 rgb(8, 22, 60)",
+      1
+    ],
+    [
+      "20px/26px 400 rgb(255, 255, 255)",
+      1
+    ],
+    [
+      "16px/24px 400 rgb(255, 255, 255)",
+      1
+    ]
+  ],
+  "focus": {
+    "tag": "DIV",
+    "text": "",
+    "outline": "rgb(248, 248, 248) none 0px",
+    "boxShadow": "none"
+  },
+  "cards": [
+    [
+      "8px | none | 0px none rgb(255, 255, 255)",
+      12
+    ],
+    [
+      "12px | none | 1px solid rgba(248, 248, 248, 0.24)",
+      6
+    ],
+    [
+      "8px | none | 0px none rgb(248, 248, 248)",
+      6
+    ],
+    [
+      "12px | none | 1px solid rgba(255, 255, 255, 0.2)",
+      3
+    ],
+    [
+      "12px | none | 0px none rgb(248, 248, 248)",
+      3
+    ],
+    [
+      "16px | none | 0px none rgb(248, 248, 248)",
+      3
+    ],
+    [
+      "12px | none | 2px solid rgb(24, 64, 152)",
+      3
+    ],
+    [
+      "16px | none | 0px none rgb(255, 255, 255)",
+      1
+    ]
+  ]
+}
