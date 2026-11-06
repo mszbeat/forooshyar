@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
+import ExcelJS from 'exceljs';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { skip: !databaseUrl, timeout: 60000 }, async () => {
@@ -59,6 +60,43 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
     assert.equal(ledger.data.reduce((sum: number, row: { delta: number }) => sum + row.delta, 0), 0);
     assert.equal((await request(`/variants/${variantId}/movements`, 'GET', undefined, tokenB)).status, 404);
     assert.equal((await request(`/variants/${variantId}/stock`, 'POST', { delta: 3, reason: 'restock' }, tokenA)).data.stock, 3);
+    const upload = async (token: string | undefined, name: string, bytes: Buffer) => {
+      const form = new FormData();
+      form.append('file', new Blob([new Uint8Array(bytes)]), name);
+      const response = await fetch(base + '/catalog/import', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+      return { status: response.status, data: await response.json() as any };
+    };
+    const csv = Buffer.from('نام محصول,قیمت,موجودی,سایز,رنگ,sku\nمانتو,۱۲۵۰۰۰۰,۳,۴۰,آبی,S1\nکیف,not-a-price,۲,,,S2\nشلوار,۳۰۰,۱,,,S1\n');
+    assert.equal((await upload(undefined, 'catalog.csv', csv)).status, 401);
+    const imported = await upload(tokenA, 'catalog.csv', csv);
+    assert.equal(imported.status, 201, JSON.stringify(imported));
+    assert.equal(imported.data.imported, 1);
+    assert.equal(imported.data.failed, 2);
+    assert.deepEqual(imported.data.results.map((r: any) => r.row), [2, 3, 4]);
+    const importedId = imported.data.results[0].productId;
+    const importedVariantId = imported.data.results[0].variantId;
+    const importedProduct = await request(`/products/${importedId}`, 'GET', undefined, tokenA);
+    assert.equal(importedProduct.data.variants[0].price, 1250000);
+    assert.equal(importedProduct.data.variants[0].stock, 3);
+    const importedLedger = await request(`/variants/${importedVariantId}/movements`, 'GET', undefined, tokenA);
+    assert.equal(importedLedger.data[0].delta, 3);
+    assert.equal(importedLedger.data[0].reason, 'import');
+    assert.equal((await request(`/products/${importedId}`, 'GET', undefined, tokenB)).status, 404);
+    const otherShop = await upload(tokenB, 'catalog.csv', Buffer.from('title,price,stock,sku\nدیگر,42,0,S1\n'));
+    assert.equal(otherShop.data.imported, 1);
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Products');
+    sheet.addRow(['title', 'price', 'stock', 'color']);
+    sheet.addRow(['کفش', 250000, 2, 'مشکی']);
+    sheet.addRow(['فرمول', { formula: '1+1', result: 2 }, 1, '']);
+    const excel = await upload(tokenA, 'catalog.xlsx', Buffer.from(await workbook.xlsx.writeBuffer()));
+    assert.equal(excel.status, 201, JSON.stringify(excel));
+    assert.equal(excel.data.imported, 1);
+    assert.equal(excel.data.failed, 1);
+    assert.equal((await upload(tokenA, 'fake.xlsx', Buffer.from('not an archive'))).status, 400);
+    assert.equal((await upload(tokenA, 'bad.csv', Buffer.from('title,stock\nX,2\n'))).status, 400);
+    assert.equal((await upload(tokenA, 'oversize.csv', Buffer.alloc(2 * 1024 * 1024 + 1))).status, 413);
+
   } finally {
     if (child.exitCode === null && child.signalCode === null) {
       child.kill('SIGTERM');
