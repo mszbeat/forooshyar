@@ -64,6 +64,12 @@ ERR_ROWS = [
 ]
 
 
+# The catalog uses its own SKU namespace so it can be imported into any shop,
+# including the demo shop seeded by backend/scripts/seed-demo.mjs.
+ROWS = [(title, price, stock, size, color, f'C30-{sku}' if sku else '') for title, price, stock, size, color, sku in ROWS]
+ERR_ROWS = [(title, price, stock, size, color, f'ERR-{sku}' if sku else '') for title, price, stock, size, color, sku in ERR_ROWS]
+
+
 def write_csv(path, data):
     # utf-8-sig keeps Excel from mangling Persian text; the importer accepts a BOM.
     with open(path, 'w', encoding='utf-8-sig', newline='') as handle:

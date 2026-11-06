@@ -1,11 +1,11 @@
 ﻿نام محصول,قیمت,موجودی,سایز,رنگ,sku
-شومیز تست ردیف سالم,850000,5,M,سفید,TST-OK-001
-,500000,3,M,مشکی,TST-EMPTY-TITLE
-مانتو با قیمت متنی,گران,3,L,کرم,TST-BAD-PRICE
-مانتو با قیمت منفی,-500000,2,L,کرم,TST-NEG-PRICE
-شلوار با موجودی اعشاری,700000,2.5,40,مشکی,TST-DEC-STOCK
-تیشرت با SKU تکراری,300000,10,M,سفید,TST-OK-001
-شال با اعداد فارسی و جداکننده,۴۵۰٬۰۰۰,۱۲,Free,زرشکی,TST-FA-NUM
+شومیز تست ردیف سالم,850000,5,M,سفید,ERR-TST-OK-001
+,500000,3,M,مشکی,ERR-TST-EMPTY-TITLE
+مانتو با قیمت متنی,گران,3,L,کرم,ERR-TST-BAD-PRICE
+مانتو با قیمت منفی,-500000,2,L,کرم,ERR-TST-NEG-PRICE
+شلوار با موجودی اعشاری,700000,2.5,40,مشکی,ERR-TST-DEC-STOCK
+تیشرت با SKU تکراری,300000,10,M,سفید,ERR-TST-OK-001
+شال با اعداد فارسی و جداکننده,۴۵۰٬۰۰۰,۱۲,Free,زرشکی,ERR-TST-FA-NUM
 ,,,,,
-کیف با نام بیش از حد بلند xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,900000,4,Free,مشکی,TST-LONG-TITLE
-جوراب تست ردیف سالم دوم,190000,30,Free,مشکی,TST-OK-002
+کیف با نام بیش از حد بلند xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,900000,4,Free,مشکی,ERR-TST-LONG-TITLE
+جوراب تست ردیف سالم دوم,190000,30,Free,مشکی,ERR-TST-OK-002
