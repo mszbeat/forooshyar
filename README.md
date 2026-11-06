@@ -4,7 +4,7 @@
 
 ## Current status
 
-This repository is at the **initial scaffolding** stage, not a working sales assistant. The NestJS API has only a health endpoint and basic environment validation. The Next.js app has a Persian RTL landing placeholder. Authentication, catalog, stock, import, workers, Telegram, OpenRouter, seller panel, database models/migrations and tenant isolation are **not implemented**. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the proposed design.
+This repository is at the **initial scaffolding** stage, not a working sales assistant. The NestJS API has a health endpoint, basic environment validation, and an optional Redis cache service, not yet used by any feature. The Next.js app has a Persian RTL landing placeholder. Authentication, catalog, stock, import, workers, Telegram, OpenRouter, seller panel, database models/migrations and tenant isolation are **not implemented**. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for the task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the proposed design.
 
 ## Principles
 
@@ -22,13 +22,12 @@ apps/web/        Next.js App Router scaffold
 packages/shared/ Shared TypeScript types
 ARCHITECTURE.md  Target modules, data model and deployment decisions
 PROJECT_PLAN.md  Phased roadmap and task IDs
-compose.yaml     Development services (api, web, PostgreSQL, Redis)
 .env.example     Example configuration; no real secrets
 ```
 
 ## Development
 
-Requires Node.js 20+, npm, and for Compose Docker with the Compose plugin. From the repository root:
+Requires Node.js 20+, npm and a locally installed or separately managed PostgreSQL server. Redis is optional for caching. No Docker is used. From the repository root:
 
 ```sh
 npm ci
@@ -38,14 +37,23 @@ cp .env.example .env
 
 For local API execution, export the values in `.env` into your shell (the app does not automatically load the file), then run `npm run dev:api`. Run `npm run dev:web` separately. API health: `GET http://localhost:3001/health`. Web: `http://localhost:3000`.
 
-Alternatively, after editing `.env`, run `docker compose up --build`. Compose reads `.env` and uses container hostnames for database and Redis. The Compose setup is intended only for development and has not yet been validated in this environment. Stop with `docker compose down`; PostgreSQL data persists in its named volume.
+Create a PostgreSQL database and user separately, then set `DATABASE_URL`. No database migrations exist yet. To export the example file for local development (use shell-safe values), run:
+
+```sh
+set -a
+. ./.env
+set +a
+npm run dev:api
+```
+
+`CACHE_ENABLED=false` (the default) disables caching and does not require Redis. To enable the optional cache, run Redis separately and set `CACHE_ENABLED=true` and `REDIS_URL=redis://localhost:6379` (or `rediss://` for TLS). The cache service uses tenant-scoped keys and TTLs and treats Redis failures as cache misses. No application feature currently uses it. Prices, stock and authorization decisions must always come from PostgreSQL, not this cache. Later BullMQ workers may require Redis independently of the cache flag; queues are not implemented yet.
 
 ```sh
 npm test
 npm run build
 ```
 
-Tests currently cover configuration only; no database, concurrency, isolation or bot tests exist yet. Neither the health endpoint nor the scaffold verifies database/Redis connectivity.
+Tests currently cover configuration and the cache service with a fake Redis client; no database, concurrency, isolation or bot tests exist yet. Neither the health endpoint nor the scaffold verifies database/Redis connectivity.
 
 ## Glossary
 

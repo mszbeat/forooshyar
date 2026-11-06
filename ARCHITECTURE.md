@@ -1,6 +1,6 @@
 # Target architecture (not yet implemented)
 
-The target is a TypeScript npm-workspaces monorepo: `apps/api` (NestJS REST API and worker entry point), `apps/web` (Next.js App Router, Persian RTL), `packages/shared` (transport types and validation primitives). PostgreSQL is the source of truth, accessed through Prisma; Redis and BullMQ handle asynchronous delivery. Compose currently provides a development environment, not a hardened VPS deployment. No channel or LLM integration exists yet.
+The target is a TypeScript npm-workspaces monorepo: `apps/api` (NestJS REST API and worker entry point), `apps/web` (Next.js App Router, Persian RTL), `packages/shared` (transport types and validation primitives). PostgreSQL is the source of truth, accessed through Prisma; Redis is optional for caching, controlled by `CACHE_ENABLED`; Redis and BullMQ are planned for asynchronous delivery separately from caching. Services run without Docker. No channel or LLM integration exists yet.
 
 ## Intended API modules
 
@@ -27,7 +27,7 @@ This is a design, not an applied schema. Add migrations and appropriate indexes/
 
 ## Configuration and deployment
 
-See `.env.example`: PostgreSQL, Redis, JWT, channel encryption key and OpenRouter settings are environment-driven. Later add per-plan model/budget policy, timeout/retry configuration, webhook secrets and base URL `https://openrouter.ai/api/v1`. Never store a real secret in Git. Compose exposes dev services only on loopback. For a VPS add production images, HTTPS reverse proxy, secret management, migrations, backups, non-root execution, resource limits and health checks before deployment.
+See `.env.example`: PostgreSQL, optional Redis cache, JWT, channel encryption key and OpenRouter settings are environment-driven. `CACHE_ENABLED=false` requires no cache connection; a future BullMQ queue may still require Redis even with caching disabled. Cache keys must include shop ID and a bounded TTL; do not cache price, stock or authorization. Later add per-plan model/budget policy, timeout/retry configuration, webhook secrets and base URL `https://openrouter.ai/api/v1`. Never store a real secret in Git. Install and supervise services directly on a VPS, with HTTPS reverse proxy, secret management, migrations, backups, non-root execution, resource limits and health checks before deployment.
 
 ## Phasing
 
