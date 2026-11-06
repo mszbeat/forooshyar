@@ -4,9 +4,9 @@
 
 ## Current status
 
-**Phase 1 is in progress, not production-ready.** Implemented: NestJS API, email/password registration and login with one-hour JWT, one owner/shop, shop settings, product/variant creation and editing, guarded stock decrement and adjustment, stock movement ledger in PostgreSQL, and CSV/XLSX catalog import with row-level results. A real PostgreSQL integration test covers concurrent sales and selected cross-tenant access attempts. Cache is optional and is not used for catalog data.
+**Phase 1 is in progress, not production-ready.** Implemented: NestJS API, email/password registration and login with one-hour JWT, one owner/shop, shop settings, product/variant creation and editing, guarded stock decrement and adjustment, stock movement ledger in PostgreSQL, and CSV/XLSX catalog import with row-level results. A real PostgreSQL integration test covers concurrent sales and selected cross-tenant access attempts. Cache is optional and is not used for catalog data. A deterministic Persian Fresh preview reads live tenant-scoped catalog data; it is not connected to any messaging channel.
 
-Missing: full CRUD (including variant deletion), comprehensive tenant-isolation coverage, the remaining domain models, structured logging, production deployment/security hardening, Telegram, workers, OpenRouter, seller panel and post recognition. The Persian RTL web app supports registration/login, shop settings, product creation, variant creation, single-unit sales and import; it is an early panel, not the complete seller panel. Authentication is stored in memory only, so reloading logs the user out. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the target design.
+Missing: full CRUD (including variant deletion), comprehensive tenant-isolation coverage, the remaining domain models, structured logging, production deployment/security hardening, Telegram, workers, OpenRouter, seller panel and post recognition. The Persian RTL web app supports registration/login, shop settings, product creation, variant creation, single-unit sales import and a Fresh preview; it is an early panel, not the complete seller panel. Authentication is stored in memory only, so reloading logs the user out. Do not deploy this scaffold to production. See [PROJECT_PLAN.md](PROJECT_PLAN.md) for task IDs and [ARCHITECTURE.md](ARCHITECTURE.md) for the target design.
 
 ## Principles
 
@@ -22,6 +22,7 @@ Missing: full CRUD (including variant deletion), comprehensive tenant-isolation 
 apps/api/src/auth/       Registration, login and JWT guard
 apps/api/src/catalog/    Products, variants and stock ledger
 apps/api/src/imports/    CSV/XLSX catalog imports
+apps/api/src/fresh/      Deterministic Persian reply preview
 apps/api/src/shop/       Owner shop settings
 apps/api/src/cache/      Optional tenant-scoped Redis cache
 apps/api/prisma/         PostgreSQL schema and migrations
@@ -86,6 +87,12 @@ curl "http://localhost:3001/variants/$VARIANT_ID/movements" -H "Authorization: B
 
 Prices are integer **toman**, limited to PostgreSQL signed 32-bit integers; stock is nonnegative integer. `POST /variants/:id/stock` takes `{ "delta": 3, "reason": "restock" }` (reason `restock` or `manual`). `PATCH /variants/:id` changes price/size/color/SKU, not stock. Products can be deactivated with `PATCH /products/:id` and `{ "active": false }`. `GET /products` and movements currently return at most 100 entries, without pagination. Stock operations are not idempotent: retrying a successful sale can decrement twice; client-side retries must be avoided until idempotency is implemented. API rate limits are in-memory per process and are not suitable for distributed deployments.
 
+## Fresh reply preview
+
+`POST /bot/preview` accepts an authenticated body such as `{ "message": "قیمت مانتو آبی چنده؟" }` and returns `kind` (`answer`, `clarify`, or `handoff`) and Persian `text`. The same preview is available in the web panel. It uses only the current shop’s active products and live database prices and stock, normalizes Persian and Arabic characters and digits, and uses conservative rules and templates. Product matching requires the complete normalized title; ambiguous products or variants prompt clarification. The preview falls back to handoff for large catalogs over 500 products or uncertain/sensitive requests. It is only a preview: **no messages are sent, no conversations or handoffs are persisted, and no seller is notified**. Matching and classification are deliberately limited, with no fuzzy search, contextual memory or clarification buttons yet; do not use it as a production bot.
+
+The unit evaluation includes 50 synthetic Persian questions for price, stock and handoff. This is not a representative real-world or LLM evaluation, and it does not establish production accuracy or complete prompt-injection protection.
+
 ## Catalog import (CSV/XLSX)
 
 Upload one CSV (UTF-8) or `.xlsx` file as multipart form field `file`:
@@ -116,7 +123,7 @@ npm run build -w @forooshyar/api
 npm run test:integration -w @forooshyar/api
 ```
 
-The integration test creates and deletes its own shops and data; never point it at production. If `TEST_DATABASE_URL` is absent, the integration test is skipped. The test exercises selected tenant boundaries, concurrent stock changes, and CSV/XLSX imports, not an exhaustive security proof.
+The integration test creates and deletes its own shops and data; never point it at production. If `TEST_DATABASE_URL` is absent, the integration test is skipped. The test exercises selected tenant boundaries, Fresh preview isolation, concurrent stock changes, and CSV/XLSX imports, not an exhaustive security proof.
 
 ## Glossary
 

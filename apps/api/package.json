@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node --watch -r ts-node/register src/main.ts",
     "build": "tsc -p tsconfig.json",
-    "test": "node --import tsx --test test/config.test.ts test/cache.test.ts",
+    "test": "node --import tsx --test test/config.test.ts test/cache.test.ts test/fresh.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",

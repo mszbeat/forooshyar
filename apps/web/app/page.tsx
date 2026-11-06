@@ -19,6 +19,7 @@ export default function Home() {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<ImportResult | null>(null);
+  const [preview, setPreview] = useState<{kind: string; text: string} | null>(null);
 
   const request = useCallback(async <T,>(path: string, options: RequestInit = {}, auth = token): Promise<T> => {
     if (!apiBase) throw new Error('آدرس API تنظیم نشده است.');
@@ -62,12 +63,16 @@ export default function Home() {
     event.preventDefault(); const data = input(event.currentTarget);
     await action(async () => { await request('/shop', { method: 'PATCH', body: json(Object.fromEntries(data.entries())) }); await refresh(); setNotice('تنظیمات ذخیره شد.'); });
   }
+  async function previewReply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); const data = input(event.currentTarget);
+    await action(async () => { setPreview(await request<{kind: string; text: string}>('/bot/preview', { method: 'POST', body: json({ message: String(data.get('message')) }) })); });
+  }
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const data = input(form);
     await action(async () => { const result = await request<ImportResult>('/catalog/import', { method: 'POST', body: data }); setReport(result); await refresh(); setNotice('پردازش فایل انجام شد.'); });
   }
   return <main className="shell">
-    <header><div><span className="eyebrow">دستیار فروش فارسی</span><h1>فروش‌یار</h1></div>{token && <button className="secondary" onClick={() => { setToken(''); setProducts([]); setShop(null); setReport(null); }}>خروج</button>}</header>
+    <header><div><span className="eyebrow">دستیار فروش فارسی</span><h1>فروش‌یار</h1></div>{token && <button className="secondary" onClick={() => { setToken(''); setProducts([]); setShop(null); setReport(null); setPreview(null); }}>خروج</button>}</header>
     {!apiBase && <p role="alert" className="error">متغیر NEXT_PUBLIC_API_BASE_URL برای فرانت تنظیم نشده است.</p>}
     {error && <p role="alert" className="error">{error}</p>}{notice && <p role="status" className="success">{notice}</p>}
     {!token ? <section className="card auth"><h2>{register ? 'ساخت فروشگاه' : 'ورود به فروشگاه'}</h2><p>مدیریت کاتالوگ و موجودی در یک جا</p><form onSubmit={authenticate}>
@@ -83,6 +88,7 @@ export default function Home() {
           <details><summary>افزودن واریانت</summary><form className="grid" onSubmit={event => void addVariant(event, product.id)}><label>قیمت (تومان)<input name="price" type="number" min="0" max="2147483647" required /></label><label>موجودی<input name="stock" type="number" min="0" max="2147483647" required /></label><label>سایز<input name="size" /></label><label>رنگ<input name="color" /></label><button disabled={busy}>ثبت واریانت</button></form></details>
         </article>)}</div></section>
         <section className="card"><h2>ورود کاتالوگ</h2><p>فایل CSV یا Excel را طبق نمونه آماده کنید؛ هر ردیف یک محصول جدید می‌سازد.</p><form className="row" onSubmit={upload}><label>فایل<input type="file" name="file" accept=".csv,.xlsx" required /></label><button disabled={busy}>بارگذاری</button></form>{report && <div><p>موفق: {faNumber(report.imported)} · ناموفق: {faNumber(report.failed)}</p>{report.results.filter(row => row.errors?.length).map(row => <p key={row.row}>ردیف {faNumber(row.row)}: {row.errors?.some(item => item.includes('SKU')) ? 'شناسهٔ کالا تکراری است.' : row.errors?.some(item => item.includes('Formula')) ? 'فرمول یا مقدار پشتیبانی‌نشده در فایل وجود دارد.' : 'نام، قیمت یا موجودی را بررسی کنید.'}</p>)}</div>}</section>
+        <section className="card"><h2>پیش‌نمایش پاسخ</h2><p>این فقط یک آزمایش است؛ پیامی ارسال یا ارجاعی ثبت نمی‌شود.</p><form className="row" onSubmit={previewReply}><label>پیام مشتری<input name="message" maxLength={2000} required /></label><button disabled={busy}>مشاهده پاسخ</button></form>{preview && <div className="preview"><strong>{preview.kind === 'handoff' ? 'نیازمند پاسخ فروشنده' : preview.kind === 'clarify' ? 'نیازمند توضیح بیشتر' : 'پاسخ پیشنهادی'}</strong><p>{preview.text}</p></div>}</section>
         {shop && <section className="card"><h2>تنظیمات فروشگاه</h2><form className="grid" onSubmit={saveSettings}>{([['name','نام فروشگاه'],['tone','لحن'],['shipping','ارسال'],['payment','پرداخت'],['workingHours','ساعات کاری'],['handoffMessage','پیام ارجاع']] as const).map(([field, label]) => <label key={field}>{label}<input name={field} defaultValue={shop[field]} required={field === 'name'} maxLength={field === 'name' ? 200 : 2000} /></label>)}<button disabled={busy}>ذخیره تنظیمات</button></form></section>}
       </>}
     <footer>بخش گفتگو و پاسخ‌گوی خودکار هنوز آماده نیست.</footer>

@@ -51,6 +51,13 @@ test('real PostgreSQL: auth, tenant isolation and concurrent stock ledger', { sk
     const variant = await request(`/products/${id}/variants`, 'POST', { price: 1250000, stock: 5, size: '۴۰' }, tokenA);
     assert.equal(variant.status, 201);
     const variantId = variant.data.id as string;
+    const previewA = await request('/bot/preview', 'POST', { message: 'قیمت مانتو آبی چنده؟' }, tokenA);
+    const previewB = await request('/bot/preview', 'POST', { message: 'قیمت مانتو آبی چنده؟' }, tokenB);
+    assert.equal(previewA.status, 201);
+    assert.match(previewA.data.text, /۱٬۲۵۰٬۰۰۰/);
+    assert.equal(previewB.data.kind, 'handoff');
+    assert.doesNotMatch(previewB.data.text, /۱٬۲۵۰٬۰۰۰/);
+
     assert.equal((await request(`/variants/${variantId}/sell`, 'POST', { quantity: 1 }, tokenB)).status, 404);
     assert.equal((await request(`/variants/${variantId}`, 'PATCH', { stock: 500 }, tokenA)).status, 400);
     const results = await Promise.all(Array.from({ length: 20 }, () => request(`/variants/${variantId}/sell`, 'POST', { quantity: 1 }, tokenA)));
