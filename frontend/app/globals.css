@@ -411,6 +411,44 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .row-item:hover { background: var(--surface-2); }
 .row-item-in { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: var(--sp-4) var(--sp-5); }
 
+/* Numbered section label (FlowNinja-style index inside card heads) */
+.card-index {
+  font-size: 11px; font-weight: 500; color: var(--ink-4);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+}
+/* Key/value hairline rows — settings previews, meta blocks */
+.kv { display: grid; gap: 0; }
+.kv-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-4);
+  padding: 11px 0; border-bottom: 1px solid var(--line);
+}
+.kv-row:last-child { border-bottom: 0; }
+.kv-k { font-size: var(--fs-xs); color: var(--ink-3); font-weight: 300; flex: 0 0 auto; }
+.kv-v { font-size: var(--fs-sm); color: var(--ink); font-weight: 400; text-align: left; line-height: 1.7; }
+.kv-v.missing { color: var(--amber); }
+/* Suggestion chips (assistant) */
+.chip-btn {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 11px;
+  border: 1px solid var(--line-strong); border-radius: var(--r-full);
+  background: var(--surface); color: var(--ink-2); font-size: 12.5px; font-weight: 300;
+  cursor: pointer; transition: background 0.15s var(--ease), color 0.15s var(--ease), border-color 0.15s;
+}
+.chip-btn:hover { background: var(--surface-3); color: var(--ink); border-color: var(--ink-4); }
+/* Numbered list (how the assistant decides) */
+.steps-plain { display: grid; gap: 0; }
+.steps-plain li {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 11px 0; border-bottom: 1px solid var(--line);
+  font-size: var(--fs-sm); font-weight: 300; color: var(--ink-2); line-height: 1.8;
+}
+.steps-plain li:last-child { border-bottom: 0; }
+.steps-plain .n {
+  flex: 0 0 auto; width: 20px; height: 20px; margin-top: 2px;
+  display: grid; place-items: center; border-radius: var(--r-full);
+  border: 1px solid var(--line-strong); color: var(--ink-3);
+  font-size: 10.5px; font-weight: 500; font-variant-numeric: tabular-nums;
+}
+
 /* Tables */
 .table-wrap { overflow-x: auto; border-radius: 0 0 var(--r-lg) var(--r-lg); }
 .table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-base); }
@@ -600,7 +638,17 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .nowrap { white-space: nowrap; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hide-sm { display: initial; }
-.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); margin-bottom: var(--sp-5); flex-wrap: wrap; }
+.page-head {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4);
+  padding-bottom: var(--sp-5); margin-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.page-eyebrow {
+  font-size: 11.5px; font-weight: 500; color: var(--brand);
+  letter-spacing: 0.02em; margin-bottom: 8px;
+}
+.page-head p { font-size: var(--fs-base); font-weight: 300; line-height: 1.75; color: var(--ink-2); max-width: 640px; margin-top: 6px; }
 .page-head h1 { font-size: clamp(24px, 2.4vw, 32px); font-weight: 300; letter-spacing: 0; line-height: 1.3; }
 .page-head-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 

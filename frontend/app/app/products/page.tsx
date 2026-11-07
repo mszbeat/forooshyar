@@ -169,6 +169,7 @@ export default function ProductsPage() {
   return (
     <div className="stack">
       <PageHeader
+        eyebrow="کاتالوگ"
         title="محصولات و موجودی"
         description={`${faNum(totals.products)} محصول فعال · ${faNum(totals.variants)} واریانت · ${faNum(totals.stock)} عدد موجودی · ارزش ${toman(totals.value)}`}
         actions={

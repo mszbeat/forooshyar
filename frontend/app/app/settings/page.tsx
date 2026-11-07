@@ -63,6 +63,7 @@ export default function SettingsPage() {
   return (
     <div className="stack">
       <PageHeader
+        eyebrow="پیکربندی"
         title="تنظیمات فروشگاه"
         description="این اطلاعات همان چیزی است که دستیار در پاسخ‌های ارسال، پرداخت و ساعت کاری استفاده می‌کند."
         actions={<Link href="/app/assistant" className="btn btn-outline"><IconChat size={16} />آزمایش پاسخ</Link>}
@@ -73,12 +74,13 @@ export default function SettingsPage() {
           <section className="card">
             <div className="card-head">
               <div className="row" style={{ gap: 10 }}>
-                <span className="stat-ico"><IconStore size={17} /></span>
+                <span className="stat-ico"><IconStore size={15} /></span>
                 <div>
                   <div className="card-title">هویت فروشگاه</div>
                   <div className="card-desc">نام و لحن پاسخ‌گویی</div>
                 </div>
               </div>
+              <span className="card-index num">۰۱</span>
             </div>
             <div className="card-body" style={{ display: 'grid', gap: 14 }}>
               <Field label="نام فروشگاه" required htmlFor="name">
@@ -93,12 +95,13 @@ export default function SettingsPage() {
           <section className="card">
             <div className="card-head">
               <div className="row" style={{ gap: 10 }}>
-                <span className="stat-ico"><IconSettings size={17} /></span>
+                <span className="stat-ico"><IconSettings size={15} /></span>
                 <div>
                   <div className="card-title">اطلاعات پاسخ‌گویی</div>
                   <div className="card-desc">اگر خالی بماند، دستیار برای این سؤال‌ها شما را ارجاع می‌دهد</div>
                 </div>
               </div>
+              <span className="card-index num">۰۲</span>
             </div>
             <div className="card-body" style={{ display: 'grid', gap: 14 }}>
               <Field label="شرایط ارسال" htmlFor="shipping" hint="هزینه، روش و زمان تحویل را بنویسید.">
@@ -131,11 +134,12 @@ export default function SettingsPage() {
 
         <div className="stack">
           <section className="card card-pad">
-            <div className="row-between" style={{ marginBottom: 8 }}>
-              <strong>کامل‌بودن پروفایل</strong>
-              <span className="badge b-brand num">{percent}٪</span>
+            <div className="kv-k" style={{ marginBottom: 10 }}>کامل‌بودن پروفایل</div>
+            <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
+              <span className="num" style={{ fontSize: 34, fontWeight: 300, lineHeight: 1 }}>{percent}٪</span>
+              <span className="small muted">از ۶ فیلد</span>
             </div>
-            <div className="progress"><span style={{ width: `${percent}%` }} /></div>
+            <div className="progress mt-3"><span style={{ width: `${percent}%` }} /></div>
             <p className="small muted mt-3" style={{ lineHeight: 1.95 }}>
               هر چه این بخش‌ها کامل‌تر باشد، دستیار بیشتر می‌تواند بدون ارجاع پاسخ بدهد و بار پاسخ‌گویی دستی کمتر می‌شود.
             </p>
@@ -143,18 +147,35 @@ export default function SettingsPage() {
 
           <section className="card">
             <div className="card-head"><div className="card-title">پیش‌نمایش پاسخ</div></div>
-            <div className="card-body" style={{ display: 'grid', gap: 10 }}>
+            <div className="card-body" style={{ paddingBlock: 6 }}>
+              <div className="kv">
               <PreviewRow label="اگر بپرسند «ارسال چطوریه؟»" value={form.shipping} fallback="به فروشنده ارجاع داده می‌شود" />
               <PreviewRow label="اگر بپرسند «پرداخت چطوره؟»" value={form.payment} fallback="به فروشنده ارجاع داده می‌شود" />
               <PreviewRow label="اگر بپرسند «کی باز هستید؟»" value={form.workingHours} fallback="به فروشنده ارجاع داده می‌شود" />
+              </div>
             </div>
           </section>
 
-          <section className="card card-pad" style={{ background: 'linear-gradient(160deg, var(--brand-50), #fff 70%)', borderColor: 'var(--brand-100)' }}>
-            <strong style={{ display: 'block', marginBottom: 6 }}>فروشگاه فعلی</strong>
-            <div className="small muted">{shop?.name ?? form.name}</div>
-            <div className="small muted" style={{ marginTop: 2 }}>
-              شناسه فروشگاه: <span className="mono">{shop?.id?.slice(0, 8) ?? '—'}…</span>
+          <section className="card">
+            <div className="card-head">
+              <div className="card-title">فروشگاه فعلی</div>
+              <span className="card-index">حساب</span>
+            </div>
+            <div className="card-body" style={{ paddingBlock: 6 }}>
+              <div className="kv">
+                <div className="kv-row">
+                  <span className="kv-k">نام</span>
+                  <span className="kv-v">{shop?.name ?? form.name}</span>
+                </div>
+                <div className="kv-row">
+                  <span className="kv-k">شناسه</span>
+                  <span className="kv-v mono">{shop?.id ? `${shop.id.slice(0, 8)}…` : '—'}</span>
+                </div>
+                <div className="kv-row">
+                  <span className="kv-k">وضعیت</span>
+                  <span className="kv-v"><span className="badge b-green"><span className="dot" />فعال</span></span>
+                </div>
+              </div>
             </div>
           </section>
         </div>
@@ -166,9 +187,9 @@ export default function SettingsPage() {
 function PreviewRow({ label, value, fallback }: { label: string; value: string; fallback: string }) {
   const filled = value.trim().length > 0;
   return (
-    <div style={{ border: '1px solid var(--line)', borderRadius: 'var(--r-md)', padding: '10px 12px', background: filled ? 'var(--surface-2)' : 'var(--amber-soft)' }}>
-      <div className="small muted" style={{ marginBottom: 3 }}>{label}</div>
-      <div className="small" style={{ fontWeight: 500 }}>{filled ? value : fallback}</div>
+    <div className="kv-row">
+      <span className="kv-k">{label}</span>
+      <span className={`kv-v ${filled ? '' : 'missing'}`}>{filled ? value : fallback}</span>
     </div>
   );
 }
