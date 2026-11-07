@@ -19,7 +19,11 @@ let captured: Captured[] = [];
 let databaseReady = false;
 let prisma: import('@prisma/client').PrismaClient;
 let telegram: import('../src/telegram/telegram.service').TelegramService;
-let seed: { shopId: string; userId: string; variantId: string; channelCode: string };
+let payments: import('../src/payments/payments.service').PaymentsService;
+let seed: {
+  shopId: string; userId: string; variantId: string; channelCode: string;
+  productId: string; secondProductId: string; secondVariantId: string;
+};
 let handoffUpdateId = 0;
 
 const SECRET = 'test-secret-token';
@@ -73,10 +77,16 @@ before(async () => {
   } catch { databaseReady = false; return; }
 
   const { TelegramService } = await import('../src/telegram/telegram.service');
+  const { OrdersService } = await import('../src/orders/orders.service');
+  const { PaymentsService } = await import('../src/payments/payments.service');
   // AuditService واقعی ولی بدون دیتابیس‌زدنِ اضافی: همان نسخه‌ای که در برنامه است
   const { AuditService } = await import('../src/logging/audit.service');
   const audit = new AuditService(prisma as never, false);
-  telegram = new TelegramService(prisma as never, audit);
+  // چرخه‌ی بات/سفارش در تست: اول بات با جای خالی، بعد سفارش، بعد وصل‌کردن.
+  telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never);
+  const orders = new OrdersService(prisma as never, audit, telegram);
+  payments = new PaymentsService(orders);
+  Object.assign(telegram as unknown as Record<string, unknown>, { orders, payments });
 
   // داده‌ی تست: فروشگاه + یک محصول با یک واریانت
   const email = `tg-${Date.now()}@example.com`;
@@ -96,9 +106,20 @@ before(async () => {
     },
     include: { variants: true },
   });
+  // محصول دوم با یک واژه‌ی مشترک: برای تست «این مانتو چنده» → ابهام
+  const product2 = await prisma.product.create({
+    data: {
+      shopId, title: 'مانتو کتان', active: true,
+      variants: { create: [{ size: '۳۸', color: 'کرم', price: 640000, stock: 2 }] },
+    },
+    include: { variants: true },
+  });
   const channelCode = `t${Date.now().toString(36).slice(-6)}`;
   await prisma.channel.create({ data: { shopId, code: channelCode, botUsername: BOT_USERNAME } });
-  seed = { shopId, userId: user.id, variantId: product.variants[0].id, channelCode };
+  seed = {
+    shopId, userId: user.id, variantId: product.variants[0].id, channelCode,
+    productId: product.id, secondProductId: product2.id, secondVariantId: product2.variants[0].id,
+  };
 });
 
 after(async () => {
@@ -216,6 +237,186 @@ describe('channel webhook registration', () => {
     } finally {
       process.env.PUBLIC_API_URL = previous;
     }
+  });
+});
+
+function callbackUpdate(id: number, chatId: number, data: string) {
+  return {
+    update_id: id,
+    callback_query: {
+      id: `cb-${id}`,
+      from: { id: chatId, is_bot: false, first_name: 'مشتری' },
+      data,
+      message: { message_id: id, chat: { id: chatId, type: 'private', first_name: 'مشتری' } },
+    },
+  };
+}
+
+/** یک گفتگوی مشتری آماده (از مسیر واقعی /start) برای تست‌های بعدی. */
+async function joinedChat(chatId: number) {
+  const result = await telegram.handleUpdate(update(uid(), chatId, `/start ${seed.channelCode}`) as never);
+  assert.equal(result.status, 'handled');
+  reset();
+  return chatId;
+}
+
+describe('رفع ابهام و انتخاب محصول در بات', () => {
+  it('بدون دیتابیس: skip', (t) => { if (!databaseReady) t.skip('DATABASE_URL/DB_* تنظیم نشده'); });
+
+  it('«این مانتو چنده» → دو محصول و دکمه‌ی انتخاب، نه حدس', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    const chatId = await joinedChat(9101);
+    const result = await telegram.handleUpdate(update(uid(), chatId, 'این مانتو چنده؟') as never);
+    assert.equal(result.status, 'handled');
+    assert.equal(result.status === 'handled' && result.kind, 'clarify');
+
+    const [message] = sends('9101');
+    assert.match(String(message.body.text), /بیش از یک محصول/);
+    const markup = message.body.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] };
+    const buttons = markup.inline_keyboard.flat();
+    assert.equal(buttons.length, 2);
+    assert.ok(buttons.every(button => button.callback_data.startsWith('p:')));
+  });
+
+  it('انتخاب محصول از دکمه → قیمت و موجودی و دکمه‌ی ثبت سفارش', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    const chatId = await joinedChat(9102);
+    reset();
+    const result = await telegram.handleUpdate(callbackUpdate(uid(), chatId, `p:${seed.secondProductId}`) as never);
+    assert.equal(result.status, 'handled');
+    const [message] = sends('9102');
+    assert.match(String(message.body.text), /مانتو کتان/);
+    assert.match(String(message.body.text), /کد محصول/);
+    const markup = message.body.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] };
+    assert.ok(markup.inline_keyboard.flat()[0].callback_data.startsWith('ord:'));
+    // answerCallbackQuery صدا زده شده تا لودینگ دکمه بسته شود
+    assert.ok(captured.some(entry => entry.method === 'answerCallbackQuery'));
+  });
+
+  it('پست فوروارد‌شده با زیرنویس → محصول از متن زیرنویس تشخیص داده می‌شود', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    const chatId = await joinedChat(9103);
+    reset();
+    const forwarded = {
+      update_id: uid(),
+      message: {
+        message_id: 1,
+        date: Math.floor(Date.now() / 1000),
+        caption: 'مانتو کتان کرم قیمت ۶۴۰ هزار تومان',
+        chat: { id: chatId, type: 'private' },
+        from: { id: chatId, is_bot: false },
+        forward_origin: { type: 'channel', chat: { title: 'کانال فروش تست' } },
+        photo: [{ file_id: 'x' }],
+      },
+    };
+    const result = await telegram.handleUpdate(forwarded as never);
+    assert.equal(result.status, 'handled');
+    assert.match(String(sends('9103')[0].body.text), /مانتو کتان/);
+  });
+
+  it('پست فوروارد‌شده‌ی بدون متن → پیام روشن، نه سکوت', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    const chatId = await joinedChat(9104);
+    reset();
+    const result = await telegram.handleUpdate({
+      update_id: uid(),
+      message: {
+        message_id: 1, date: Math.floor(Date.now() / 1000),
+        chat: { id: chatId, type: 'private' }, from: { id: chatId, is_bot: false },
+        forward_origin: { type: 'channel', chat: { title: 'کانال تست' } }, photo: [{ file_id: 'x' }],
+      },
+    } as never);
+    assert.equal(result.status === 'handled' && result.kind, 'forward_no_text');
+    assert.match(String(sends('9104')[0].body.text), /متنی ندارد/);
+  });
+});
+
+describe('سفارش کامل در بات', () => {
+  it('بدون دیتابیس: skip', (t) => { if (!databaseReady) t.skip('DATABASE_URL/DB_* تنظیم نشده'); });
+
+  it('مسیر کامل تا لینک پرداخت، رزرو موجودی، و اعلان فروشنده پس از پرداخت', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    process.env.PUBLIC_API_URL = 'https://api.test.local';
+    await setOwnerChat('777');
+    const chatId = await joinedChat(9201);
+
+    // شروع سفارش با دکمه
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, `ord:${seed.secondVariantId}`) as never);
+    assert.match(String(sends('9201').at(-1)?.body.text), /چند عدد/);
+
+    // تعداد
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:q:2') as never);
+    assert.match(String(sends('9201').at(-1)?.body.text), /نام و نام خانوادگی/);
+
+    // نام، موبایل، نشانی
+    await telegram.handleUpdate(update(uid(), chatId, 'سارا محمدی') as never);
+    await telegram.handleUpdate(update(uid(), chatId, '۰۹۱۲۳۴۵۶۷۸۹') as never);
+    await telegram.handleUpdate(update(uid(), chatId, 'تهران، خیابان ولیعصر، پلاک ۱۲، کد پستی ۱۲۳۴۵۶۷۸۹۰') as never);
+    assert.match(String(sends('9201').at(-1)?.body.text), /پیش‌فاکتور/);
+
+    // تأیید → سفارش + لینک پرداخت
+    const confirmed = await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:confirm') as never);
+    assert.equal(confirmed.status === 'handled' && confirmed.kind, 'order_created');
+
+    const payMessage = sends('9201').at(-1)!;
+    const markup = payMessage.body.reply_markup as { inline_keyboard: { url: string }[][] };
+    const payUrl = markup.inline_keyboard[0][0].url;
+    assert.match(payUrl, /^https:\/\/api\.test\.local\/payments\/sandbox\/sbx_/);
+
+    const order = await prisma.order.findFirst({ where: { shopId: seed.shopId }, orderBy: { createdAt: 'desc' }, include: { items: true } });
+    assert.ok(order, 'سفارش باید ثبت شده باشد');
+    assert.equal(order!.status, 'AWAITING_PAYMENT');
+    assert.equal(order!.total, 640000 * 2);
+    assert.equal(order!.items[0].quantity, 2);
+    // موجودی رزرو شد: ۲ از ۲
+    const variant = await prisma.variant.findUniqueOrThrow({ where: { id: seed.secondVariantId } });
+    assert.equal(variant.stock, 0);
+
+    // پرداخت در درگاه آزمایشی
+    const authority = order!.paymentAuthority!;
+    reset();
+    const paid = await payments.confirmSandbox(authority, true);
+    assert.equal(paid.ok, true);
+
+    const after = await prisma.order.findUniqueOrThrow({ where: { id: order!.id } });
+    assert.equal(after.status, 'PAID');
+    assert.ok(after.paidAt);
+    assert.ok(after.paymentRefId.length > 0);
+
+    // اعلان‌ها: به مشتری و به فروشنده
+    await new Promise(done => setTimeout(done, 50));
+    assert.ok(sends('9201').some(entry => String(entry.body.text).includes('پرداخت شما تأیید شد')));
+    assert.ok(sends('777').some(entry => String(entry.body.text).includes('سفارش پرداخت‌شده')), 'فروشنده باید اعلان بگیرد');
+
+    // idempotent: پرداخت دوباره اعلان و تغییر وضعیت تکرار نمی‌کند
+    reset();
+    const again = await payments.confirmSandbox(authority, true);
+    assert.equal(again.ok, true);
+    assert.equal(again.ok && again.already, true);
+    assert.equal(sends().length, 0, 'پرداخت تکراری نباید پیام تکراری بفرستد');
+  });
+
+  it('موجودی ناکافی → سفارش ثبت نمی‌شود و مشتری پیام روشن می‌گیرد', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    process.env.PUBLIC_API_URL = 'https://api.test.local';
+    const chatId = await joinedChat(9202);
+
+    // موجودی مانتو کتان ۰ شده (تست قبل)؛ دکمه‌ی سفارش دیگر نباید موجود باشد
+    const result = await telegram.handleUpdate(callbackUpdate(uid(), chatId, `ord:${seed.secondVariantId}`) as never);
+    assert.equal(result.status === 'handled' && result.kind, 'out_of_stock');
+    assert.match(String(sends('9202').at(-1)?.body.text), /موجود نیست/);
+  });
+
+  it('لغو سفارش در میانه و /orders', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    const chatId = await joinedChat(9203);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, `ord:${seed.variantId}`) as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:cancel') as never);
+    assert.match(String(sends('9203').at(-1)?.body.text), /لغو شد/);
+
+    const list = await telegram.handleUpdate(update(uid(), chatId, '/orders') as never);
+    assert.equal(list.status, 'handled');
+    assert.match(String(sends('9203').at(-1)?.body.text), /سفارش‌های شما|هنوز سفارشی/);
   });
 });
 

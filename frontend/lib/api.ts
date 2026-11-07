@@ -64,6 +64,8 @@ export type TelegramWebhook = {
   /** آدرس ثبت‌شده به همین سرویس اشاره می‌کند */
   pointsHere: boolean;
   pending: number;
+  /** دکمه‌های inline کار می‌کنند (webhook با callback_query ثبت شده) */
+  buttonsWork: boolean;
   lastError: string;
   error: string;
 };
@@ -78,6 +80,21 @@ export type TelegramStatus = {
   ownerLinked: boolean;
   ownerLinkedAt: string | null;
   conversations: number;
+};
+export type OrderStatus = 'AWAITING_PAYMENT' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED';
+export type OrderItem = {
+  id: string; title: string; spec: string; price: number; quantity: number; variantId: string | null;
+};
+export type Order = {
+  id: string; code: string; status: OrderStatus;
+  chatId: string | null; customerName: string; customerPhone: string; address: string; note: string;
+  total: number; paymentProvider: string; paymentRefId: string; paidAt: string | null;
+  cancelledReason: string; createdAt: string; updatedAt: string;
+  items: OrderItem[]; itemsCount?: number;
+};
+export type OrdersSummary = {
+  awaitingPayment: number; paidLast24h: number; revenueLast24h: number;
+  recent: { id: string; code: string; total: number; status: OrderStatus; customerName: string; createdAt: string }[];
 };
 export type TelegramOwnerCode = { ownerCode: string | null; ownerLink: string | null; command?: string; reason?: string };
 export type SaleResult = Variant & { stock: number };
@@ -208,6 +225,18 @@ export const api = {
   telegramOwnerCode: () => request<TelegramOwnerCode>('/channel/telegram/owner-code', { method: 'POST' }),
   telegramDisconnectOwner: () => request<TelegramStatus>('/channel/telegram/disconnect-owner', { method: 'POST' }),
   telegramDisable: () => request<TelegramStatus>('/channel/telegram', { method: 'DELETE' }),
+
+  orders: (query: { status?: string; limit?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (query.status) params.set('status', query.status);
+    if (query.limit) params.set('limit', String(query.limit));
+    const suffix = params.toString() ? `?${params}` : '';
+    return request<Order[]>(`/orders${suffix}`);
+  },
+  order: (id: string) => request<Order>(`/orders/${id}`),
+  ordersSummary: () => request<OrdersSummary>('/orders/summary'),
+  setOrderStatus: (id: string, status: OrderStatus) =>
+    request<Order>(`/orders/${id}/status`, { method: 'POST', body: { status } }),
 
   summary: () => request<Summary>('/reports/summary'),
   attention: () => request<AttentionItem[]>('/reports/attention'),

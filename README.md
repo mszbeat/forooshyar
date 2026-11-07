@@ -19,6 +19,10 @@ Deployment:
 
 Telegram is documented separately: [`docs/TELEGRAM.md`](docs/TELEGRAM.md) (shared bot, customer auto-replies from real stock, seller sale/low-stock notifications, webhook setup).
 
+Orders taken inside the bot — disambiguation by buttons, forwarded-post detection,
+step-by-step checkout, payment link, and the panel page — are in
+[`docs/ORDERS.md`](docs/ORDERS.md).
+
 In both cases the panel talks to the API through its own same-origin `/api` proxy: leave frontend `NEXT_PUBLIC_API_BASE_URL` **empty** and point `API_PROXY_TARGET` at the API. Trailing slashes in either variable are stripped, because a trailing slash used to produce `//auth/login` and a 404.
 
 ## Current implementation and important limitations

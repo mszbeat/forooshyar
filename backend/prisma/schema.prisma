@@ -59,6 +59,7 @@ model Shop {
   operations     StockOperation[]
   channel        Channel?
   conversations  TelegramConversation[]
+  orders         Order[]
 }
 
 model Product {
@@ -94,6 +95,7 @@ model Variant {
   updatedAt      DateTime         @updatedAt
   movements      StockMovement[]
   operations     StockOperation[]
+  orderItems     OrderItem[]
 
   @@unique([shopId, id])
   @@unique([shopId, sku])
@@ -154,6 +156,8 @@ model Channel {
 }
 
 // وضعیت گفتگوی هر مشتری با هر فروشگاه. chatId شناسه‌ی چت تلگرام است.
+// `draft` مرحله‌ی جاری سفارش‌گیری در بات است (ثبت سفارش چند پیام طول می‌کشد و
+// webhook بی‌حالت است، پس حالت باید جایی ذخیره شود).
 model TelegramConversation {
   id           String   @id @default(uuid()) @db.Uuid
   shopId       String   @db.Uuid
@@ -162,11 +166,73 @@ model TelegramConversation {
   username     String   @default("")
   firstName    String   @default("")
   messageCount Int      @default(0)
+  draft        Json?
   lastSeenAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 
   @@unique([shopId, chatId])
   @@index([shopId, lastSeenAt])
+}
+
+// ---------------------------------------------------------------------------
+// سفارش
+// ---------------------------------------------------------------------------
+
+// سفارشی که مشتری از داخل بات ثبت می‌کند. موجودی همان لحظه‌ی ساخت سفارش
+// رزرو (کم) می‌شود تا دو مشتری هم‌زمان یک عدد آخر را نخرند؛ اگر پرداخت نشد یا
+// سفارش لغو شد، موجودی برمی‌گردد.
+enum OrderStatus {
+  AWAITING_PAYMENT
+  PAID
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  shopId          String      @db.Uuid
+  shop            Shop        @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  // کد کوتاه برای پیگیری توسط مشتری و فروشنده (بدون uuid در پیام)
+  code            String      @unique
+  status          OrderStatus @default(AWAITING_PAYMENT)
+  // مشتری
+  chatId          String?
+  customerName    String      @default("")
+  customerPhone   String      @default("")
+  address         String      @default("")
+  note            String      @default("")
+  total           Int
+  // پرداخت
+  paymentProvider String      @default("")
+  paymentAuthority String?
+  paymentRefId    String      @default("")
+  paidAt          DateTime?
+  cancelledReason String      @default("")
+  items           OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([shopId, paymentAuthority])
+  @@index([shopId, createdAt])
+  @@index([shopId, status])
+}
+
+model OrderItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId   String   @db.Uuid
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shopId    String   @db.Uuid
+  variantId String?  @db.Uuid
+  variant   Variant? @relation(fields: [shopId, variantId], references: [shopId, id], onDelete: Restrict)
+  // عنوان و مشخصات در لحظه‌ی ثبت کپی می‌شوند؛ تغییر نام محصول نباید سفارش قدیمی را عوض کند.
+  title     String
+  spec      String   @default("")
+  price     Int
+  quantity  Int
+
+  @@index([orderId])
+  @@index([shopId, variantId])
 }
 
 // تلگرام اگر ۲۰۰ نگیرد همان update را دوباره می‌فرستد. این جدول تضمین می‌کند
