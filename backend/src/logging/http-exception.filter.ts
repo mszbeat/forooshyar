@@ -18,11 +18,19 @@ export class AllExceptionsFilter {
     const context = currentContext();
 
     const isHttp = exception instanceof HttpException;
-    const status = isHttp ? exception.getStatus() : 500;
+    // Body-parser and other Express middleware throw plain errors that carry a
+    // `status`/`statusCode` (413 too large, 400 malformed JSON, 415 wrong type).
+    const rawStatus = isHttp
+      ? exception.getStatus()
+      : Number((exception as { status?: unknown; statusCode?: unknown })?.status
+        ?? (exception as { statusCode?: unknown })?.statusCode);
+    const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
+
     const body = isHttp ? exception.getResponse() : null;
     const message = typeof body === 'string'
       ? body
-      : (body as { message?: unknown } | null)?.message ?? 'Internal server error';
+      : (body as { message?: unknown } | null)?.message
+        ?? (status === 413 ? 'Payload too large' : status === 400 ? 'Malformed request body' : 'Internal server error');
 
     if (status >= 500) {
       const stack = exception instanceof Error ? exception.stack : String(exception);

@@ -1,0 +1,12 @@
+# /etc/systemd/system/forooshyar-audit-prune.service
+[Unit]
+Description=Prune old Forooshyar audit rows
+
+[Service]
+Type=oneshot
+User=forooshyar
+Group=forooshyar
+WorkingDirectory=/srv/forooshyar/backend
+EnvironmentFile=/etc/forooshyar/api.env
+ExecStart=/usr/bin/node -r ts-node/register scripts/prune-audit.ts
+SyslogIdentifier=forooshyar-audit-prune

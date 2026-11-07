@@ -18,6 +18,7 @@ async function bootstrap() {
   // Explicit body size limit prevents oversized unauthenticated payloads.
   const express = await import('express');
   app.use(express.json({ limit: '64kb' }));
-  await app.listen(config.PORT, '0.0.0.0');
+  // Bind to loopback in production (Nginx proxies to it); HOST=0.0.0.0 for a container.
+  await app.listen(config.PORT, process.env.HOST ?? '127.0.0.1');
 }
 void bootstrap();

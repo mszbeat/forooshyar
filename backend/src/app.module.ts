@@ -1,4 +1,5 @@
 import { Controller, Get, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { json } from 'express';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
@@ -31,7 +32,10 @@ class HealthController { @Get() health() { return { status: 'ok' }; } }
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Every route gets a request id + log context before anything else runs.
-    consumer.apply(RequestContextMiddleware).forRoutes('*');
+    // Order matters: request id + log context first, then body parsing.
+    // Explicit 64kb limit prevents oversized unauthenticated payloads.
+    consumer
+      .apply(RequestContextMiddleware, json({ limit: '64kb' }))
+      .forRoutes('*');
   }
 }
