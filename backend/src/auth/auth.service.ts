@@ -36,7 +36,7 @@ export class AuthService {
       });
       return this.token(user.id, user.shop!.id);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('Registration failed');
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('این ایمیل قبلاً ثبت شده است.');
       throw error;
     }
   }
@@ -44,7 +44,7 @@ export class AuthService {
     const user = await this.db.user.findUnique({ where: { email }, include: { shop: true } });
     if (!user || !user.shop || !(await verifyPassword(password, user.passwordHash))) {
       this.audit.record({ action: 'auth.login_failed', entity: 'user', meta: { email, reason: !user ? 'unknown_email' : !user.shop ? 'no_shop' : 'bad_password' } });
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('ایمیل یا رمز عبور نادرست است.');
     }
     this.audit.record({ action: 'auth.login', entity: 'user', entityId: user.id, shopId: user.shop.id, userId: user.id, meta: { email } });
     return this.token(user.id, user.shop.id);

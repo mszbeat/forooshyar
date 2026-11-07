@@ -32,11 +32,14 @@ NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
 [[ -f /etc/forooshyar/web.env ]] || fail "/etc/forooshyar/web.env موجود نیست"
 
 # ------------------------------------------------------------------- 1. backup
-if command -v pg_dump >/dev/null; then
+if [[ "${SKIP_BACKUP:-0}" == "1" ]]; then
+  log "backup رد شد (SKIP_BACKUP=1)"
+elif command -v pg_dump >/dev/null; then
   log "backup دیتابیس قبل از مهاجرت"
   "$APP_DIR/deploy/backup-db.sh" || fail "backup شکست خورد — دیپلوی متوقف شد"
 else
-  log "pg_dump پیدا نشد؛ backup رد شد (در production نصبش کن)"
+  # روی دیتابیس مدیریت‌شده معمولاً pg_dump کلاینت نصب نیست؛ بکاپ خودکار همان سرویس جای آن را می‌گیرد
+  log "pg_dump پیدا نشد؛ backup رد شد — بکاپ سرویس دیتابیس را چک کن"
 fi
 
 # --------------------------------------------------------------------- 2. code
@@ -61,6 +64,8 @@ npx prisma generate
 
 log "backend: مهاجرت دیتابیس"
 set -a; . /etc/forooshyar/api.env; set +a
+# prisma فقط DATABASE_URL را می‌شناسد، ولی ما DB_* را ست می‌کنیم → از db-url.js بساز
+export DATABASE_URL="$(node "$APP_DIR/deploy/db-url.js")"
 npx prisma migrate deploy
 
 log "backend: build"

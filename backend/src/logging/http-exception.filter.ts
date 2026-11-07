@@ -26,11 +26,25 @@ export class AllExceptionsFilter {
         ?? (exception as { statusCode?: unknown })?.statusCode);
     const status = Number.isInteger(rawStatus) && rawStatus >= 400 && rawStatus <= 599 ? rawStatus : 500;
 
-    const body = isHttp ? exception.getResponse() : null;
-    const message = typeof body === 'string'
-      ? body
-      : (body as { message?: unknown } | null)?.message
-        ?? (status === 413 ? 'Payload too large' : status === 400 ? 'Malformed request body' : 'Internal server error');
+    // Nest's own HttpExceptions already carry a client-ready body (a string, a
+    // zod flatten, or a custom object). Pass it through untouched — replacing it
+    // with a generic message hides which field was wrong, and the panel shows
+    // `message` verbatim.
+    let payload: Record<string, unknown>;
+    if (isHttp) {
+      const body = exception.getResponse();
+      payload = typeof body === 'string' ? { message: body } : { ...(body as Record<string, unknown>) };
+    } else {
+      // Express/middleware errors (body-parser: 413, malformed JSON: 400) and any
+      // unexpected crash. Messages are Persian because the panel renders them.
+      payload = {
+        message:
+          status === 413 ? 'حجم درخواست بیش از حد مجاز است.'
+          : status === 400 ? 'بدنه‌ی درخواست معتبر نیست.'
+          : status === 429 ? 'تعداد درخواست‌ها زیاد بود؛ چند لحظه بعد دوباره تلاش کنید.'
+          : 'خطای غیرمنتظره‌ای در سرور رخ داد.',
+      };
+    }
 
     if (status >= 500) {
       const stack = exception instanceof Error ? exception.stack : String(exception);
@@ -38,8 +52,8 @@ export class AllExceptionsFilter {
     }
 
     response.status(status).json({
+      ...payload,
       statusCode: status,
-      message,
       ...(context?.requestId ? { requestId: context.requestId } : {}),
       path: request.url,
     });
