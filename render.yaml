@@ -29,8 +29,11 @@ services:
     # --include=dev چون tsc و prisma در devDependencies هستند و Render با
     # NODE_ENV=production نصب می‌کند؛ بدون آن build با «tsc: not found» می‌افتد.
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
-    # مهاجرت + اجرا. `prisma` از devDependencies بیلد موجود است.
-    startCommand: npx prisma migrate deploy && node dist/main.js
+    # مهاجرت + اجرا. `npm run prisma:deploy` هم با DATABASE_URL و هم با DB_* کار
+    # می‌کند (خود prisma فقط DATABASE_URL را می‌خواند). devDependencies بیلد موجودند.
+    startCommand: npm run prisma:deploy && node dist/main.js
+    # اگر این را خالی بگذاری، Render از `/` استفاده می‌کند؛ کد روی `/` هم ۲۰۰
+    # می‌دهد، ولی صریح بودن بهتر است.
     healthCheckPath: /health
     autoDeploy: true
     envVars:
