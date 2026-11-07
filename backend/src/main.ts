@@ -1,8 +1,9 @@
 import 'reflect-metadata';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { loadConfig } from './config';
+import { loadConfig, resolveHost } from './config';
 
 async function bootstrap() {
   const config = loadConfig(process.env);
@@ -11,14 +12,21 @@ async function bootstrap() {
   const origins = config.CORS_ORIGINS.split(',').map(value => value.trim()).filter(Boolean);
   app.enableCors({ origin: origins, methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'], credentials: false });
   app.enableShutdownHooks();
-  // Init before the body parser so the request-context/logging middleware is the
-  // first thing a request touches: a malformed JSON body (400) is then logged
-  // too, instead of being rejected before the audit trail sees it.
-  await app.init();
-  // Explicit body size limit prevents oversized unauthenticated payloads.
-  const express = await import('express');
-  app.use(express.json({ limit: '64kb' }));
-  // Bind to loopback in production (Nginx proxies to it); HOST=0.0.0.0 for a container.
-  await app.listen(config.PORT, process.env.HOST ?? '127.0.0.1');
+  // توجه: بدنه‌ی درخواست در AppModule.configure() پارس می‌شود (قبل از init).
+  // اینجا هیچ app.init()/express.json() دوباره‌ای نگذار: پارس بعد از init بی‌اثر
+  // است و همان باگی بود که POST /auth/register را در build کامپایل‌شده ۵۰۰ می‌کرد.
+
+  const host = resolveHost();
+  await app.listen(config.PORT, host);
+
+  const logger = new Logger('Bootstrap');
+  logger.log(`listening on http://${host}:${config.PORT}${host === '0.0.0.0' ? ' (همه‌ی اینترفیس‌ها)' : ''}`);
+  if ((host === '127.0.0.1' || host === '::1') && process.env.PORT) {
+    logger.warn(
+      `HOST=${host} است ولی PORT از بیرون تزریق شده؛ تقریباً همیشه یعنی پورت دیده نمی‌شود. ` +
+      'روی Render/Railway/Fly مقدار HOST=0.0.0.0 را بگذار.',
+    );
+  }
 }
+
 void bootstrap();

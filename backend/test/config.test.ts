@@ -33,3 +33,16 @@ test('separate database fields generate an encoded PostgreSQL URL and validate m
   assert.throws(() => loadConfig({ DB_HOST: 'localhost', JWT_SECRET: 'x'.repeat(32) }));
   assert.throws(() => loadConfig({ DB_HOST: 'localhost/evil', DB_USERNAME: 'seller', DB_PASSWORD: 'pass', DB_NAME: 'shop', JWT_SECRET: 'x'.repeat(32) }));
 });
+
+test('bind address: HOST wins, PaaS defaults to all interfaces, VPS stays on loopback', async () => {
+  const { resolveHost } = await import('../src/config');
+  assert.equal(resolveHost({ HOST: '10.0.0.5' }), '10.0.0.5');
+  assert.equal(resolveHost({ HOST: ' 0.0.0.0 ' }), '0.0.0.0');
+  // روی Render: بدون HOST هم باید 0.0.0.0 باشد، وگرنه پورت دیده نمی‌شود
+  assert.equal(resolveHost({ RENDER: 'true' }), '0.0.0.0');
+  assert.equal(resolveHost({ RAILWAY_ENVIRONMENT: 'production' }), '0.0.0.0');
+  assert.equal(resolveHost({ FLY_APP_NAME: 'forooshyar' }), '0.0.0.0');
+  // سرور اختصاصی: پیش‌فرض امن loopback (Nginx پروکسی می‌کند)
+  assert.equal(resolveHost({}), '127.0.0.1');
+  assert.equal(resolveHost({ PORT: '3001' }), '127.0.0.1');
+});

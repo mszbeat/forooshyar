@@ -45,3 +45,23 @@ export function databaseUrl(env: NodeJS.ProcessEnv): string {
   return env.DATABASE_URL ?? '';
 }
 export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => schema.parse({ ...env, DATABASE_URL: databaseUrl(env) });
+
+/**
+ * پلتفرم‌هایی که ترافیک را از بیرون کانتینر به پورت پروسه می‌رسانند، پس باید روی
+ * همه‌ی اینترفیس‌ها گوش داد. بدون این، پیش‌فرض loopback باعث می‌شود پلتفرم پورت
+ * را نبیند و دیپلوی با «No open ports detected on 0.0.0.0 … Detected open ports on
+ * localhost» شکست بخورد. تا وقتی HOST ست نشده باشد از این علامت‌ها استفاده می‌کنیم.
+ */
+const PLATFORM_MARKERS = ['RENDER', 'RAILWAY_ENVIRONMENT', 'FLY_APP_NAME', 'DYNO', 'K_SERVICE', 'WEBSITE_SITE_NAME'];
+
+/**
+ * آدرس bind.
+ *  1. HOST اگر ست شده باشد (همیشه اولویت دارد).
+ *  2. روی PaaS معروف: 0.0.0.0 تا از بیرون دیده شود.
+ *  3. در غیر این صورت loopback — امن‌ترین پیش‌فرض برای VPS پشت Nginx.
+ */
+export function resolveHost(env: NodeJS.ProcessEnv = process.env): string {
+  const explicit = env.HOST?.trim();
+  if (explicit) return explicit;
+  return PLATFORM_MARKERS.some(key => env[key]) ? '0.0.0.0' : '127.0.0.1';
+}
