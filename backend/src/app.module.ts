@@ -23,6 +23,7 @@ import { ImportService } from './imports/import.service';
 import { FreshController } from './fresh/fresh.controller';
 import { ReportsController } from './reports/reports.controller';
 import { ReportsService } from './reports/reports.service';
+import { TelegramModule } from './telegram/telegram.module';
 
 // پیام پیش‌فرض Throttler انگلیسی است و پنل همان را به کاربر نشان می‌دهد.
 @Injectable()
@@ -53,7 +54,7 @@ class HealthController {
   @Get() health() { return { status: 'ok' }; }
 }
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, LoggingModule, JwtModule.registerAsync({ global: true, useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, LoggingModule, JwtModule.registerAsync({ global: true, useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]), TelegramModule],
   controllers: [RootController, HealthController, AuthController, ShopController, CatalogController, ImportController, FreshController, ReportsController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }, PrismaService, AuthGuard, AuthService, CatalogService, ImportService, ReportsService, { provide: CacheService, useFactory: () => createCacheService(loadConfig(process.env)) }, { provide: APP_GUARD, useClass: PersianThrottlerGuard }],
 })

@@ -61,6 +61,16 @@ services:
         value: "false"
       - key: API_PROXY_TIMEOUT_MS
         value: "45000"
+      # --- تلگرام: docs/TELEGRAM.md -------------------------------------------
+      # توکن BotFather؛ در Dashboard مقدار بده (sync: false یعنی مخفی می‌ماند).
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      # openssl rand -hex 32 — هم در مسیر URL می‌آید هم به‌عنوان هدر بررسی می‌شود.
+      - key: TELEGRAM_WEBHOOK_SECRET
+        generateValue: true
+      # آدرس عمومی همین سرویس API، برای `npm run telegram:setup`
+      - key: PUBLIC_API_URL
+        sync: false
 
   # --------------------------------------------------------------- پنل (Next.js)
   - type: web
