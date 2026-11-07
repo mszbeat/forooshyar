@@ -87,6 +87,40 @@ npm run telegram:setup -- --delete   # حذف webhook
 
 ---
 
+## ۲٫۵. اگر `fetch failed` گرفتی (شبکه/فیلترینگ)
+
+```
+✖ fetch failed
+```
+
+یعنی Node به `api.telegram.org` نرسید — **نه** اینکه توکن غلط است. اسکریپت از
+نسخه‌ی جدید خودش علت را می‌گوید (`ENOTFOUND`, `ECONNREFUSED`, `ETIMEDOUT`, …) و
+آدرسی که تلاش کرده را چاپ می‌کند.
+
+بررسی یک‌خطی:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' https://api.telegram.org
+```
+
+- اگر `curl` هم خطا داد → شبکه‌ی شما به تلگرام دسترسی ندارد (فیلترینگ یا پروکسی شرکتی).
+- اگر `curl` جواب داد ولی Node نه → احتمالاً شبکه پروکسی اجباری دارد؛ **`fetch` در Node
+  متغیرهای `HTTPS_PROXY` را نادیده می‌گیرد ولی `curl` رعایت می‌کند.**
+
+سه راه، به ترتیب سادگی:
+
+| راه | کار |
+|---|---|
+| **۱. VPN روشن کن** | همان `npm run telegram:setup` را دوباره بزن |
+| **۲. با curl و پروکسی** | `npm run telegram:setup -- --print-curl` سه دستور آماده می‌دهد (setWebhook / getWebhookInfo / deleteWebhook) که با `--proxy http://user:pass@host:port` اجرا می‌شوند. این حالت **به هیچ شبکه‌ای از سمت Node نیاز ندارد** |
+| **۳. از یک ماشین/سرور خارج** | همان سه دستور curl را روی هر سروری که به تلگرام دسترسی دارد بزن (بدون `--proxy`) |
+
+> **Render پلن Free «Shell» ندارد** (SSH و Shell فقط در پلن‌های پولی است)، پس
+> نمی‌توان این اسکریپت را از داخل خود سرویس اجرا کرد. ولی یک‌بار که webhook ثبت شد،
+> دیگر اجرای اسکریپت لازم نیست؛ همه‌چیز روی سرور خودش کار می‌کند.
+
+---
+
 ## ۳. اتصال از پنل
 
 **تنظیمات → اتصال به تلگرام**
@@ -144,6 +178,8 @@ npm run telegram:setup -- --delete   # حذف webhook
 | نشانه | علت | کار |
 |---|---|---|
 | `npm run telegram:setup` می‌گوید `Not Found` | توکن غلط یا revoke شده | توکن را از BotFather دوباره بگیر |
+| `✖ fetch failed` | شبکه به تلگرام نمی‌رسد (فیلترینگ/پروکسی) | بخش ۲٫۵: VPN، یا `--print-curl`، یا اجرا از سرور خارج |
+| `✖ اتصال … [ENOTFOUND]` | DNS/فیلترینگ | همان بخش ۲٫۵ |
 | `Wrong response from the webhook: 401` در `--info` | `TELEGRAM_WEBHOOK_SECRET` در سرور با مقداری که webhook ثبت شده یکی نیست | سکرت را یکی کن و `telegram:setup` را دوباره بزن |
 | `Wrong response from the webhook: 502/503` | سرویس خواب است یا کرش کرده | لاگ سرویس API در Render |
 | مشتری جواب نمی‌گیرد ولی `/start` کار می‌کند | لینک `?start=` بدون کد باز شده | لینک کامل را از پنل کپی کن |

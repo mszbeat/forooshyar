@@ -31,13 +31,45 @@ function fail(message: string): never {
   process.exit(1);
 }
 
+function describeNetworkError(error: unknown): string {
+  const cause = (error as { cause?: { code?: string; errno?: string; message?: string } })?.cause;
+  const code = cause?.code ?? cause?.errno ?? '';
+  const hints: Record<string, string> = {
+    ENOTFOUND: 'DNS جواب نداد؛ یا اینترنت/DNS قطع است یا دامنه در شبکه‌ی شما بلاک شده.',
+    EAI_AGAIN: 'DNS موقتاً جواب نداد.',
+    ECONNREFUSED: 'اتصال رد شد؛ اگر پروکسی یا فایروال دارید، مسیر api.telegram.org باز نیست.',
+    ECONNRESET: 'اتصال وسط کار قطع شد (فیلترینگ/پروکسی).',
+    ETIMEDOUT: 'اتصال تایم‌اوت شد؛ شبکه به api.telegram.org نمی‌رسد.',
+    UND_ERR_CONNECT_TIMEOUT: 'اتصال تایم‌اوت شد؛ شبکه به api.telegram.org نمی‌رسد.',
+    CERT_HAS_EXPIRED: 'گواهی TLS معتبر نیست — احتمالاً یک پروکسی/فایروال TLS را بازرسی می‌کند.',
+    SELF_SIGNED_CERT_IN_CHAIN: 'یک پروکسی با گواهی خودش وسط اتصال است.',
+  };
+  const base = code ? ` [${code}]` : '';
+  const hint = hints[code] ? `\n   ${hints[code]}` : '';
+  return `اتصال به ${baseUrlUsed} برقرار نشد${base}.${hint}`;
+}
+
+let baseUrlUsed = base;
+
 async function call<T>(method: string, body: Record<string, unknown> = {}): Promise<T> {
   if (!token) fail('TELEGRAM_BOT_TOKEN ست نشده است. توکن BotFather را در Environment بگذار.');
-  const response = await fetch(`${base}/bot${token}/${method}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+
+  const url = `${base}/bot${token}/${method}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    });
+  } catch (error) {
+    fail(describeNetworkError(error) + `
+   بررسی سریع:  curl -sS -o /dev/null -w '%{http_code}\n' ${base}
+   اگر این هم خطا داد، شبکه‌ی شما به تلگرام دسترسی ندارد: VPN روشن کن یا
+   از یک شبکه‌ی دیگر (یا سرور خارج) همین دستور را بزن.
+   راه‌حل بدون VPN:  npm run telegram:setup -- --print-curl`);
+  }
   const payload = await response.json().catch(() => null) as { ok?: boolean; result?: T; description?: string } | null;
   if (!payload?.ok) fail(`${method} ناموفق: ${payload?.description ?? `HTTP ${response.status}`}`);
   return payload.result as T;
@@ -46,10 +78,30 @@ async function call<T>(method: string, body: Record<string, unknown> = {}): Prom
 async function main() {
   if (!token) fail('TELEGRAM_BOT_TOKEN ست نشده است.');
 
-  const me = await call<{ id: number; username?: string; first_name?: string }>('getMe');
-  console.log(`\n🤖 بات: ${green(`@${me.username ?? me.id}`)} (${me.first_name ?? '-'})`);
+  console.log(dim(`   API: ${base}`));
+  for (const key of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']) {
+    if (process.env[key]) console.log(dim(`   پروکسی محیط: ${key}=${process.env[key]}`));
+  }
 
   const mode = process.argv[2];
+
+  if (mode === '--print-curl') {
+    if (!secret || !publicApi) fail('برای این حالت TELEGRAM_WEBHOOK_SECRET و PUBLIC_API_URL هم لازم است.');
+    const hookUrl = `${publicApi}/telegram/webhook/${secret}`;
+    const setBody = JSON.stringify({ url: hookUrl, secret_token: secret, allowed_updates: ['message', 'edited_message'] });
+    console.log(`\n${dim('# این سه دستور را هر جا که به تلگرام دسترسی دارد بزن (VPN، سرور خارج، یا با --proxy):')}\n`);
+    console.log(`curl -sS --proxy http://USER:PASS@HOST:PORT -X POST "${base}/bot${token}/setWebhook" \\`);
+    console.log(`  -H 'content-type: application/json' \\`);
+    console.log(`  -d '${setBody}'\n`);
+    console.log(`curl -sS --proxy http://USER:PASS@HOST:PORT "${base}/bot${token}/getWebhookInfo"\n`);
+    console.log(`curl -sS --proxy http://USER:PASS@HOST:PORT -X POST "${base}/bot${token}/deleteWebhook"\n`);
+    console.log(dim('  اگر پروکسی نداری، عبارت «--proxy ...» را حذف کن.'));
+    console.log(dim('  ⚠ توکن داخل این دستورها هست؛ در تاریخچه‌ی شل یا اسکرین‌شات نگذار.\n'));
+    return;
+  }
+
+  const me = await call<{ id: number; username?: string; first_name?: string }>('getMe');
+  console.log(`\n🤖 بات: ${green(`@${me.username ?? me.id}`)} (${me.first_name ?? '-'})`);
 
   if (mode === '--delete') {
     await call('deleteWebhook', { drop_pending_updates: false });
