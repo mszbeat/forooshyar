@@ -11,7 +11,13 @@ PROJECT_PLAN.md Phased roadmap and task IDs
 ARCHITECTURE.md Target design and known limitations
 ```
 
-Both directories have their own `package.json`, lockfile and environment file. See [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for independent instructions. No Docker is used. Deploy the backend and frontend on separate services, set backend `CORS_ORIGINS` to the exact frontend origin, and set frontend `NEXT_PUBLIC_API_BASE_URL` to the public API URL **when building the frontend**. Use HTTPS for both.
+Both directories have their own `package.json`, lockfile and environment file. See [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for independent instructions. No Docker is used.
+
+Deployment:
+- **Render (PaaS, the current target):** [`docs/RENDER.md`](docs/RENDER.md) and [`render.yaml`](render.yaml). Two web services + Postgres, no Nginx/systemd — Render terminates TLS and routes `$PORT`.
+- **Bare VPS:** [`docs/DEPLOY.md`](docs/DEPLOY.md) and [`deploy/`](deploy) (Nginx, systemd units, backup scripts).
+
+In both cases the panel talks to the API through its own same-origin `/api` proxy: leave frontend `NEXT_PUBLIC_API_BASE_URL` **empty** and point `API_PROXY_TARGET` at the API. Trailing slashes in either variable are stripped, because a trailing slash used to produce `//auth/login` and a 404.
 
 ## Current implementation and important limitations
 

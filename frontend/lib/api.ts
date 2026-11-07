@@ -1,6 +1,24 @@
-/** Typed API client. The browser always talks to the same origin; Next proxies `/api/*`. */
+/**
+ * Typed API client. The browser always talks to one origin and Next proxies `/api/*`.
+ *
+ * مهم برای Render (و هر PaaS): اگر NEXT_PUBLIC_API_BASE_URL مثل
+ * `https://forooshyar-api.onrender.com/` با اسلش انتهایی ست شود، هر مسیر به
+ * `//auth/login` تبدیل می‌شد و API با ۴۰۴ جواب می‌داد (path در لاگ audit:
+ * `//auth/login`). حالا **همه‌ی** اسلش‌های انتهایی حذف می‌شوند.
+ * اگر مقدار ناقص/غلط باشد هم بی‌صدا خراب نمی‌کنیم: در development هشدار، در
+ * production توکن/درخواست به همان origin (`/api`) می‌رود.
+ */
+function resolveApiBase(raw: string | undefined): string {
+  const value = (raw ?? '').trim().replace(/\/+$/, '');
+  if (!value) return '/api';
+  if (/^https?:\/\//.test(value) || value.startsWith('/')) return value;
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[api] NEXT_PUBLIC_API_BASE_URL نامعتبر است (${raw}); از /api هم‌مبدأ استفاده می‌شود.`);
+  }
+  return '/api';
+}
 
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || '/api').replace(/\/$/, '');
+export const API_BASE = resolveApiBase(process.env.NEXT_PUBLIC_API_BASE_URL);
 const TOKEN_KEY = 'forooshyar.token';
 
 export type Variant = {
