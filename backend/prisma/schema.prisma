@@ -28,6 +28,7 @@ model AuditLog {
   errorCode    String?
   errorMessage String?
   meta         Json?
+
   @@index([shopId, createdAt])
   @@index([shopId, action, createdAt])
   @@index([createdAt])
@@ -42,20 +43,22 @@ model User {
 }
 
 model Shop {
-  id             String   @id @default(uuid()) @db.Uuid
-  ownerId        String   @unique @db.Uuid
-  owner          User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  id             String                 @id @default(uuid()) @db.Uuid
+  ownerId        String                 @unique @db.Uuid
+  owner          User                   @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   name           String
-  tone           String   @default("")
-  shipping       String   @default("")
-  payment        String   @default("")
-  workingHours   String   @default("")
-  handoffMessage String   @default("برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.")
-  createdAt      DateTime @default(now())
+  tone           String                 @default("")
+  shipping       String                 @default("")
+  payment        String                 @default("")
+  workingHours   String                 @default("")
+  handoffMessage String                 @default("برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.")
+  createdAt      DateTime               @default(now())
   products       Product[]
   variants       Variant[]
   movements      StockMovement[]
   operations     StockOperation[]
+  channel        Channel?
+  conversations  TelegramConversation[]
 }
 
 model Product {
@@ -69,27 +72,29 @@ model Product {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   variants    Variant[]
+
   @@unique([shopId, id])
   @@index([shopId, title])
 }
 
 model Variant {
-  id             String          @id @default(uuid()) @db.Uuid
-  shopId         String          @db.Uuid
-  productId      String          @db.Uuid
-  shop           Shop            @relation(fields: [shopId], references: [id], onDelete: Restrict)
-  product        Product         @relation(fields: [shopId, productId], references: [shopId, id], onDelete: Restrict)
+  id             String           @id @default(uuid()) @db.Uuid
+  shopId         String           @db.Uuid
+  productId      String           @db.Uuid
+  shop           Shop             @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  product        Product          @relation(fields: [shopId, productId], references: [shopId, id], onDelete: Restrict)
   sku            String?
-  size           String          @default("")
-  color          String          @default("")
+  size           String           @default("")
+  color          String           @default("")
   price          Int
-  stock          Int             @default(0)
-  active         Boolean         @default(true)
-  stockUpdatedAt DateTime        @default(now())
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  stock          Int              @default(0)
+  active         Boolean          @default(true)
+  stockUpdatedAt DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
   movements      StockMovement[]
   operations     StockOperation[]
+
   @@unique([shopId, id])
   @@unique([shopId, sku])
   @@index([shopId, productId])
@@ -105,6 +110,7 @@ model StockMovement {
   reason    String
   actorId   String   @db.Uuid
   createdAt DateTime @default(now())
+
   @@index([shopId, variantId, createdAt])
 }
 
@@ -119,6 +125,55 @@ model StockOperation {
   quantity    Int
   resultStock Int?
   createdAt   DateTime @default(now())
+
   @@unique([shopId, requestKey])
   @@index([shopId, variantId])
+}
+
+// ---------------------------------------------------------------------------
+// تلگرام
+// ---------------------------------------------------------------------------
+
+// اتصال فروشگاه به بات مشترک. `code` همان بخشی است که در لینک
+// t.me/<bot>?start=<code> به مشتری داده می‌شود؛ `ownerCode` یک‌بارمصرف است تا
+// فروشنده چت خودش را وصل کند و اعلان‌ها به او برسد.
+model Channel {
+  id            String    @id @default(uuid()) @db.Uuid
+  shopId        String    @unique @db.Uuid
+  shop          Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  code          String    @unique
+  ownerCode     String?   @unique
+  ownerChat     String?
+  ownerLinkedAt DateTime?
+  botUsername   String    @default("")
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([active])
+}
+
+// وضعیت گفتگوی هر مشتری با هر فروشگاه. chatId شناسه‌ی چت تلگرام است.
+model TelegramConversation {
+  id           String   @id @default(uuid()) @db.Uuid
+  shopId       String   @db.Uuid
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  chatId       String
+  username     String   @default("")
+  firstName    String   @default("")
+  messageCount Int      @default(0)
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@unique([shopId, chatId])
+  @@index([shopId, lastSeenAt])
+}
+
+// تلگرام اگر ۲۰۰ نگیرد همان update را دوباره می‌فرستد. این جدول تضمین می‌کند
+// هر update_id فقط یک‌بار پردازش شود (بدون پاسخ تکراری به مشتری).
+model TelegramUpdate {
+  updateId   BigInt   @id
+  receivedAt DateTime @default(now())
+
+  @@index([receivedAt])
 }

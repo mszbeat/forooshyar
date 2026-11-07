@@ -2,10 +2,16 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
+import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
+  constructor(
+    private readonly db: PrismaService,
+    private readonly audit: AuditService,
+    // اعلان تلگرام اختیاری است: اگر TELEGRAM_BOT_TOKEN نباشد، notify خودش بی‌صدا رد می‌شود.
+    private readonly telegram: TelegramService,
+  ) {}
   async product(shopId: string, id: string) {
     const product = await this.db.product.findFirst({ where: { shopId, id }, include: { variants: true } });
     if (!product) throw new NotFoundException('Product not found');
@@ -77,6 +83,7 @@ export class CatalogService {
         action: 'variant.sell', entity: 'variant', entityId: variantId, shopId, userId,
         meta: { quantity, stockAfter: result.stock, idempotencyKey: null },
       });
+      void this.telegram.notifySale(shopId, variantId, quantity);
       return result;
     }
     try {
@@ -97,6 +104,7 @@ export class CatalogService {
         action: 'variant.sell', entity: 'variant', entityId: variantId, shopId, userId,
         meta: { quantity, stockAfter: sold.stock, idempotencyKey: requestKey },
       });
+      void this.telegram.notifySale(shopId, variantId, quantity);
       return sold;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

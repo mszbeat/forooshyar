@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, type Shop } from '@/lib/api';
 import { Field, PageHeader, SkeletonBlock, Spinner, useToast } from '@/components/ui';
+import { TelegramConnect } from '@/components/telegram-connect';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
 
 type Form = Pick<Shop, 'name' | 'tone' | 'shipping' | 'payment' | 'workingHours' | 'handoffMessage'>;
@@ -155,6 +156,8 @@ export default function SettingsPage() {
               </div>
             </div>
           </section>
+
+          <TelegramConnect />
 
           <section className="card">
             <div className="card-head">

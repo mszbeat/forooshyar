@@ -58,6 +58,18 @@ export type ImportResult = {
   results: { row: number; status: string; errors?: string[] }[];
 };
 export type BotReply = { kind: 'answer' | 'clarify' | 'handoff'; text: string };
+export type TelegramStatus = {
+  botConfigured: boolean;
+  botUsername: string;
+  /** لینکی که فروشنده به مشتری‌ها می‌دهد */
+  customerLink: string | null;
+  code: string | null;
+  active: boolean;
+  ownerLinked: boolean;
+  ownerLinkedAt: string | null;
+  conversations: number;
+};
+export type TelegramOwnerCode = { ownerCode: string | null; ownerLink: string | null; command?: string; reason?: string };
 export type SaleResult = Variant & { stock: number };
 export type AuthResult = { accessToken: string; tokenType: string; expiresIn: number };
 
@@ -177,6 +189,12 @@ export const api = {
   },
 
   botPreview: (message: string) => request<BotReply>('/bot/preview', { method: 'POST', body: { message } }),
+
+  telegramStatus: () => request<TelegramStatus>('/channel/telegram'),
+  telegramConnect: () => request<TelegramStatus>('/channel/telegram/connect', { method: 'POST' }),
+  telegramOwnerCode: () => request<TelegramOwnerCode>('/channel/telegram/owner-code', { method: 'POST' }),
+  telegramDisconnectOwner: () => request<TelegramStatus>('/channel/telegram/disconnect-owner', { method: 'POST' }),
+  telegramDisable: () => request<TelegramStatus>('/channel/telegram', { method: 'DELETE' }),
 
   summary: () => request<Summary>('/reports/summary'),
   attention: () => request<AttentionItem[]>('/reports/attention'),

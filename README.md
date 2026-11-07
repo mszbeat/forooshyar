@@ -17,6 +17,8 @@ Deployment:
 - **Render (PaaS, the current target):** [`docs/RENDER.md`](docs/RENDER.md) and [`render.yaml`](render.yaml). Two web services + Postgres, no Nginx/systemd — Render terminates TLS and routes `$PORT`.
 - **Bare VPS:** [`docs/DEPLOY.md`](docs/DEPLOY.md) and [`deploy/`](deploy) (Nginx, systemd units, backup scripts).
 
+Telegram is documented separately: [`docs/TELEGRAM.md`](docs/TELEGRAM.md) (shared bot, customer auto-replies from real stock, seller sale/low-stock notifications, webhook setup).
+
 In both cases the panel talks to the API through its own same-origin `/api` proxy: leave frontend `NEXT_PUBLIC_API_BASE_URL` **empty** and point `API_PROXY_TARGET` at the API. Trailing slashes in either variable are stripped, because a trailing slash used to produce `//auth/login` and a 404.
 
 ## Current implementation and important limitations
