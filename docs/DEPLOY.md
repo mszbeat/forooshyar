@@ -196,15 +196,9 @@ sudo ss -tlnp | grep -E ':(3000|3001|5432|80|443)'
 ## ۹. بکاپ و نگه‌داری
 
 ```bash
-sudo cp /srv/forooshyar/deploy/env/backup.env.example /etc/forooshyar/backup.env 2>/dev/null || true
-sudo tee /etc/forooshyar/backup.env >/dev/null <<'EOF'
-PGHOST=127.0.0.1
-PGUSER=forooshyar
-PGPASSWORD=رمز-دیتابیس
-DB_NAME=forooshyar
-BACKUP_DIR=/var/backups/forooshyar
-RETENTION_DAYS=14
-EOF
+sudo cp /srv/forooshyar/deploy/env/backup.env.example /etc/forooshyar/backup.env
+sudo nano /etc/forooshyar/backup.env          # رمز دیتابیس را بگذار
+sudo chown root:root /etc/forooshyar/backup.env
 sudo chmod 600 /etc/forooshyar/backup.env
 sudo -u postgres /srv/forooshyar/deploy/backup-db.sh     # یک بار دستی تست کن
 ```
