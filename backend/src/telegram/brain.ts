@@ -1,5 +1,6 @@
 import { answerFresh, normalizePersian, type FreshProduct, type FreshShop } from '../fresh/fresh';
 import { asksShopInfo, discover, productCodeOf, variantsFor, type CatalogProduct } from '../catalog/discovery';
+import { escapeHtml } from './order-flow';
 
 /** دکمه‌ی inline تلگرام؛ یا callback (data) یا لینک (url) — نه هر دو. */
 export type BotButton = { text: string; data?: string; url?: string };
@@ -10,6 +11,8 @@ export type BotReply = {
   kind: 'answer' | 'clarify' | 'handoff' | 'order';
   /** برای آمار و تست: چرا این پاسخ انتخاب شد. */
   reason?: string;
+  /** 'HTML' یعنی متن با تگ‌های تلگرام قالب‌بندی شده و مقادیر کاربر escape شده‌اند. */
+  parseMode?: 'HTML';
 };
 
 export type BrainShop = FreshShop & { name: string };
@@ -20,33 +23,40 @@ function specOf(variant: { size: string; color: string }): string {
   return [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
 }
 
-function productLine(product: CatalogProduct): string {
+function productLine(product: CatalogProduct, index: number): string {
   const inStock = variantsFor(product);
   const cheapest = [...product.variants].sort((a, b) => a.price - b.price)[0];
-  const price = cheapest ? ` · از ${toman(cheapest.price)}` : '';
-  const stock = inStock.length > 0 ? ` · ${inStock.length.toLocaleString('fa-IR')} سایز/رنگ موجود` : ' · ناموجود';
-  return `${product.title}${price}${stock}\nکد: ${productCodeOf(product)}`;
+  const price = cheapest ? `از ${toman(cheapest.price)}` : 'قیمت ثبت نشده';
+  const stock = inStock.length > 0 ? `${inStock.length.toLocaleString('fa-IR')} سایز/رنگ موجود` : 'ناموجود';
+  return [
+    `${NUMERALS[index] ?? `${index + 1}.`} <b>${escapeHtml(product.title)}</b>`,
+    `    💰 ${price} · 📦 ${stock}`,
+    `    🏷 <code>${productCodeOf(product)}</code>`,
+  ].join('\n');
 }
 
-/** دکمه‌های انتخاب محصول برای رفع ابهام؛ حداکثر ۶ گزینه، دو تا در هر ردیف. */
+/**
+ * دکمه‌های انتخاب محصول: **هر محصول یک ردیف**.
+ *
+ * دو دکمه در یک ردیف باعث می‌شد عنوان‌های فارسی بریده و ناخوانا شوند (در موبایل
+ * حتی «کت پشمی» و «کت چرم» شبیه هم دیده می‌شدند). یک ردیف تمام‌عرض، عنوان کامل
+ * و شماره‌ی همان ردیف فهرست را نشان می‌دهد.
+ */
 export function productButtons(products: CatalogProduct[]): BotButton[][] {
-  const rows: BotButton[][] = [];
-  const slice = products.slice(0, 6);
-  for (let index = 0; index < slice.length; index += 2) {
-    rows.push(slice.slice(index, index + 2).map(product => ({
-      // عنوان دکمه کوتاه می‌شود؛ تلگرام متن بلند را می‌برد.
-      text: product.title.length > 28 ? `${product.title.slice(0, 27)}…` : product.title,
-      data: `p:${product.id}`,
-    })));
-  }
-  return rows;
+  return products.slice(0, 6).map((product, index) => [{
+    text: `${NUMERALS[index] ?? `${index + 1}.`} ${product.title} · ${productCodeOf(product)}`,
+    data: `p:${product.id}`,
+  }]);
 }
+
+/** شماره‌های فارسی برای هم‌خوانی دکمه‌ها با فهرست متن. */
+const NUMERALS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
 
 /** دکمه‌های «ثبت سفارش» برای سایز/رنگ‌های موجود. */
 export function orderButtons(product: CatalogProduct): BotButton[][] {
   const available = variantsFor(product).slice(0, 5);
   return available.map(variant => [{
-    text: `🛒 ثبت سفارش${specOf(variant) ? ` · ${specOf(variant)}` : ''}`,
+    text: `🛒 سفارش · ${specOf(variant) || 'بدون سایز'} · ${variant.price.toLocaleString('fa-IR')} تومان`,
     data: `ord:${variant.id}`,
   }]);
 }
@@ -84,27 +94,34 @@ export function describeProduct(product: CatalogProduct, query: string): BotRepl
     return {
       kind: 'clarify',
       reason: 'variant_not_found',
+      parseMode: 'HTML',
       text: [
-        `${product.title} با ${[askedSize ? `سایز ${askedSize}` : '', askedColor ? `رنگ ${askedColor}` : ''].filter(Boolean).join(' و ')} ثبت نشده است.`,
-        available.length ? `گزینه‌های ثبت‌شده:\n${available.map(item => `• ${item}`).join('\n')}` : 'هنوز سایز و رنگی برای این محصول ثبت نشده است.',
+        `🙁 <b>${escapeHtml(product.title)}</b> با ${escapeHtml([askedSize ? `سایز ${askedSize}` : '', askedColor ? `رنگ ${askedColor}` : ''].filter(Boolean).join(' و '))} ثبت نشده است.`,
+        '',
+        available.length ? `<b>گزینه‌های ثبت‌شده:</b>\n${available.map(item => `• ${escapeHtml(item)}`).join('\n')}` : 'هنوز سایز و رنگی برای این محصول ثبت نشده است.',
       ].join('\n'),
       buttons: orderButtons(product),
     };
   }
 
   const targets = matching.length > 0 ? matching : product.variants;
-  const lines = [`${product.title}`, askedSize || askedColor ? `گزینه‌های منطبق:` : 'موجودی و قیمت:'];
+  const lines = [
+    `🛍 <b>${escapeHtml(product.title)}</b>`,
+    `🏷 کد محصول: <code>${productCodeOf(product)}</code>`,
+    '',
+    askedSize || askedColor ? '<b>گزینه‌های منطبق</b>' : '<b>موجودی و قیمت</b>',
+  ];
   for (const variant of targets.slice(0, 8)) {
     const spec = specOf(variant) || 'بدون سایز/رنگ';
-    const stock = variant.stock > 0 ? `${variant.stock.toLocaleString('fa-IR')} عدد موجود` : 'ناموجود';
-    lines.push(`• ${spec}: ${toman(variant.price)} — ${stock}`);
+    const stock = variant.stock > 0 ? `✅ ${variant.stock.toLocaleString('fa-IR')} عدد` : '❌ ناموجود';
+    lines.push(`• ${escapeHtml(spec)} — <b>${toman(variant.price)}</b> · ${stock}`);
   }
-  lines.push(`کد محصول: ${productCodeOf(product)}`);
-  if (wantsPrice || wantsStock) lines.push('برای ثبت سفارش یکی از دکمه‌های زیر را بزنید.');
+  if (wantsPrice || wantsStock) lines.push('', '👇 برای ثبت سفارش یکی از دکمه‌های زیر را بزنید.');
 
   return {
     kind: 'answer',
     reason: wantsPrice ? 'price' : wantsStock ? 'stock' : 'product',
+    parseMode: 'HTML',
     text: lines.join('\n'),
     buttons: orderButtons(product),
   };
@@ -115,13 +132,13 @@ export function clarifyProducts(products: CatalogProduct[], query: string): BotR
   return {
     kind: 'clarify',
     reason: 'ambiguous',
+    parseMode: 'HTML',
     text: [
-      `«${query.trim().slice(0, 60)}» به بیش از یک محصول می‌خورد.`,
-      'منظورتان کدام است؟ یکی را از دکمه‌های زیر انتخاب کنید:',
+      `🤔 «<i>${escapeHtml(query.trim().slice(0, 60))}</i>» به بیش از یک محصول می‌خورد.`,
       '',
-      products.slice(0, 6).map(product => `• ${productLine(product)}`).join('\n\n'),
+      products.slice(0, 6).map((product, index) => productLine(product, index)).join('\n\n'),
       '',
-      'یا نام دقیق محصول، یا کد آن را بفرستید.',
+      '👇 یکی را از دکمه‌های زیر انتخاب کنید، یا نام دقیق/کد محصول را بفرستید.',
     ].join('\n'),
     buttons: productButtons(products),
   };

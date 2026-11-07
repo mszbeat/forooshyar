@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { discover, looksLikeProductQuestion, matchCode, productCode } from '../src/catalog/discovery';
 import { clarifyProducts, composeReply, describeProduct, orderButtons, productButtons } from '../src/telegram/brain';
-import { applyInput, MAX_QUANTITY, normalizePhone, promptFor, startDraft } from '../src/telegram/order-flow';
+import { applyInput, fullAddress, MAX_QUANTITY, normalizePhone, normalizePostalCode, promptFor, startDraft } from '../src/telegram/order-flow';
+import { findCity, findProvince, PROVINCES } from '../src/geo/iran-geo';
 
 /**
  * این تست‌ها به دیتابیس و تلگرام نیاز ندارند: منطق خالص تشخیص محصول و
@@ -68,15 +69,20 @@ describe('تشخیص محصول از حرف مشتری', () => {
 });
 
 describe('پاسخ بات', () => {
-  it('ابهام → لیست محصولات با دکمه‌ی انتخاب و راهنمای کد', () => {
+  it('ابهام → لیست عمودی محصولات، هر محصول یک ردیف دکمه', () => {
     const reply = clarifyProducts(PRODUCTS.slice(0, 2), 'این کت چنده');
     assert.equal(reply.kind, 'clarify');
-    assert.match(reply.text, /کد:/);
+    assert.equal(reply.parseMode, 'HTML');
+    assert.match(reply.text, /<code>[A-Z0-9]{6}<\/code>/, 'کد محصول باید با تگ code بیاید');
     assert.match(reply.text, /نام دقیق/);
     const buttons = reply.buttons ?? [];
-    assert.equal(buttons.length, 1, 'دو محصول → یک ردیف');
-    assert.equal(buttons[0].length, 2);
+    // چیدمان ستونی: هر محصول یک ردیف کامل، نه دو تا کنار هم.
+    assert.equal(buttons.length, 2, 'دو محصول → دو ردیف');
+    assert.ok(buttons.every(row => row.length === 1), 'هر ردیف فقط یک دکمه');
     assert.ok(buttons[0][0].data?.startsWith('p:'));
+    // شماره‌ی ردیف در متن دکمه، تا با فهرست بالا جور باشد
+    assert.match(buttons[0][0].text, /^1️⃣/);
+    assert.match(buttons[1][0].text, /^2️⃣/);
   });
 
   it('یک محصول → قیمت همه‌ی سایزها و دکمه‌ی سفارش فقط برای موجودها', () => {
@@ -87,7 +93,7 @@ describe('پاسخ بات', () => {
     const rows = orderButtons(PRODUCTS[0]);
     assert.equal(rows.length, 1, 'فقط سایز M موجود است');
     assert.ok(rows[0][0].data?.startsWith('ord:'));
-    assert.match(rows[0][0].text, /ثبت سفارش/);
+    assert.match(rows[0][0].text, /سفارش/);
   });
 
   it('سایز ناموجود → گزینه‌های واقعی نشان داده می‌شود، حدس زده نمی‌شود', () => {
@@ -124,13 +130,12 @@ describe('سفارش گام‌به‌گام', () => {
     assert.equal(normalizePhone('12345'), null);
   });
 
-  it('مسیر کامل: تعداد → نام → موبایل → نشانی → تأیید', () => {
+  it('مسیر کامل: تعداد → نام → موبایل → استان → شهر → خیابان → کوچه → پلاک → واحد → کد پستی → تأیید', () => {
     let current = draft;
     let outcome = applyInput(current, { text: '2' });
     assert.equal(outcome.kind, 'invalid', 'موجودی ۱ عدد است، ۲ عدد نباید قبول شود');
     outcome = applyInput(current, { text: '1' });
-    assert.equal(outcome.kind, 'prompt');
-    if (outcome.kind !== 'prompt') return;
+    if (outcome.kind !== 'prompt') return assert.fail('تعداد باید قبول شود');
     assert.equal(outcome.draft.step, 'name');
 
     current = outcome.draft;
@@ -142,20 +147,107 @@ describe('سفارش گام‌به‌گام', () => {
     outcome = applyInput(current, { text: '۰۹۱۲۳۴۵۶۷۸۹' });
     if (outcome.kind !== 'prompt') return assert.fail('موبایل معتبر باید قبول شود');
     current = outcome.draft;
-    assert.equal(current.step, 'address');
+    assert.equal(current.step, 'province', 'بعد از موبایل نوبت استان است');
+    // لیست استان‌ها با دکمه می‌آید و صفحه‌بندی دارد
+    assert.ok((outcome.reply.buttons ?? []).length > 3);
 
-    outcome = applyInput(current, { text: 'تهران، خیابان ولیعصر، پلاک ۱۰، کد پستی ۱۲۳۴۵۶۷۸۹۰' });
-    if (outcome.kind !== 'prompt') return assert.fail('نشانی باید قبول شود');
+    outcome = applyInput(current, { data: 'flow:prov:تهران' });
+    if (outcome.kind !== 'prompt') return assert.fail('استان باید قبول شود');
     current = outcome.draft;
+    assert.equal(current.province, 'تهران');
+    assert.equal(current.step, 'city');
+    assert.ok((outcome.reply.text).includes('تهران'));
+
+    // شهر نادرست → همان مرحله تکرار می‌شود
+    const wrongCity = applyInput(current, { data: 'flow:city:کرج' });
+    assert.equal(wrongCity.kind, 'invalid', 'کرج در استان تهران نیست');
+
+    outcome = applyInput(current, { data: 'flow:city:تهران' });
+    if (outcome.kind !== 'prompt') return assert.fail('شهر باید قبول شود');
+    current = outcome.draft;
+    assert.equal(current.city, 'تهران');
+    assert.equal(current.step, 'street');
+
+    outcome = applyInput(current, { text: 'خیابان ولیعصر' });
+    if (outcome.kind !== 'prompt') return assert.fail('خیابان باید قبول شود');
+    current = outcome.draft;
+    assert.equal(current.step, 'alley');
+
+    outcome = applyInput(current, { data: 'flow:alley:none' });
+    if (outcome.kind !== 'prompt') return assert.fail('«کوچه ندارد» باید قبول شود');
+    current = outcome.draft;
+    assert.equal(current.alley, 'ندارد');
+    assert.equal(current.step, 'plaque');
+
+    outcome = applyInput(current, { text: '۱۲' });
+    if (outcome.kind !== 'prompt') return assert.fail('پلاک باید قبول شود');
+    current = outcome.draft;
+    assert.equal(current.plaque, '12', 'ارقام فارسی به لاتین تبدیل می‌شوند');
+    assert.equal(current.step, 'unit');
+
+    outcome = applyInput(current, { text: '۳' });
+    if (outcome.kind !== 'prompt') return assert.fail('واحد باید قبول شود');
+    current = outcome.draft;
+    assert.equal(current.step, 'postal');
+
+    // کد پستی نادرست
+    assert.equal(applyInput(current, { text: '123' }).kind, 'invalid');
+    outcome = applyInput(current, { text: '۱۲۳۴۵۶۷۸۹۰' });
+    if (outcome.kind !== 'prompt') return assert.fail('کد پستی معتبر باید قبول شود');
+    current = outcome.draft;
+    assert.equal(current.postalCode, '1234567890');
     assert.equal(current.step, 'confirm');
     assert.match(promptFor(current).text, /پیش‌فاکتور/);
+    assert.match(promptFor(current).text, /خیابان ولیعصر/);
 
     const ready = applyInput(current, { data: 'flow:confirm' });
     assert.equal(ready.kind, 'ready');
     if (ready.kind === 'ready') {
       assert.equal(ready.draft.quantity, 1);
       assert.equal(ready.draft.phone, '09123456789');
+      assert.equal(fullAddress(ready.draft), 'تهران، تهران، خیابان ولیعصر، پلاک 12، واحد 3');
     }
+  });
+
+  it('کد پستی اختیاری است و با دکمه رد می‌شود', () => {
+    const postalStep = { ...draft, step: 'postal' as const, quantity: 1, name: 'علی', phone: '09123456789', province: 'تهران', city: 'تهران', street: 'ولیعصر', alley: 'ندارد', plaque: '12' };
+    const outcome = applyInput(postalStep, { data: 'flow:postal:skip' });
+    assert.equal(outcome.kind, 'prompt');
+    if (outcome.kind === 'prompt') {
+      assert.equal(outcome.draft.step, 'confirm');
+      assert.equal(outcome.draft.postalCode, undefined);
+      assert.match(outcome.reply.text, /کد پستی: ندارد/);
+    }
+  });
+
+  it('دکمه‌ی بازگشت مرحله را عقب می‌برد و مقدار را پاک می‌کند', () => {
+    const atPlaque = { ...draft, step: 'plaque' as const, quantity: 1, name: 'علی', phone: '09123456789', province: 'تهران', city: 'تهران', street: 'ولیعصر', alley: 'گلستان' };
+    const back = applyInput(atPlaque, { data: 'flow:back' });
+    assert.equal(back.kind, 'prompt');
+    if (back.kind === 'prompt') {
+      assert.equal(back.draft.step, 'alley');
+      assert.equal(back.draft.alley, undefined, 'مقدار مرحله‌ی فعلی پاک می‌شود');
+    }
+  });
+
+  it('صفحه‌بندی استان‌ها و شهرها', () => {
+    const provinceStep = { ...draft, step: 'province' as const, quantity: 1 };
+    const page2 = applyInput(provinceStep, { data: 'flow:provpage:2' });
+    assert.equal(page2.kind, 'prompt');
+    if (page2.kind === 'prompt') {
+      assert.equal(page2.draft.page, 2);
+      assert.match(page2.reply.text, /صفحه ۳ از/);
+    }
+
+    // شهر با تایپ هم قبول است، نه فقط با دکمه
+    const cityStep = { ...draft, step: 'city' as const, quantity: 1, province: 'فارس', page: 0 };
+    const typed = applyInput(cityStep, { text: 'شیراز' });
+    assert.equal(typed.kind, 'prompt');
+    if (typed.kind === 'prompt') assert.equal(typed.draft.city, 'شیراز');
+
+    // نیم‌فاصله و «ي/ك» عربی نباید مانع شود
+    const arabic = applyInput({ ...cityStep, province: 'خراسان رضوی' }, { text: 'مشهد' });
+    assert.equal(arabic.kind, 'prompt');
   });
 
   it('ورودی نامعتبر از جریان بیرون نمی‌اندازد', () => {
@@ -186,5 +278,29 @@ describe('سفارش گام‌به‌گام', () => {
       assert.equal(outcome.draft.name, 'سارا');
       assert.equal(outcome.draft.step, 'phone');
     }
+  });
+});
+
+describe('داده‌ی استان و شهر', () => {
+  it('۳۱ استان و مرکز هر استان در فهرست شهرهایش هست', () => {
+    assert.equal(PROVINCES.length, 31);
+    for (const province of PROVINCES) {
+      assert.ok(province.cities.length > 0, `${province.name} شهر ندارد`);
+      assert.equal(province.cities[0], province.capital, `مرکز ${province.name} باید اول باشد`);
+      assert.ok(findCity(province.name, province.capital), `${province.capital} در فهرست نیست`);
+    }
+  });
+
+  it('نام استان با نیم‌فاصله/حرف عربی هم پیدا می‌شود', () => {
+    assert.ok(findProvince('تهران'));
+    assert.ok(findProvince('كهگيلويه و بويراحمد'), 'حروف عربی باید نرمال شوند');
+    assert.equal(findCity('تهران', 'کرج'), undefined, 'کرج در تهران نیست');
+    assert.equal(findCity('البرز', 'کرج'), 'کرج');
+  });
+
+  it('کد پستی: ۱۰ رقم و بدون صفر ابتدایی', () => {
+    assert.equal(normalizePostalCode('۱۲۳۴۵۶۷۸۹۰'), '1234567890');
+    assert.equal(normalizePostalCode('0123456789'), null);
+    assert.equal(normalizePostalCode('12345'), null);
   });
 });

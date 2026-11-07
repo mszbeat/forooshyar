@@ -60,6 +60,7 @@ model Shop {
   channel        Channel?
   conversations  TelegramConversation[]
   orders         Order[]
+  chatMessages   ChatMessage[]
 }
 
 model Product {
@@ -200,7 +201,16 @@ model Order {
   chatId          String?
   customerName    String      @default("")
   customerPhone   String      @default("")
+  // نشانی ساختیافته: انتخاب استان/شهر از لیست و بقیه دستی. `address` نسخه‌ی
+  // یک‌خطی و آماده‌ی چاپ/کپی است تا خروجی‌ها و اکسپورت‌های قدیمی نشکنند.
   address         String      @default("")
+  province        String      @default("")
+  city            String      @default("")
+  street          String      @default("")
+  alley           String      @default("")
+  plaque          String      @default("")
+  unit            String      @default("")
+  postalCode      String      @default("")
   note            String      @default("")
   total           Int
   // پرداخت
@@ -233,6 +243,24 @@ model OrderItem {
 
   @@index([orderId])
   @@index([shopId, variantId])
+}
+
+// پیام‌های ردوبدل‌شده بین فروشنده و مشتری در تلگرام.
+// چرا ذخیره می‌شود: فروشنده از پنل یا از خود بات جواب می‌دهد و باید ببیند چه
+// چیزی قبلاً گفته شده؛ بدون این جدول هر پاسخ یک تیر در تاریکی است.
+model ChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @db.Uuid
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  chatId    String
+  // 'in' = پیام مشتری، 'out' = پیام فروشنده
+  direction String
+  text      String
+  orderId   String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@index([shopId, chatId, createdAt])
+  @@index([shopId, createdAt])
 }
 
 // تلگرام اگر ۲۰۰ نگیرد همان update را دوباره می‌فرستد. این جدول تضمین می‌کند

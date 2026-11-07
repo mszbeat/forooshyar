@@ -10,7 +10,15 @@ export type NewOrder = {
   chatId?: string;
   customerName: string;
   customerPhone: string;
+  /** نشانی یک‌خطی آماده (از fullAddress ساخته می‌شود) */
   address: string;
+  province?: string;
+  city?: string;
+  street?: string;
+  alley?: string;
+  plaque?: string;
+  unit?: string;
+  postalCode?: string;
   note?: string;
   items: NewOrderItem[];
 };
@@ -96,6 +104,13 @@ export class OrdersService {
           customerName: input.customerName,
           customerPhone: input.customerPhone,
           address: input.address,
+          province: input.province ?? '',
+          city: input.city ?? '',
+          street: input.street ?? '',
+          alley: input.alley ?? '',
+          plaque: input.plaque ?? '',
+          unit: input.unit ?? '',
+          postalCode: input.postalCode ?? '',
           note: input.note ?? '',
           total,
           items: { create: items },
@@ -190,6 +205,22 @@ export class OrdersService {
     return { ok: true as const, order: paid, already: false };
   }
 
+  /** نشانی خوانا برای پیام فروشنده؛ فیلدهای خالی حذف می‌شوند. */
+  static addressLines(order: {
+    province: string; city: string; street: string; alley: string;
+    plaque: string; unit: string; postalCode: string; address: string;
+  }): string {
+    if (!order.province && !order.city && !order.street) return order.address || '—';
+    const lines = [
+      [order.province, order.city].filter(Boolean).join('، '),
+      order.street,
+      order.alley && order.alley !== 'ندارد' ? `کوچه ${order.alley}` : '',
+      [order.plaque ? `پلاک ${order.plaque}` : '', order.unit && order.unit !== 'ندارد' ? `واحد ${order.unit}` : ''].filter(Boolean).join('، '),
+      order.postalCode ? `کد پستی ${order.postalCode}` : '',
+    ].filter(Boolean);
+    return lines.join('\n');
+  }
+
   /** پیام کامل سفارش برای فروشنده؛ از پنل هم قابل بازخوانی است. */
   async notifySeller(orderId: string) {
     const order = await this.db.order.findUnique({ where: { id: orderId }, include: { items: true } });
@@ -199,12 +230,14 @@ export class OrdersService {
       order.items.map(item => `• ${item.title}${item.spec ? ` (${item.spec})` : ''} × ${item.quantity.toLocaleString('fa-IR')} — ${toman(item.price * item.quantity)}`).join('\n'),
       `مبلغ کل: ${toman(order.total)}`,
       '',
-      `گیرنده: ${order.customerName}`,
-      `موبایل: ${order.customerPhone}`,
-      `نشانی: ${order.address}`,
-      order.note ? `یادداشت: ${order.note}` : '',
+      `👤 گیرنده: ${order.customerName}`,
+      `📱 موبایل: ${order.customerPhone}`,
+      '📍 نشانی:',
+      OrdersService.addressLines(order),
+      order.note ? `📝 یادداشت: ${order.note}` : '',
       '',
       'برای تغییر وضعیت (ارسال شد/تحویل) به پنل → سفارش‌ها بروید.',
+      '💬 برای پاسخ به مشتری، روی همین پیام «پاسخ» بزنید.',
     ].filter(Boolean).join('\n'));
   }
 
@@ -336,6 +369,40 @@ export class OrdersService {
       revenueLast24h: paidToday._sum.total ?? 0,
       recent,
     };
+  }
+
+  // ------------------------------------------------------------------ گفتگو
+  /** پیام‌های این سفارش/چت برای نمایش در پنل. */
+  async messages(shopId: string, orderId: string) {
+    const order = await this.db.order.findFirst({ where: { shopId, id: orderId }, select: { chatId: true } });
+    if (!order) throw new NotFoundException('سفارش پیدا نشد.');
+    if (!order.chatId) return [];
+    return this.db.chatMessage.findMany({
+      where: { shopId, chatId: order.chatId },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+  }
+
+  /**
+   * پیام فروشنده به مشتری از داخل پنل.
+   *
+   * همان مسیر بات را استفاده می‌کند (`deliverSellerMessage`) تا رفتار، تاریخچه و
+   * audit در هر دو کانال یکسان باشد و پیام در تاریخچه‌ی گفتگو بنشیند.
+   */
+  async sendMessage(shopId: string, orderId: string, text: string) {
+    const body = text.trim();
+    if (!body) throw new BadRequestException('متن پیام خالی است.');
+    if (body.length > 2000) throw new BadRequestException('متن پیام طولانی است (حداکثر ۲۰۰۰ کاراکتر).');
+
+    const order = await this.db.order.findFirst({ where: { shopId, id: orderId }, select: { id: true, code: true, chatId: true } });
+    if (!order) throw new NotFoundException('سفارش پیدا نشد.');
+    if (!order.chatId) throw new ConflictException('این سفارش به چت تلگرام مشتری وصل نیست.');
+    if (!this.telegram.configured) throw new ConflictException('بات تلگرام روی سرور پیکربندی نشده است.');
+
+    const sent = await this.telegram.deliverSellerMessage({ shopId }, order.chatId, body, undefined, order.id);
+    if (!sent) throw new ConflictException('ارسال پیام ناموفق بود. ممکن است مشتری بات را بلاک کرده باشد.');
+    return this.messages(shopId, orderId);
   }
 
   /** تغییر وضعیت توسط فروشنده: PAID → SHIPPED → COMPLETED. */

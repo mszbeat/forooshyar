@@ -88,9 +88,14 @@ export type OrderItem = {
 export type Order = {
   id: string; code: string; status: OrderStatus;
   chatId: string | null; customerName: string; customerPhone: string; address: string; note: string;
+  province: string; city: string; street: string; alley: string; plaque: string; unit: string; postalCode: string;
   total: number; paymentProvider: string; paymentRefId: string; paidAt: string | null;
   cancelledReason: string; createdAt: string; updatedAt: string;
   items: OrderItem[]; itemsCount?: number;
+};
+export type ChatMessage = {
+  id: string; chatId: string; direction: 'in' | 'out'; text: string;
+  orderId: string | null; createdAt: string;
 };
 export type OrdersSummary = {
   awaitingPayment: number; paidLast24h: number; revenueLast24h: number;
@@ -237,6 +242,9 @@ export const api = {
   ordersSummary: () => request<OrdersSummary>('/orders/summary'),
   setOrderStatus: (id: string, status: OrderStatus) =>
     request<Order>(`/orders/${id}/status`, { method: 'POST', body: { status } }),
+  orderMessages: (id: string) => request<ChatMessage[]>(`/orders/${id}/messages`),
+  sendOrderMessage: (id: string, text: string) =>
+    request<ChatMessage[]>(`/orders/${id}/message`, { method: 'POST', body: { text } }),
 
   summary: () => request<Summary>('/reports/summary'),
   attention: () => request<AttentionItem[]>('/reports/attention'),

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { api, ApiError, type Order, type OrderStatus, type OrdersSummary } from '@/lib/api';
+import { api, ApiError, type ChatMessage, type Order, type OrderStatus, type OrdersSummary } from '@/lib/api';
 import { faDateTime, faNum, relativeTime, toman } from '@/lib/format';
 import { EmptyState, Modal, PageHeader, Segmented, SkeletonBlock, Spinner, StatCard, useToast } from '@/components/ui';
 import {
@@ -48,6 +48,10 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [open, setOpen] = useState<Order | null>(null);
+  // گفتگو با مشتری: تاریخچه + کادر پاسخ
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [reply, setReply] = useState('');
+  const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +66,28 @@ export default function OrdersPage() {
   }, [toast]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // با باز شدن جزئیات، گفتگو هم می‌آید؛ اگر سفارش چت ندارد لازم نیست.
+  useEffect(() => {
+    if (!open?.chatId) { setMessages([]); return; }
+    let alive = true;
+    api.orderMessages(open.id).then(list => { if (alive) setMessages(list); }).catch(() => undefined);
+    return () => { alive = false; };
+  }, [open?.id, open?.chatId]);
+
+  async function sendReply() {
+    if (!open || !reply.trim()) return;
+    setSending(true);
+    try {
+      setMessages(await api.sendOrderMessage(open.id, reply.trim()));
+      setReply('');
+      toast.success('پیام برای مشتری رفت', 'در تلگرام مشتری نمایش داده شد.');
+    } catch (problem) {
+      toast.error('ارسال پیام انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setSending(false);
+    }
+  }
 
   const visible = useMemo(
     () => (filter === 'all' ? orders : orders.filter(order => order.status === filter)),
@@ -268,7 +294,19 @@ export default function OrdersPage() {
                   <span className="kv-k">موبایل: </span>
                   <a className="mono" href={`tel:${open.customerPhone}`} dir="ltr">{open.customerPhone || '—'}</a>
                 </div>
-                <div><span className="kv-k">نشانی: </span>{open.address || '—'}</div>
+                <div>
+                <span className="kv-k">نشانی: </span>
+                <span style={{ display: 'inline-block', lineHeight: 1.9 }}>
+                  {[
+                    [open.province, open.city].filter(Boolean).join('، '),
+                    open.street,
+                    open.alley && open.alley !== 'ندارد' ? `کوچه ${open.alley}` : '',
+                    open.plaque ? `پلاک ${open.plaque}` : '',
+                    open.unit && open.unit !== 'ندارد' ? `واحد ${open.unit}` : '',
+                    open.postalCode ? `کد پستی ${open.postalCode}` : '',
+                  ].filter(Boolean).join('، ') || open.address || '—'}
+                </span>
+              </div>
                 {open.note && <div><span className="kv-k">یادداشت: </span>{open.note}</div>}
                 {open.paymentRefId && <div className="small muted">کد پیگیری پرداخت: <span className="mono">{open.paymentRefId}</span> · {open.paymentProvider}</div>}
                 {open.status === 'CANCELLED' && open.cancelledReason && (
@@ -276,6 +314,47 @@ export default function OrdersPage() {
                 )}
               </div>
             </div>
+
+            {open.chatId && (
+              <div>
+                <div className="row-between" style={{ marginBottom: 8 }}>
+                  <div className="kv-k">💬 گفتگو با مشتری در تلگرام</div>
+                  <span className="badge b-gray">@{open.chatId}</span>
+                </div>
+
+                <div className="chat" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  {messages.length === 0 && (
+                    <div className="small muted" style={{ padding: '6px 2px' }}>
+                      هنوز پیامی رد‌و‌بدل نشده. اولین پیام را بفرستید.
+                    </div>
+                  )}
+                  {messages.map(item => (
+                    <div key={item.id} className={`bubble ${item.direction === 'in' ? 'bubble-in' : 'bubble-out'}`}>
+                      <div>{item.text}</div>
+                      <div className="bubble-meta">{item.direction === 'in' ? 'مشتری' : 'شما'} · {relativeTime(item.createdAt)}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="row mt-2" style={{ gap: 8, alignItems: 'stretch' }}>
+                  <input
+                    className="input"
+                    placeholder="پاسخ به مشتری…"
+                    value={reply}
+                    maxLength={2000}
+                    onChange={event => setReply(event.target.value)}
+                    onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendReply(); } }}
+                  />
+                  <button className="btn btn-primary" onClick={() => void sendReply()} disabled={sending || !reply.trim()}>
+                    {sending ? <Spinner size={14} /> : <IconSend size={14} />}
+                    ارسال
+                  </button>
+                </div>
+                <p className="small muted mt-2" style={{ margin: 0 }}>
+                  همین پیام در تلگرام مشتری به‌عنوان «پاسخ فروشنده» می‌آید. در خود بات هم می‌توانید روی اعلان «پاسخ» بزنید.
+                </p>
+              </div>
+            )}
 
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               {(NEXT[open.status] ?? []).map(action => (
