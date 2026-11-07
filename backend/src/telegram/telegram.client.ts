@@ -23,7 +23,9 @@ export type TelegramConfig = {
 
 export type ReplyMarkup =
   | { inline_keyboard: { text: string; callback_data?: string; url?: string }[][] }
-  | { remove_keyboard: true };
+  | { remove_keyboard: true }
+  /** با این، تلگرام مستقیم کادر پاسخ را برای فروشنده باز می‌کند. */
+  | { force_reply: true; input_field_placeholder?: string };
 
 export type SendMessagePayload = {
   chat_id: string | number;

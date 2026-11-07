@@ -348,10 +348,22 @@ describe('سفارش کامل در بات', () => {
     await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:q:2') as never);
     assert.match(String(sends('9201').at(-1)?.body.text), /نام و نام خانوادگی/);
 
-    // نام، موبایل، نشانی
+    // نام و موبایل
     await telegram.handleUpdate(update(uid(), chatId, 'سارا محمدی') as never);
     await telegram.handleUpdate(update(uid(), chatId, '۰۹۱۲۳۴۵۶۷۸۹') as never);
-    await telegram.handleUpdate(update(uid(), chatId, 'تهران، خیابان ولیعصر، پلاک ۱۲، کد پستی ۱۲۳۴۵۶۷۸۹۰') as never);
+    assert.match(String(sends('9201').at(-1)?.body.text), /استان/, 'بعد از موبایل باید لیست استان بیاید');
+
+    // استان و شهر با دکمه
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:prov:تهران') as never);
+    assert.match(String(sends('9201').at(-1)?.body.text), /شهر در استان تهران/);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:city:تهران') as never);
+
+    // نشانی: خیابان، کوچه، پلاک، واحد، کد پستی
+    await telegram.handleUpdate(update(uid(), chatId, 'خیابان ولیعصر') as never);
+    await telegram.handleUpdate(update(uid(), chatId, 'کوچه بهار') as never);
+    await telegram.handleUpdate(update(uid(), chatId, '۱۲') as never);
+    await telegram.handleUpdate(update(uid(), chatId, '۳') as never);
+    await telegram.handleUpdate(update(uid(), chatId, '۱۲۳۴۵۶۷۸۹۰') as never);
     assert.match(String(sends('9201').at(-1)?.body.text), /پیش‌فاکتور/);
 
     // تأیید → سفارش + لینک پرداخت
@@ -368,6 +380,15 @@ describe('سفارش کامل در بات', () => {
     assert.equal(order!.status, 'AWAITING_PAYMENT');
     assert.equal(order!.total, 640000 * 2);
     assert.equal(order!.items[0].quantity, 2);
+    // نشانی ساختیافته ذخیره شده و یک‌خطی‌اش هم ساخته شده
+    assert.equal(order!.province, 'تهران');
+    assert.equal(order!.city, 'تهران');
+    assert.equal(order!.street, 'خیابان ولیعصر');
+    assert.equal(order!.alley, 'کوچه بهار');
+    assert.equal(order!.plaque, '12');
+    assert.equal(order!.unit, '3');
+    assert.equal(order!.postalCode, '1234567890');
+    assert.match(order!.address, /تهران، تهران، خیابان ولیعصر، کوچه بهار، پلاک 12، واحد 3/);
     // موجودی رزرو شد: ۲ از ۲
     const variant = await prisma.variant.findUniqueOrThrow({ where: { id: seed.secondVariantId } });
     assert.equal(variant.stock, 0);
@@ -417,6 +438,136 @@ describe('سفارش کامل در بات', () => {
     const list = await telegram.handleUpdate(update(uid(), chatId, '/orders') as never);
     assert.equal(list.status, 'handled');
     assert.match(String(sends('9203').at(-1)?.body.text), /سفارش‌های شما|هنوز سفارشی/);
+  });
+});
+
+/** پیام فروشنده (چت 777) که پاسخ روی یک پیام است. */
+function sellerReplyUpdate(id: number, quoteText: string, text: string) {
+  return {
+    update_id: id,
+    message: {
+      message_id: id, date: Math.floor(Date.now() / 1000), text,
+      chat: { id: 777, type: 'private' }, from: { id: 777, is_bot: false },
+      reply_to_message: { message_id: id - 1, text: quoteText },
+    },
+  };
+}
+
+describe('پیام فروشنده به مشتری', () => {
+  it('بدون دیتابیس: skip', (t) => { if (!databaseReady) t.skip('DATABASE_URL/DB_* تنظیم نشده'); });
+
+  it('ارجاع به انسان، کد گفتگو و force_reply را برای فروشنده می‌فرستد', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    await setOwnerChat('777');
+    const chatId = await joinedChat(9301);
+    reset();
+    await telegram.handleUpdate(update(uid(), chatId, 'می‌خوام مرجوع کنم پولمو پس بدید') as never);
+
+    const owner = sends('777').at(-1)!;
+    assert.match(String(owner.body.text), /#گفتگو [a-f0-9]{8}/);
+    const markup = owner.body.reply_markup as { force_reply?: boolean };
+    assert.equal(markup.force_reply, true, 'باید کادر پاسخ باز شود');
+
+    // پیام مشتری در تاریخچه ثبت شده
+    const conversation = await prisma.telegramConversation.findFirst({ where: { shopId: seed.shopId, chatId: String(chatId) } });
+    const logged = await prisma.chatMessage.findFirst({ where: { shopId: seed.shopId, chatId: conversation!.chatId, direction: 'in' } });
+    assert.ok(logged, 'پیام مشتری باید در تاریخچه باشد');
+  });
+
+  it('فروشنده با «پاسخ» روی همان اعلان، پیام را به مشتری می‌رساند', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    await setOwnerChat('777');
+    const chatId = await joinedChat(9302);
+    reset();
+    await telegram.handleUpdate(update(uid(), chatId, 'سایز بزرگ دارید؟') as never);
+    const notice = String(sends('777').at(-1)!.body.text);
+    const code = /#گفتگو ([a-f0-9]{8})/.exec(notice)?.[1];
+    assert.ok(code, 'کد گفتگو باید در اعلان باشد');
+
+    reset();
+    const result = await telegram.handleUpdate(sellerReplyUpdate(uid(), notice, 'بله سایز بزرگ موجوده، همین امروز می‌فرستیم.') as never);
+    assert.equal(result.status === 'handled' && result.kind, 'seller_reply');
+
+    const toCustomer = sends('9302').at(-1)!;
+    assert.match(String(toCustomer.body.text), /پاسخ فروشنده/);
+    assert.match(String(toCustomer.body.text), /سایز بزرگ موجوده/);
+
+    // فروشنده نباید پاسخ خودکار بگیرد
+    assert.equal(sends('777').length, 0);
+
+    const out = await prisma.chatMessage.findFirst({ where: { shopId: seed.shopId, direction: 'out' }, orderBy: { createdAt: 'desc' } });
+    assert.ok(out, 'پیام فروشنده باید در تاریخچه ثبت شود');
+    assert.match(out!.text, /سایز بزرگ موجوده/);
+  });
+
+  it('دستور /reply با کد گفتگو و پیام چندکلمه‌ای', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    await setOwnerChat('777');
+    const chatId = await joinedChat(9303);
+    reset();
+    await telegram.handleUpdate(update(uid(), chatId, 'سلام') as never);
+    const code = /#گفتگو ([a-f0-9]{8})/.exec(String(sends('777').at(-1)?.body.text ?? ''))?.[1]
+      ?? (await prisma.telegramConversation.findFirst({ where: { shopId: seed.shopId, chatId: String(chatId) } }))!.id.replace(/-/g, '').slice(0, 8);
+
+    reset();
+    const result = await telegram.handleUpdate(update(uid(), 777, `/reply ${code} بله موجود است`) as never);
+    assert.equal(result.status === 'handled' && result.kind, 'seller_reply');
+    assert.match(String(sends('9303').at(-1)?.body.text), /بله موجود است/);
+  });
+
+  it('/reply با کد ناموجود → پیام روشن، بدون ارسال', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    await setOwnerChat('777');
+    reset();
+    const result = await telegram.handleUpdate(update(uid(), 777, '/reply deadbeef متن') as never);
+    assert.equal(result.status === 'handled' && result.kind, 'chat_not_found');
+    assert.equal(sends('777').length, 1);
+    assert.equal(captured.filter(entry => entry.method === 'sendMessage' && String(entry.body.chat_id) !== '777').length, 0);
+  });
+
+  it('پیام بدون پاسخ به اعلان → راهنما، نه ارسال کورکورانه', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    await setOwnerChat('777');
+    reset();
+    const result = await telegram.handleUpdate(update(uid(), 777, 'سلام یه سوال داشتم') as never);
+    assert.equal(result.status === 'handled' && result.kind, 'seller_hint');
+    assert.equal(captured.filter(entry => entry.method === 'sendMessage' && String(entry.body.chat_id) !== '777').length, 0);
+  });
+
+  it('ارسال از پنل: پیام به مشتری می‌رود و در تاریخچه می‌نشیند', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    process.env.PUBLIC_API_URL = 'https://api.test.local';
+    const chatId = await joinedChat(9304);
+    // ساخت یک سفارش واقعی برای گرفتن chatId
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, `ord:${seed.variantId}`) as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:q:1') as never);
+    await telegram.handleUpdate(update(uid(), chatId, 'سارا محمدی') as never);
+    await telegram.handleUpdate(update(uid(), chatId, '09121234567') as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:prov:فارس') as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:city:شیراز') as never);
+    await telegram.handleUpdate(update(uid(), chatId, 'خیابان زند') as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:alley:none') as never);
+    await telegram.handleUpdate(update(uid(), chatId, '5') as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:unit:none') as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:postal:skip') as never);
+    await telegram.handleUpdate(callbackUpdate(uid(), chatId, 'flow:confirm') as never);
+
+    const order = await prisma.order.findFirst({ where: { shopId: seed.shopId, chatId: String(chatId) }, orderBy: { createdAt: 'desc' } });
+    assert.ok(order, 'سفارش باید ساخته شده باشد');
+    assert.equal(order!.city, 'شیراز');
+    assert.equal(order!.unit, 'ندارد');
+    assert.equal(order!.postalCode, '', 'کد پستی رد شده');
+
+    reset();
+    const { OrdersService } = await import('../src/orders/orders.service');
+    const { AuditService } = await import('../src/logging/audit.service');
+    const orders = new OrdersService(prisma as never, new AuditService(prisma as never, false), telegram);
+    const history = await orders.sendMessage(seed.shopId, order!.id, 'سفارشتون فردا ارسال می‌شه 🌷');
+
+    assert.ok(history.length >= 1, 'تاریخچه باید پیام فروشنده را داشته باشد');
+    assert.equal(history.at(-1)!.direction, 'out');
+    assert.equal(history.at(-1)!.orderId, order!.id);
+    assert.match(String(sends('9304').at(-1)?.body.text), /سفارشتون فردا ارسال می‌شه/);
   });
 });
 
@@ -483,12 +634,18 @@ describe('telegram webhook flow', () => {
     assert.equal(sends().length, 0);
   });
 
-  it('چت فروشنده پاسخ خودکار مشتری نمی‌گیرد', async (t) => {
+  it('چت فروشنده پاسخ خودکار مشتری نمی‌گیرد (راهنمای پاسخ می‌گیرد)', async (t) => {
     if (!databaseReady) return t.skip('no db');
+    await setOwnerChat('9999');
     reset();
     const result = await telegram.handleUpdate(update(uid(), 9999, 'موجودی مانتو آبی چنده؟') as never);
     assert.equal(result.status, 'handled');
-    assert.equal(result.kind, 'no_conversation');
+    // مهم این است که بات قیمت/موجودی را به «فروشنده» جواب نمی‌دهد و پیام او را
+    // هم به مشتری نمی‌فرستد؛ در عوض راهنمای پاسخ به مشتری می‌دهد.
+    assert.equal(result.status === 'handled' ? result.kind : '', 'seller_hint');
+    const text = String(sends('9999').at(-1)?.body.text);
+    assert.doesNotMatch(text, /۸۵۰٬۰۰۰|موجودی و قیمت/);
+    assert.match(text, /پاسخ/);
   });
 
   it('استیکر/عکس (بدون متن) نادیده گرفته می‌شود', async (t) => {

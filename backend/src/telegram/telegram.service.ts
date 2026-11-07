@@ -6,10 +6,12 @@ import { type CatalogProduct } from '../catalog/discovery';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
 import { type BotButton, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
-import { applyInput, draftTitle, promptFor, startDraft, summaryLines, type OrderDraft } from './order-flow';
-import { readTelegramConfig, splitMessage, TelegramClient } from './telegram.client';
+import { applyInput, draftTitle, escapeHtml, fullAddress, promptFor, startDraft, type OrderDraft } from './order-flow';
+import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } from './telegram.client';
 
 type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
+/** پیامی که این پیام پاسخش است؛ برای «پاسخ فروشنده به مشتری» لازم است. */
+type TelegramQuoted = { message_id: number; text?: string; caption?: string };
 type TelegramUser = { id: number | string; is_bot?: boolean; username?: string; first_name?: string };
 
 export type IncomingMessage = {
@@ -34,6 +36,7 @@ export type IncomingMessage = {
   sticker?: unknown;
   location?: unknown;
   contact?: unknown;
+  reply_to_message?: TelegramQuoted;
 };
 
 export type IncomingCallback = {
@@ -121,10 +124,19 @@ export class TelegramService {
     const text = (message.text ?? message.caption ?? '').trim();
     const forwarded = TelegramService.forwardSource(message);
 
-    const command = /^\/(start|help|link|stop|orders)(?:@\w+)?(?:\s+(.+))?$/u.exec(text);
+    const command = /^\/(start|help|link|stop|orders|reply|chat)(?:@\w+)?(?:\s+([\s\S]+))?$/u.exec(text);
+
+    // دستورهای مربوط به «ورود به فروشگاه» همیشه اول: فروشنده هم باید بتواند
+    // دوباره وصل شود یا گفتگو را ببندد؛ وگرنه یک‌بار که چت فروشنده ثبت شد،
+    // /link بعدی به‌عنوان پیام فروشنده تفسیر می‌شد.
     if (command?.[1] === 'start') return this.start(chatId, message, command[2]?.trim() ?? '');
     if (command?.[1] === 'link') return this.linkOwner(chatId, message, command[2]?.trim() ?? '');
     if (command?.[1] === 'stop') return this.stop(chatId);
+
+    // اگر همین چتِ فروشنده است، پیامش یا پاسخ به مشتری است یا اعلان/دستور.
+    const ownerOf = await this.ownerChannel(chatId);
+    if (ownerOf) return this.sellerMessage(ownerOf, chatId, text, message);
+
     if (command?.[1] === 'help') return this.help(chatId);
     if (command?.[1] === 'orders') return this.myOrders(chatId);
     if (text.startsWith('/')) return { status: 'ignored', reason: 'unknown_command' };
@@ -269,20 +281,27 @@ export class TelegramService {
       return { status: 'handled', replies, kind: 'catalog' };
     }
 
+    // پیام مشتری برای تاریخچه‌ی گفتگو (پنل و /chat) ثبت می‌شود.
+    await this.logInbound(conversation.shopId, chatId, text);
+
     const lines = [reply.text];
     if (forwardSource && reply.kind === 'handoff') {
       lines.unshift(`این پست از «${forwardSource}» است، ولی محصولش را در کاتالوگ فروشگاه پیدا نکردم.`);
     }
-    if (await this.sendWithButtons(chatId, lines.join('\n'), reply.buttons)) replies += 1;
+    if (await this.sendWithButtons(chatId, lines.join('\n'), reply.buttons, reply.parseMode)) replies += 1;
 
     if (reply.kind === 'handoff') {
+      const code = TelegramService.conversationCode(conversation.id);
       const notified = await this.notifyOwner(conversation.shopId, [
-        `🔔 سؤال نیازمند پاسخ انسانی در «${shop.name}»`,
-        `از: ${conversation.firstName || 'مشتری'}${conversation.username ? ` (@${conversation.username})` : ''}`,
-        ...(forwardSource ? [`فوروارد از: ${forwardSource}`] : []),
+        `🔔 <b>سؤال نیازمند پاسخ انسانی</b> در «${escapeHtml(shop.name)}»`,
+        `از: ${escapeHtml(conversation.firstName || 'مشتری')}${conversation.username ? ` (@${escapeHtml(conversation.username)})` : ''}`,
+        ...(forwardSource ? [`فوروارد از: ${escapeHtml(forwardSource)}`] : []),
         '',
-        text,
-      ].join('\n'));
+        escapeHtml(text),
+        '',
+        `↩️ برای پاسخ، روی همین پیام «پاسخ» بزنید.`,
+        `#گفتگو ${code}`,
+      ].join('\n'), true);
       if (notified) replies += 1;
     }
 
@@ -294,6 +313,15 @@ export class TelegramService {
       meta: { kind: reply.kind, reason: reply.reason ?? null, chars: text.length, forwarded: Boolean(forwardSource), handoffNotified: reply.kind === 'handoff' },
     });
     return { status: 'handled', replies, kind: reply.kind };
+  }
+
+  /** ثبت پیام مشتری در تاریخچه‌ی گفتگو؛ خطا نباید مسیر اصلی را بشکند. */
+  private async logInbound(shopId: string, chatId: string, text: string): Promise<void> {
+    try {
+      await this.db.chatMessage.create({ data: { shopId, chatId, direction: 'in', text: text.slice(0, 4000) } });
+    } catch (error) {
+      this.logger.warn(`ثبت پیام مشتری ناموفق: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
   }
 
   /** کاتالوگ فعال فروشگاه؛ سقف ۵۰۰ محصول مثل مسیر داشبورد. */
@@ -334,7 +362,7 @@ export class TelegramService {
         return { status: 'handled', replies: 1, kind: 'product_gone' };
       }
       const reply = describeProduct(product, 'قیمت');
-      const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons)) ? 1 : 0;
+      const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons, reply.parseMode)) ? 1 : 0;
       this.audit.record({ action: 'telegram.product_pick', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { productId, title: product.title } });
       return { status: 'handled', replies, kind: 'product_pick' };
     }
@@ -366,7 +394,7 @@ export class TelegramService {
       });
       await this.saveDraft(conversation.id, draft);
       const prompt = promptFor(draft, conversation.firstName);
-      const replies = (await this.sendWithButtons(chatId, prompt.text, prompt.buttons)) ? 1 : 0;
+      const replies = (await this.sendWithButtons(chatId, prompt.text, prompt.buttons, prompt.parseMode)) ? 1 : 0;
       this.audit.record({ action: 'telegram.order_started', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title } });
       return { status: 'handled', replies, kind: 'order_started' };
     }
@@ -416,7 +444,7 @@ export class TelegramService {
     if (outcome.kind === 'ready') return this.finishOrder(conversation, outcome.draft);
 
     await this.saveDraft(conversation.id, outcome.draft);
-    const sent = await this.sendWithButtons(conversation.chatId, outcome.reply.text, outcome.reply.buttons);
+    const sent = await this.sendWithButtons(conversation.chatId, outcome.reply.text, outcome.reply.buttons, outcome.reply.parseMode);
     return { status: 'handled', replies: sent ? 1 : 0, kind: outcome.kind === 'invalid' ? 'order_invalid' : 'order_step' };
   }
 
@@ -432,7 +460,7 @@ export class TelegramService {
       await this.notifyOwner(conversation.shopId, [
         `🔔 سفارش دستی: ${draftTitle(draft)} × ${(draft.quantity ?? 1).toLocaleString('fa-IR')}`,
         `گیرنده: ${draft.name ?? '—'} · ${draft.phone ?? '—'}`,
-        `نشانی: ${draft.address ?? '—'}`,
+        `نشانی: ${fullAddress(draft) || '—'}`,
         '',
         'PUBLIC_API_URL روی سرور تنظیم نشده، پس لینک پرداخت ساخته نشد.',
       ].join('\n'));
@@ -445,7 +473,14 @@ export class TelegramService {
         chatId: conversation.chatId,
         customerName: draft.name ?? '',
         customerPhone: draft.phone ?? '',
-        address: draft.address ?? '',
+        address: fullAddress(draft),
+        province: draft.province ?? '',
+        city: draft.city ?? '',
+        street: draft.street ?? '',
+        alley: draft.alley ?? '',
+        plaque: draft.plaque ?? '',
+        unit: draft.unit ?? '',
+        postalCode: draft.postalCode ?? '',
         items: [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }],
       });
       const payment = await this.payments.start(
@@ -455,17 +490,22 @@ export class TelegramService {
       );
       await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
 
-      const summary = summaryLines(draft).join('\n');
       const sent = await this.sendWithButtons(
         conversation.chatId,
         [
-          `🧾 سفارش ${order.code} ساخته شد.`,
-          summary,
+          '🧾 <b>سفارش شما ساخته شد</b>',
           '',
-          'برای تکمیل، روی دکمه‌ی پرداخت بزنید.',
-          'اگر پرداخت نکنید، این سفارش تا ۲۴ ساعت آینده لغو و موجودی آزاد می‌شود.',
+          `🆔 کد سفارش: <code>${order.code}</code>`,
+          `🛍 ${escapeHtml(draftTitle(draft))}`,
+          `🔢 ${(draft.quantity ?? 1).toLocaleString('fa-IR')} عدد`,
+          `💰 مبلغ: <b>${order.total.toLocaleString('fa-IR')} تومان</b>`,
+          `📍 ${escapeHtml(fullAddress(draft))}`,
+          '',
+          'برای تکمیل، دکمه‌ی پرداخت را بزنید.',
+          `<i>اگر پرداخت نکنید، تا ۲۴ ساعت دیگر لغو و موجودی آزاد می‌شود.</i>`,
         ].join('\n'),
         [[{ text: `💳 پرداخت ${order.total.toLocaleString('fa-IR')} تومان`, url: payment.url }]],
+        'HTML',
       );
 
       this.audit.record({
@@ -545,15 +585,179 @@ export class TelegramService {
     }
   }
 
+  // ------------------------------------------------------- فروشنده → مشتری
+  /**
+   * چت‌هايی که فروشنده‌ی یک فروشگاه هستند.
+   *
+   * چرا لازم است: پیام‌های فروشنده نباید از مسیر «مشتری» رد شوند (وگرنه بات به
+   * فروشنده هم پاسخ خودکار می‌داد)، و پاسخ او باید به همان مشتری برود.
+   */
+  private async ownerChannel(chatId: string) {
+    return this.db.channel.findFirst({
+      where: { ownerChat: chatId, active: true },
+      select: { id: true, shopId: true, shop: { select: { name: true } } },
+    });
+  }
+
+  /**
+   * پیام فروشنده در چت خودش.
+   *
+   * سه راه برای پاسخ دادن، از آسان به سخت:
+   *  ۱. **پاسخ (Reply) روی پیام اعلان**: متن نقل‌شده کد گفتگو را دارد → همان مشتری.
+   *  ۲. `/reply <کد گفتگو> <متن>`: وقتی اعلان قدیمی است.
+   *  ۳. `/chat <کد>`: دیدن آخرین پیام‌های آن گفتگو.
+   */
+  private async sellerMessage(
+    channel: { id: string; shopId: string; shop: { name: string } },
+    chatId: string,
+    text: string,
+    message: IncomingMessage,
+  ): Promise<HandleResult> {
+    const command = /^\/(reply|chat|help)(?:@\w+)?(?:\s+([\s\S]+))?$/u.exec(text);
+
+    if (command?.[1] === 'help' || !text) {
+      await this.send(chatId, [
+        '👋 شما فروشنده‌ی این فروشگاه هستید؛ پیام‌های شما خودکار جواب نمی‌گیرند.',
+        '',
+        '<b>پاسخ به مشتری</b>',
+        '• روی پیام اعلانِ بات «پاسخ» بزنید و متن را بنویسید.',
+        '• یا: <code>/reply کد‌گفتگو متن</code>',
+        '• دیدن گفتگو: <code>/chat کد‌گفتگو</code>',
+        '',
+        'کد گفتگو در پایین هر اعلان نوشته شده است.',
+      ].join('\n'), undefined, 'HTML');
+      return { status: 'handled', replies: 1, kind: 'seller_help' };
+    }
+
+    if (command?.[1] === 'chat') {
+      const conversation = await this.resolveConversation(channel.shopId, command[2]?.trim() ?? '');
+      if (!conversation) {
+        await this.send(chatId, 'کد گفتگو پیدا نشد. کد را از پایین اعلان بات بردارید.');
+        return { status: 'handled', replies: 1, kind: 'chat_not_found' };
+      }
+      const history = await this.db.chatMessage.findMany({
+        where: { shopId: channel.shopId, chatId: conversation.chatId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      });
+      await this.send(chatId, history.length === 0
+        ? 'هنوز پیامی در این گفتگو ثبت نشده است.'
+        : `<b>گفتگو با ${conversation.firstName || 'مشتری'}</b>\n\n${history.reverse().map(item => `${item.direction === 'in' ? '👤 مشتری' : '🧑‍💼 شما'}: ${item.text.slice(0, 200)}`).join('\n')}`, undefined, 'HTML');
+      return { status: 'handled', replies: 1, kind: 'chat_history' };
+    }
+
+    // ۱) پاسخ روی پیام اعلان
+    let target: { chatId: string } | null = null;
+    let body = text;
+
+    const quoted = message.reply_to_message;
+    if (quoted) {
+      const code = TelegramService.conversationCodeFrom(quoted.text ?? quoted.caption ?? '');
+      if (code) target = await this.resolveConversation(channel.shopId, code);
+    }
+
+    // ۲) /reply <code> <text>
+    if (command?.[1] === 'reply') {
+      const [rawCode, ...rest] = (command[2] ?? '').trim().split(/\s+/);
+      body = rest.join(' ').trim();
+      if (!rawCode || !body) {
+        await this.send(chatId, 'شکل درست: <code>/reply کد‌گفتگو متن پیام</code>', undefined, 'HTML');
+        return { status: 'handled', replies: 1, kind: 'reply_usage' };
+      }
+      target = await this.resolveConversation(channel.shopId, rawCode);
+      if (!target) {
+        await this.send(chatId, 'این کد گفتگو پیدا نشد یا مال فروشگاه شما نیست.');
+        return { status: 'handled', replies: 1, kind: 'chat_not_found' };
+      }
+    }
+
+    if (!target) {
+      await this.send(chatId, [
+        'برای پاسخ به مشتری، روی پیام اعلانِ بات «پاسخ» بزنید.',
+        'اگر اعلان را پاک کرده‌اید: <code>/reply کد‌گفتگو متن</code>',
+        'راهنما: /help',
+      ].join('\n'), undefined, 'HTML');
+      return { status: 'handled', replies: 1, kind: 'seller_hint' };
+    }
+
+    const delivered = await this.deliverSellerMessage(channel, target.chatId, body, chatId);
+    return { status: 'handled', replies: delivered ? 1 : 0, kind: delivered ? 'seller_reply' : 'seller_reply_failed' };
+  }
+
+  /**
+   * ارسال پیام فروشنده به مشتری و ثبت آن در تاریخچه.
+   * از پنل هم همین متد استفاده می‌شود تا رفتار یکسان باشد.
+   */
+  async deliverSellerMessage(
+    channel: { shopId: string },
+    customerChat: string,
+    text: string,
+    actorChat?: string,
+    orderId?: string,
+  ): Promise<boolean> {
+    const body = text.trim();
+    if (!body) return false;
+    const sent = await this.send(customerChat, `💬 <b>پاسخ فروشنده</b>\n${body}`, undefined, 'HTML');
+    if (sent) {
+      await this.db.chatMessage.create({
+        data: { shopId: channel.shopId, chatId: customerChat, direction: 'out', text: body, orderId: orderId ?? null },
+      });
+      this.audit.record({
+        action: 'telegram.seller_reply',
+        entity: 'conversation',
+        entityId: customerChat,
+        shopId: channel.shopId,
+        meta: { via: actorChat ? 'bot' : 'panel', chars: body.length, orderId: orderId ?? null },
+      });
+    }
+    return sent;
+  }
+
+  /** کد گفتگو از متن اعلان: بالای هر اعلان `#گفتگو a1b2c3d4` می‌آید. */
+  static conversationCodeFrom(text: string): string | null {
+    return /گفتگو\s*[:#]?\s*([a-f0-9]{6,10})/iu.exec(text)?.[1] ?? null;
+  }
+
+  /** کد کوتاه گفتگو که در پیام‌ها نشان داده می‌شود. */
+  static conversationCode(conversationId: string): string {
+    return conversationId.replace(/-/g, '').slice(0, 8);
+  }
+
+  /**
+   * پیدا کردن گفتگو با کد کوتاه یا شناسه‌ی کامل.
+   * `startsWith` روی uuid امن است چون کد از ۸ کاراکتر شروع یک uuid یکتاست.
+   */
+  private async resolveConversation(shopId: string, code: string) {
+    const clean = code.trim().toLowerCase().replace(/[^a-f0-9]/g, '');
+    if (clean.length < 6) return null;
+    // Prisma فیلتر startsWith روی ستون uuid نمی‌دهد، پس مقایسه‌ی متنی می‌کنیم.
+    const rows = await this.db.$queryRaw<{ id: string; chatId: string; firstName: string; username: string }[]>`
+      SELECT id::text AS id, "chatId", "firstName", username
+      FROM "TelegramConversation"
+      WHERE "shopId" = ${shopId}::uuid AND id::text LIKE ${`${clean.slice(0, 8)}%`}
+      LIMIT 1
+    `;
+    return rows[0] ?? null;
+  }
+
   // ---------------------------------------------------------------- اعلان فروشنده
-  async notifyOwner(shopId: string, text: string): Promise<boolean> {
+  /**
+   * اعلان به فروشنده.
+   * `forceReply` برای پیام‌هایی است که احتمالاً جواب می‌خواهند (سؤال مشتری، سفارش):
+   * تلگرام کادر پاسخ را خودش باز می‌کند و فروشنده فقط تایپ می‌کند.
+   */
+  async notifyOwner(shopId: string, text: string, forceReply = false): Promise<boolean> {
     const channel = await this.db.channel.findFirst({ where: { shopId, active: true }, select: { ownerChat: true } });
     // '' یعنی وصل‌نشده؛ بدون trim یک مقدار خالی به‌عنوان chatId به تلگرام می‌رفت.
     if (!channel?.ownerChat?.trim()) return false;
-    return this.send(channel.ownerChat.trim(), text);
+    return this.send(
+      channel.ownerChat.trim(),
+      text,
+      forceReply ? { force_reply: true, input_field_placeholder: 'پاسخ به مشتری…' } : undefined,
+    );
   }
 
-  /** برای سفارش‌ها و پرداخت‌ها: ارسال پیام ساده به یک چت. */
+  /** برای سفارش‌ها، پرداخت‌ها و پیام فروشنده: ارسال پیام ساده به یک چت. */
   async sendTo(chatId: string, text: string): Promise<boolean> {
     return this.send(chatId, text);
   }
@@ -562,8 +766,8 @@ export class TelegramService {
    * ارسال با دکمه‌های inline. دکمه‌ها فقط به تکه‌ی آخر می‌چسبند؛ اگر پیام طولانی
    * شد، دکمه‌ی نصفه وسط پیام نمی‌آید.
    */
-  private async sendWithButtons(chatId: string, text: string, buttons?: BotButton[][]): Promise<boolean> {
-    if (!buttons?.length) return this.send(chatId, text);
+  private async sendWithButtons(chatId: string, text: string, buttons?: BotButton[][], parseMode?: 'HTML'): Promise<boolean> {
+    if (!buttons?.length) return this.send(chatId, text, undefined, parseMode);
     if (!this.client.configured) {
       this.logger.warn(`TELEGRAM_BOT_TOKEN ست نشده؛ پیام به ${chatId} ارسال نشد.`);
       return false;
@@ -579,6 +783,7 @@ export class TelegramService {
       const result = await this.client.sendMessage({
         chat_id: chatId,
         text: part,
+        ...(parseMode ? { parse_mode: parseMode } : {}),
         ...(index === parts.length - 1 ? { reply_markup: { inline_keyboard } } : {}),
       });
       if (!result.ok) {
@@ -589,15 +794,30 @@ export class TelegramService {
     return allOk;
   }
 
-  /** ارسال با تکه‌بندی؛ نتیجه فقط برای شمارش/لاگ است و هرگز throw نمی‌شود. */
-  private async send(chatId: string, text: string): Promise<boolean> {
+  /**
+   * ارسال با تکه‌بندی؛ نتیجه فقط برای شمارش/لاگ است و هرگز throw نمی‌شود.
+   * `replyMarkup` برای `force_reply` لازم است: فروشنده با «پاسخ» روی همان پیام،
+   * مستقیم به مشتری جواب می‌دهد.
+   */
+  private async send(
+    chatId: string,
+    text: string,
+    replyMarkup?: ReplyMarkup,
+    parseMode?: 'HTML',
+  ): Promise<boolean> {
     if (!this.client.configured) {
       this.logger.warn(`TELEGRAM_BOT_TOKEN ست نشده؛ پیام به ${chatId} ارسال نشد.`);
       return false;
     }
     let allOk = true;
-    for (const part of splitMessage(text)) {
-      const result = await this.client.sendMessage({ chat_id: chatId, text: part });
+    const parts = splitMessage(text);
+    for (const [index, part] of parts.entries()) {
+      const result = await this.client.sendMessage({
+        chat_id: chatId,
+        text: part,
+        ...(parseMode ? { parse_mode: parseMode } : {}),
+        ...(replyMarkup && index === parts.length - 1 ? { reply_markup: replyMarkup } : {}),
+      });
       if (!result.ok) {
         allOk = false;
         this.logger.warn(`sendMessage به ${chatId} ناموفق: ${result.error}${result.description ? ` (${result.description})` : ''}`);
