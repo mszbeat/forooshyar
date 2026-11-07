@@ -1,10 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { AuditService } from '../logging/audit.service';
 
 @Injectable()
 export class CatalogService {
-  constructor(private readonly db: PrismaService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
   async product(shopId: string, id: string) {
     const product = await this.db.product.findFirst({ where: { shopId, id }, include: { variants: true } });
     if (!product) throw new NotFoundException('Product not found');
@@ -13,23 +14,36 @@ export class CatalogService {
   list(shopId: string) {
     return this.db.product.findMany({ where: { shopId }, include: { variants: true }, orderBy: { createdAt: 'desc' }, take: 100 });
   }
-  createProduct(shopId: string, input: { title: string; description?: string; category?: string }) {
-    return this.db.product.create({ data: { ...input, shopId } });
+  async createProduct(shopId: string, input: { title: string; description?: string; category?: string }) {
+    const product = await this.db.product.create({ data: { ...input, shopId } });
+    this.audit.record({ action: 'product.create', entity: 'product', entityId: product.id, shopId, meta: { title: product.title, category: product.category } });
+    return product;
   }
   async updateProduct(shopId: string, id: string, data: { title?: string; description?: string; category?: string; active?: boolean }) {
     const result = await this.db.product.updateMany({ where: { shopId, id }, data });
     if (!result.count) throw new NotFoundException('Product not found');
-    return this.product(shopId, id);
+    const product = await this.product(shopId, id);
+    this.audit.record({
+      action: data.active === false ? 'product.archive' : 'product.update',
+      entity: 'product', entityId: id, shopId,
+      meta: { fields: Object.keys(data), title: product.title, ...(data.active !== undefined ? { active: data.active } : {}) },
+    });
+    return product;
   }
   async createVariant(shopId: string, userId: string, productId: string, data: { sku?: string; size?: string; color?: string; price: number; stock: number }) {
     try {
-      return await this.db.$transaction(async tx => {
+      const created = await this.db.$transaction(async tx => {
         const product = await tx.product.findFirst({ where: { shopId, id: productId }, select: { id: true } });
         if (!product) throw new NotFoundException('Product not found');
         const variant = await tx.variant.create({ data: { ...data, shopId, productId } });
         if (data.stock > 0) await tx.stockMovement.create({ data: { shopId, variantId: variant.id, delta: data.stock, reason: 'initial', actorId: userId } });
         return variant;
       });
+      this.audit.record({
+        action: 'variant.create', entity: 'variant', entityId: created.id, shopId,
+        meta: { productId, sku: created.sku, size: created.size, color: created.color, price: created.price, stock: created.stock },
+      });
+      return created;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('SKU already exists');
       throw error;
@@ -39,7 +53,13 @@ export class CatalogService {
     try {
       const result = await this.db.variant.updateMany({ where: { shopId, id }, data });
       if (!result.count) throw new NotFoundException('Variant not found');
-      return this.db.variant.findFirstOrThrow({ where: { shopId, id } });
+      const variant = await this.db.variant.findFirstOrThrow({ where: { shopId, id } });
+      this.audit.record({
+        action: data.active === false ? 'variant.archive' : 'variant.update',
+        entity: 'variant', entityId: id, shopId,
+        meta: { fields: Object.keys(data), ...(data.price !== undefined ? { price: data.price } : {}), ...(data.sku !== undefined ? { sku: data.sku } : {}) },
+      });
+      return variant;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('SKU already exists');
       throw error;
@@ -51,9 +71,16 @@ export class CatalogService {
     return variant;
   }
   async sell(shopId: string, userId: string, variantId: string, quantity: number, requestKey?: string) {
-    if (!requestKey) return this.changeStock(shopId, userId, variantId, -quantity, 'sale');
+    if (!requestKey) {
+      const result = await this.changeStock(shopId, userId, variantId, -quantity, 'sale');
+      this.audit.record({
+        action: 'variant.sell', entity: 'variant', entityId: variantId, shopId, userId,
+        meta: { quantity, stockAfter: result.stock, idempotencyKey: null },
+      });
+      return result;
+    }
     try {
-      return await this.db.$transaction(async tx => {
+      const sold = await this.db.$transaction(async tx => {
         const operation = await tx.stockOperation.create({ data: { shopId, variantId, requestKey, quantity } });
         const updated = await tx.variant.updateMany({ where: { id: variantId, shopId, active: true, product: { active: true }, stock: { gte: quantity } }, data: { stock: { decrement: quantity }, stockUpdatedAt: new Date() } });
         if (!updated.count) {
@@ -66,11 +93,20 @@ export class CatalogService {
         await tx.stockOperation.update({ where: { id: operation.id }, data: { resultStock: variant.stock } });
         return variant;
       });
+      this.audit.record({
+        action: 'variant.sell', entity: 'variant', entityId: variantId, shopId, userId,
+        meta: { quantity, stockAfter: sold.stock, idempotencyKey: requestKey },
+      });
+      return sold;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         const prior = await this.db.stockOperation.findUnique({ where: { shopId_requestKey: { shopId, requestKey } } });
         if (!prior || prior.variantId !== variantId || prior.quantity !== quantity || prior.resultStock === null) throw new ConflictException('Idempotency key already used for a different sale');
         const variant = await this.getVariant(shopId, variantId);
+        this.audit.record({
+          action: 'variant.sell_replayed', entity: 'variant', entityId: variantId, shopId, userId,
+          meta: { quantity, stockAfter: prior.resultStock, idempotencyKey: requestKey },
+        });
         return { ...variant, stock: prior.resultStock };
       }
       // Composite FK prevents a request with an id from another tenant.
@@ -79,7 +115,7 @@ export class CatalogService {
     }
   }
   async changeStock(shopId: string, userId: string, variantId: string, delta: number, reason: string) {
-    return this.db.$transaction(async tx => {
+    const variant = await this.db.$transaction(async tx => {
       const result = await tx.variant.updateMany({ where: { id: variantId, shopId, ...(reason === 'sale' ? { active: true, product: { active: true } } : {}), stock: delta < 0 ? { gte: -delta } : { lte: 2147483647 - delta } }, data: { stock: { increment: delta }, stockUpdatedAt: new Date() } });
       if (!result.count) {
         const exists = await tx.variant.findFirst({ where: { id: variantId, shopId }, select: { id: true } });
@@ -89,6 +125,15 @@ export class CatalogService {
       await tx.stockMovement.create({ data: { shopId, variantId, delta, reason, actorId: userId } });
       return tx.variant.findFirstOrThrow({ where: { id: variantId, shopId } });
     });
+    // `sell` writes its own, richer event; here we only log explicit adjustments.
+    if (reason !== 'sale') {
+      this.audit.record({
+        action: reason === 'restock' ? 'variant.restock' : 'variant.stock_adjust',
+        entity: 'variant', entityId: variantId, shopId, userId,
+        meta: { delta, reason, stockAfter: variant.stock },
+      });
+    }
+    return variant;
   }
   async movements(shopId: string, variantId: string) {
     const variant = await this.db.variant.findFirst({ where: { shopId, id: variantId }, select: { id: true } });

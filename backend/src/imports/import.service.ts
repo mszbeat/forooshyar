@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { fromBuffer } from 'yauzl';
 import { z } from 'zod';
 import { PrismaService } from '../database/prisma.service';
+import { AuditService } from '../logging/audit.service';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 10 * 1024 * 1024;
@@ -96,7 +97,7 @@ type ValidRow = z.infer<typeof schema>;
 
 @Injectable()
 export class ImportService {
-  constructor(private readonly db: PrismaService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
   async importFile(shopId: string, actorId: string, filename: string, buffer: Buffer) {
     const rows = await readRows(filename, buffer);
     if (rows.length === 0) throw new BadRequestException('File is empty');
@@ -128,7 +129,26 @@ export class ImportService {
         } else { throw error; }
       }
     }
-    return { imported: results.filter(row => row.status === 'imported').length, failed: results.filter(row => row.status === 'error').length, results };
+    const summary = {
+      imported: results.filter(row => row.status === 'imported').length,
+      failed: results.filter(row => row.status === 'error').length,
+      results,
+    };
+    this.audit.record({
+      action: 'catalog.import',
+      entity: 'catalog',
+      shopId,
+      userId: actorId,
+      meta: {
+        filename,
+        rows: results.length,
+        imported: summary.imported,
+        failed: summary.failed,
+        // first few failures are enough to reproduce the problem later
+        errorSample: results.filter(row => row.status === 'error').slice(0, 5),
+      },
+    });
+    return summary;
   }
   private createRow(shopId: string, actorId: string, data: ValidRow) {
     return this.db.$transaction(async tx => {
