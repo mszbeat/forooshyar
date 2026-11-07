@@ -68,8 +68,12 @@ services:
       # openssl rand -hex 32 — هم در مسیر URL می‌آید هم به‌عنوان هدر بررسی می‌شود.
       - key: TELEGRAM_WEBHOOK_SECRET
         generateValue: true
-      # آدرس عمومی همین سرویس API، برای `npm run telegram:setup`
+      # آدرس عمومی همین سرویس API: لینک پرداخت و آدرس webhook از این ساخته می‌شود.
       - key: PUBLIC_API_URL
+        sync: false
+      # --- پرداخت: docs/ORDERS.md ---------------------------------------------
+      # مرچنت‌آیدی زرین‌پال. خالی = درگاه آزمایشی داخلی (بدون جابه‌جایی پول).
+      - key: ZARINPAL_MERCHANT_ID
         sync: false
 
   # --------------------------------------------------------------- پنل (Next.js)

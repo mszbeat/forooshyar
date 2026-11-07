@@ -44,6 +44,14 @@ export class ChannelController {
           : true
       ),
       pending: hook?.ok ? (hook.result.pending_update_count ?? 0) : 0,
+      /**
+       * دکمه‌های inline فقط با callback_query کار می‌کنند. اگر webhook قبلاً
+       * بدون آن ثبت شده باشد، تلگرام کلیک دکمه را برای ما نمی‌فرستد و هیچ خطایی
+       * هم دیده نمی‌شود — پس همین‌جا تشخیص می‌دهیم.
+       */
+      buttonsWork: hook?.ok
+        ? (hook.result.allowed_updates ?? []).length === 0 || (hook.result.allowed_updates ?? []).includes('callback_query')
+        : true,
       lastError: hook?.ok ? (hook.result.last_error_message ?? '') : '',
       error: hook && !hook.ok ? (hook.description ?? hook.error) : '',
     };

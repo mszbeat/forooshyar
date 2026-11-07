@@ -21,12 +21,16 @@ export type TelegramConfig = {
   timeoutMs: number;
 };
 
+export type ReplyMarkup =
+  | { inline_keyboard: { text: string; callback_data?: string; url?: string }[][] }
+  | { remove_keyboard: true };
+
 export type SendMessagePayload = {
   chat_id: string | number;
   text: string;
   parse_mode?: 'HTML' | 'MarkdownV2';
   disable_web_page_preview?: boolean;
-  reply_markup?: unknown;
+  reply_markup?: ReplyMarkup;
 };
 
 export function readTelegramConfig(env: NodeJS.ProcessEnv = process.env): TelegramConfig {
@@ -58,16 +62,22 @@ export class TelegramClient {
     return this.call<true>('setWebhook', {
       url,
       secret_token: secretToken,
-      allowed_updates: ['message', 'edited_message'],
+      // callback_query لازم است: انتخاب محصول و مراحل سفارش با دکمه انجام می‌شود.
+      allowed_updates: ['message', 'edited_message', 'callback_query'],
       drop_pending_updates: false,
     });
+  }
+
+  /** بستن چرخ‌لودینگ دکمه؛ بدون این، دکمه‌ی مشتری «گیر» می‌ماند. */
+  async answerCallbackQuery(id: string, text?: string): Promise<TelegramApiResult<true>> {
+    return this.call<true>('answerCallbackQuery', { callback_query_id: id, ...(text ? { text } : {}) });
   }
 
   async deleteWebhook(): Promise<TelegramApiResult<true>> {
     return this.call<true>('deleteWebhook', { drop_pending_updates: false });
   }
 
-  async getWebhookInfo(): Promise<TelegramApiResult<{ url?: string; last_error_message?: string; pending_update_count?: number }>> {
+  async getWebhookInfo(): Promise<TelegramApiResult<{ url?: string; last_error_message?: string; pending_update_count?: number; allowed_updates?: string[] }>> {
     return this.call('getWebhookInfo', {});
   }
 

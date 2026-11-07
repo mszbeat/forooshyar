@@ -1,20 +1,53 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
-import { answerFresh, type FreshProduct, type FreshShop } from '../fresh/fresh';
+import { type CatalogProduct } from '../catalog/discovery';
+import { OrdersService } from '../orders/orders.service';
+import { PaymentsService } from '../payments/payments.service';
+import { type BotButton, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
+import { applyInput, draftTitle, promptFor, startDraft, summaryLines, type OrderDraft } from './order-flow';
 import { readTelegramConfig, splitMessage, TelegramClient } from './telegram.client';
+
+type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
+type TelegramUser = { id: number | string; is_bot?: boolean; username?: string; first_name?: string };
+
+export type IncomingMessage = {
+  message_id: number;
+  date: number;
+  text?: string;
+  /** زیرنویس عکس/ویدیو؛ برای پست فوروارد‌شده معمولاً همین متن دارد. */
+  caption?: string;
+  chat: TelegramChat;
+  from?: TelegramUser;
+  /** Bot API 7+: منبع فوروارد */
+  forward_origin?: { type: string; chat?: { title?: string; username?: string }; sender_user?: TelegramUser; sender_user_name?: string };
+  /** فیلدهای قدیمی فوروارد؛ بعضی کلاینت‌ها/نسخه‌ها هنوز همین را می‌فرستند. */
+  forward_from?: TelegramUser;
+  forward_from_chat?: { title?: string; username?: string };
+  forward_sender_name?: string;
+  forward_date?: number;
+  photo?: unknown[];
+  video?: unknown;
+  document?: unknown;
+  voice?: unknown;
+  sticker?: unknown;
+  location?: unknown;
+  contact?: unknown;
+};
+
+export type IncomingCallback = {
+  id: string;
+  from: TelegramUser;
+  data?: string;
+  message?: { message_id: number; chat: TelegramChat };
+};
 
 export type IncomingUpdate = {
   update_id: number;
-  message?: {
-    message_id: number;
-    date: number;
-    text?: string;
-    chat: { id: number | string; type?: string; username?: string; first_name?: string };
-    from?: { id: number | string; is_bot?: boolean; username?: string; first_name?: string };
-  };
+  message?: IncomingMessage;
   edited_message?: unknown;
+  callback_query?: IncomingCallback;
 };
 
 export type HandleResult =
@@ -38,7 +71,13 @@ export class TelegramService {
   private readonly logger = new Logger('Telegram');
   private readonly client = new TelegramClient(readTelegramConfig());
 
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
+  constructor(
+    private readonly db: PrismaService,
+    private readonly audit: AuditService,
+    // چرخه‌ی عمدی و محدود: بات سفارش می‌سازد، سفارش‌ها با بات اعلان می‌دهند.
+    @Inject(forwardRef(() => OrdersService)) private readonly orders: OrdersService,
+    @Inject(forwardRef(() => PaymentsService)) private readonly payments: PaymentsService,
+  ) {}
 
   get configured(): boolean {
     return this.client.configured;
@@ -70,23 +109,50 @@ export class TelegramService {
       return { status: 'ignored', reason: 'persist_failed' };
     }
 
+    // دکمه‌های inline (انتخاب محصول، مراحل سفارش) در callback_query می‌آیند، نه message.
+    if (update.callback_query) return this.handleCallback(update.callback_query);
+
     const message = update.message;
-    // پیام ویرایش‌شده، استیکر، عکس و … فعلاً پاسخ نمی‌گیرند
-    if (!message?.text || !message.chat) return { status: 'ignored', reason: 'unsupported_type' };
+    if (!message?.chat) return { status: 'ignored', reason: 'unsupported_type' };
     if (message.from?.is_bot) return { status: 'ignored', reason: 'from_bot' };
 
     const chatId = String(message.chat.id);
-    const text = message.text.trim();
+    // پست فوروارد‌شده معمولاً text ندارد و متنش در caption است.
+    const text = (message.text ?? message.caption ?? '').trim();
+    const forwarded = TelegramService.forwardSource(message);
 
-    const command = /^\/(start|help|link|stop)(?:@\w+)?(?:\s+(.+))?$/u.exec(text);
+    const command = /^\/(start|help|link|stop|orders)(?:@\w+)?(?:\s+(.+))?$/u.exec(text);
     if (command?.[1] === 'start') return this.start(chatId, message, command[2]?.trim() ?? '');
     if (command?.[1] === 'link') return this.linkOwner(chatId, message, command[2]?.trim() ?? '');
     if (command?.[1] === 'stop') return this.stop(chatId);
     if (command?.[1] === 'help') return this.help(chatId);
-
+    if (command?.[1] === 'orders') return this.myOrders(chatId);
     if (text.startsWith('/')) return { status: 'ignored', reason: 'unknown_command' };
 
-    return this.customerMessage(chatId, text);
+    if (!text) {
+      if (!forwarded) return { status: 'ignored', reason: 'unsupported_type' };
+      // پست فوروارد‌شده‌ی بدون متن: عکس/ویدیو است و ما فقط متن را می‌خوانیم.
+      await this.send(chatId, [
+        'این پست متنی ندارد که بتوانم محصولش را تشخیص بدهم.',
+        'اسم یا کد محصول را بنویسید، یا متن پست را کپی و بفرستید.',
+      ].join('\n'));
+      return { status: 'handled', replies: 1, kind: 'forward_no_text' };
+    }
+
+    return this.customerMessage(chatId, text, message);
+  }
+
+  /**
+   * منبع فوروارد، اگر پیام فوروارد شده باشد.
+   * Bot API 7 `forward_origin` می‌فرستد و نسخه‌های قدیمی `forward_from*`؛ هر دو
+   * بررسی می‌شوند تا با هر کلاینتی کار کند.
+   */
+  static forwardSource(message: IncomingMessage): string {
+    const origin = message.forward_origin;
+    if (origin) {
+      return origin.chat?.title ?? origin.chat?.username ?? origin.sender_user?.first_name ?? origin.sender_user_name ?? origin.type;
+    }
+    return message.forward_from_chat?.title ?? message.forward_from_chat?.username ?? message.forward_from?.first_name ?? message.forward_sender_name ?? '';
   }
 
   // ---------------------------------------------------------------- /start CODE
@@ -150,51 +216,70 @@ export class TelegramService {
 
   private async help(chatId: string): Promise<HandleResult> {
     await this.send(chatId, [
-      'سؤال‌هایی که می‌توانم جواب بدهم:',
-      '• قیمت یک محصول',
-      '• موجود بودن یک محصول',
-      '• شرایط ارسال و پرداخت',
-      '• ساعت کاری فروشگاه',
+      'کارهایی که می‌توانم انجام دهم:',
+      '• قیمت و موجودی یک محصول',
+      '• پیدا کردن محصول از روی پست فوروارد‌شده',
+      '• ثبت سفارش و ساخت لینک پرداخت',
+      '• شرایط ارسال و پرداخت و ساعت کاری',
       '',
+      'دستورها: /orders (سفارش‌های من) · /stop (بستن گفتگو)',
       'برای موارد دیگر به فروشنده وصلتان می‌کنم.',
     ].join('\n'));
     return { status: 'handled', replies: 1, kind: 'help' };
   }
 
   // ---------------------------------------------------------------- مشتری
-  private async customerMessage(chatId: string, text: string): Promise<HandleResult> {
+  private async customerMessage(chatId: string, text: string, message?: IncomingMessage): Promise<HandleResult> {
     const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
     if (!conversation) {
       await this.send(chatId, 'برای شروع، لینک اختصاصی فروشگاه را باز کنید.');
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
     }
 
-    const [shop, products] = await Promise.all([
-      this.db.shop.findUniqueOrThrow({ where: { id: conversation.shopId }, select: { shipping: true, payment: true, workingHours: true, handoffMessage: true, name: true } }),
-      this.db.product.findMany({
-        where: { shopId: conversation.shopId, active: true },
-        take: 501,
-        select: { title: true, variants: { where: { active: true }, take: 2, select: { size: true, color: true, price: true, stock: true } } },
-      }),
-    ]);
-
-    const answer = products.length > 500
-      ? { kind: 'handoff' as const, text: shop.handoffMessage.trim() || 'برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.' }
-      : answerFresh(text, shop as FreshShop, products as FreshProduct[]);
+    const shop = await this.db.shop.findUniqueOrThrow({
+      where: { id: conversation.shopId },
+      select: { shipping: true, payment: true, workingHours: true, handoffMessage: true, name: true },
+    });
 
     await this.db.telegramConversation.update({
       where: { id: conversation.id },
       data: { messageCount: { increment: 1 }, lastSeenAt: new Date() },
     });
 
-    let replies = 0;
-    if (await this.send(chatId, answer.text)) replies += 1;
+    // ۱) اگر وسط سفارش است، ورودی صرفاً جواب همان مرحله است.
+    const draft = TelegramService.readDraft(conversation.draft);
+    if (draft) {
+      // اگر مشتری صریحاً موضوع را عوض کرد، از سفارش بیرون می‌آییم (به‌جز مرحله‌ی تأیید).
+      const escape = draft.step !== 'confirm' && /^(قیمت|موجودی|ارسال|ساعت)\b/u.test(text);
+      if (escape) {
+        await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
+      } else {
+        return this.continueOrder(conversation, draft, { text, telegramName: conversation.firstName });
+      }
+    }
 
-    if (answer.kind === 'handoff') {
-      // ارجاع به فروشنده: هم به مشتری گفتیم، هم فروشنده باید خبردار شود
+    const products = await this.catalog(conversation.shopId);
+    const forwardSource = message ? TelegramService.forwardSource(message) : '';
+    const reply = composeReply(text, shop as BrainShop, products);
+
+    let replies = 0;
+    if (reply.kind === 'handoff' && /^(سفارش|خرید|میخوام بخرم|می‌خوام بخرم|سفارش بدم|می‌خوام سفارش بدم)$/u.test(text.trim()) && products.length > 0) {
+      // «سفارش» بدون نام محصول: کاتالوگ را نشان می‌دهیم، حدس نمی‌زنیم.
+      if (await this.sendWithButtons(chatId, 'کدام محصول را می‌خواهید؟', productButtons(products))) replies += 1;
+      return { status: 'handled', replies, kind: 'catalog' };
+    }
+
+    const lines = [reply.text];
+    if (forwardSource && reply.kind === 'handoff') {
+      lines.unshift(`این پست از «${forwardSource}» است، ولی محصولش را در کاتالوگ فروشگاه پیدا نکردم.`);
+    }
+    if (await this.sendWithButtons(chatId, lines.join('\n'), reply.buttons)) replies += 1;
+
+    if (reply.kind === 'handoff') {
       const notified = await this.notifyOwner(conversation.shopId, [
         `🔔 سؤال نیازمند پاسخ انسانی در «${shop.name}»`,
         `از: ${conversation.firstName || 'مشتری'}${conversation.username ? ` (@${conversation.username})` : ''}`,
+        ...(forwardSource ? [`فوروارد از: ${forwardSource}`] : []),
         '',
         text,
       ].join('\n'));
@@ -206,9 +291,225 @@ export class TelegramService {
       entity: 'conversation',
       entityId: conversation.id,
       shopId: conversation.shopId,
-      meta: { kind: answer.kind, chars: text.length, handoffNotified: answer.kind === 'handoff' },
+      meta: { kind: reply.kind, reason: reply.reason ?? null, chars: text.length, forwarded: Boolean(forwardSource), handoffNotified: reply.kind === 'handoff' },
     });
-    return { status: 'handled', replies, kind: answer.kind };
+    return { status: 'handled', replies, kind: reply.kind };
+  }
+
+  /** کاتالوگ فعال فروشگاه؛ سقف ۵۰۰ محصول مثل مسیر داشبورد. */
+  private async catalog(shopId: string): Promise<CatalogProduct[]> {
+    const products = await this.db.product.findMany({
+      where: { shopId, active: true },
+      take: 501,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        variants: { where: { active: true }, take: 12, select: { id: true, size: true, color: true, price: true, stock: true } },
+      },
+    });
+    return products.length > 500 ? products.slice(0, 500) : products;
+  }
+
+  // ------------------------------------------------------------- دکمه‌های inline
+  private async handleCallback(callback: IncomingCallback): Promise<HandleResult> {
+    const chatId = String(callback.message?.chat.id ?? callback.from.id);
+    const data = callback.data ?? '';
+    // بدون این، چرخ‌لودینگ دکمه در گوشی مشتری گیر می‌کند.
+    await this.client.answerCallbackQuery(callback.id).catch(() => undefined);
+
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    if (!conversation) {
+      await this.send(chatId, 'برای شروع، لینک اختصاصی فروشگاه را باز کنید.');
+      return { status: 'handled', replies: 1, kind: 'no_conversation' };
+    }
+    await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { lastSeenAt: new Date() } });
+
+    // انتخاب محصول از لیست رفع ابهام
+    if (data.startsWith('p:')) {
+      const productId = data.slice(2);
+      const product = (await this.catalog(conversation.shopId)).find(item => item.id === productId);
+      if (!product) {
+        await this.send(chatId, 'این محصول دیگر موجود نیست. کاتالوگ را دوباره ببینید: /help');
+        return { status: 'handled', replies: 1, kind: 'product_gone' };
+      }
+      const reply = describeProduct(product, 'قیمت');
+      const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons)) ? 1 : 0;
+      this.audit.record({ action: 'telegram.product_pick', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { productId, title: product.title } });
+      return { status: 'handled', replies, kind: 'product_pick' };
+    }
+
+    // شروع سفارش برای یک سایز/رنگ مشخص
+    if (data.startsWith('ord:')) {
+      const variantId = data.slice(4);
+      const variant = await this.db.variant.findFirst({
+        where: { id: variantId, shopId: conversation.shopId, active: true },
+        select: { id: true, size: true, color: true, price: true, stock: true, product: { select: { id: true, title: true, active: true } } },
+      });
+      if (!variant || !variant.product.active) {
+        await this.send(chatId, 'این محصول دیگر در دسترس نیست.');
+        return { status: 'handled', replies: 1, kind: 'variant_gone' };
+      }
+      if (variant.stock <= 0) {
+        await this.send(chatId, `${variant.product.title} موجود نیست. اگر بخواهید به فروشنده اطلاع می‌دهم.`);
+        await this.notifyOwner(conversation.shopId, `🔔 درخواست محصول ناموجود: ${variant.product.title}`);
+        return { status: 'handled', replies: 1, kind: 'out_of_stock' };
+      }
+      const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
+      const draft = startDraft({
+        productId: variant.product.id,
+        variantId: variant.id,
+        title: variant.product.title,
+        spec,
+        price: variant.price,
+        stock: variant.stock,
+      });
+      await this.saveDraft(conversation.id, draft);
+      const prompt = promptFor(draft, conversation.firstName);
+      const replies = (await this.sendWithButtons(chatId, prompt.text, prompt.buttons)) ? 1 : 0;
+      this.audit.record({ action: 'telegram.order_started', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title } });
+      return { status: 'handled', replies, kind: 'order_started' };
+    }
+
+    // مراحل سفارش
+    if (data.startsWith('flow:')) {
+      const draft = TelegramService.readDraft(conversation.draft);
+      if (!draft) {
+        await this.send(chatId, 'سفارش فعالی نیست. از دکمه‌های محصول شروع کنید.');
+        return { status: 'handled', replies: 1, kind: 'no_draft' };
+      }
+      return this.continueOrder(conversation, draft, { data, telegramName: conversation.firstName });
+    }
+
+    return { status: 'ignored', reason: 'unknown_callback' };
+  }
+
+  // ------------------------------------------------------------- سفارش در بات
+  static readDraft(raw: unknown): OrderDraft | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const draft = raw as OrderDraft;
+    return typeof draft.step === 'string' && typeof draft.variantId === 'string' ? draft : null;
+  }
+
+  private async saveDraft(conversationId: string, draft: OrderDraft) {
+    await this.db.telegramConversation.update({
+      where: { id: conversationId },
+      data: { draft: draft as unknown as Prisma.InputJsonValue },
+    });
+  }
+
+  /** یک گام جلو رفتن در سفارش؛ حالت در draft می‌ماند تا ری‌استارت سرور گمش نکند. */
+  private async continueOrder(
+    conversation: { id: string; shopId: string; chatId: string; firstName: string },
+    draft: OrderDraft,
+    input: { text?: string; data?: string; telegramName?: string },
+  ): Promise<HandleResult> {
+    const outcome = applyInput(draft, input);
+
+    if (outcome.kind === 'cancel') {
+      await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
+      await this.send(conversation.chatId, outcome.reply.text);
+      this.audit.record({ action: 'telegram.order_cancelled', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { title: draft.title } });
+      return { status: 'handled', replies: 1, kind: 'order_cancelled' };
+    }
+
+    if (outcome.kind === 'ready') return this.finishOrder(conversation, outcome.draft);
+
+    await this.saveDraft(conversation.id, outcome.draft);
+    const sent = await this.sendWithButtons(conversation.chatId, outcome.reply.text, outcome.reply.buttons);
+    return { status: 'handled', replies: sent ? 1 : 0, kind: outcome.kind === 'invalid' ? 'order_invalid' : 'order_step' };
+  }
+
+  /** ساخت سفارش + لینک پرداخت. موجودی همین‌جا رزرو می‌شود. */
+  private async finishOrder(
+    conversation: { id: string; shopId: string; chatId: string },
+    draft: OrderDraft,
+  ): Promise<HandleResult> {
+    const publicUrl = PaymentsService.publicUrl;
+    if (!publicUrl) {
+      // بدون آدرس عمومی لینک پرداخت ساخته نمی‌شود؛ بهتر است روشن بگوییم تا سکوت.
+      await this.send(conversation.chatId, 'فعلاً امکان ساخت لینک پرداخت نیست. سفارش شما را به فروشنده اطلاع دادم تا هماهنگ کند.');
+      await this.notifyOwner(conversation.shopId, [
+        `🔔 سفارش دستی: ${draftTitle(draft)} × ${(draft.quantity ?? 1).toLocaleString('fa-IR')}`,
+        `گیرنده: ${draft.name ?? '—'} · ${draft.phone ?? '—'}`,
+        `نشانی: ${draft.address ?? '—'}`,
+        '',
+        'PUBLIC_API_URL روی سرور تنظیم نشده، پس لینک پرداخت ساخته نشد.',
+      ].join('\n'));
+      await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
+      return { status: 'handled', replies: 1, kind: 'order_no_payment' };
+    }
+
+    try {
+      const order = await this.orders.create(conversation.shopId, {
+        chatId: conversation.chatId,
+        customerName: draft.name ?? '',
+        customerPhone: draft.phone ?? '',
+        address: draft.address ?? '',
+        items: [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }],
+      });
+      const payment = await this.payments.start(
+        conversation.shopId,
+        { id: order.id, code: order.code, total: order.total, customerPhone: order.customerPhone },
+        publicUrl,
+      );
+      await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
+
+      const summary = summaryLines(draft).join('\n');
+      const sent = await this.sendWithButtons(
+        conversation.chatId,
+        [
+          `🧾 سفارش ${order.code} ساخته شد.`,
+          summary,
+          '',
+          'برای تکمیل، روی دکمه‌ی پرداخت بزنید.',
+          'اگر پرداخت نکنید، این سفارش تا ۲۴ ساعت آینده لغو و موجودی آزاد می‌شود.',
+        ].join('\n'),
+        [[{ text: `💳 پرداخت ${order.total.toLocaleString('fa-IR')} تومان`, url: payment.url }]],
+      );
+
+      this.audit.record({
+        action: 'telegram.order_created',
+        entity: 'order',
+        entityId: order.id,
+        shopId: conversation.shopId,
+        meta: { code: order.code, total: order.total, provider: payment.provider, chatId: conversation.chatId },
+      });
+      return { status: 'handled', replies: sent ? 1 : 0, kind: 'order_created' };
+    } catch (error) {
+      await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
+      const message = error instanceof Error ? error.message : 'سفارش ثبت نشد.';
+      this.logger.warn(`ثبت سفارش ناموفق (${conversation.shopId}): ${message}`);
+      await this.send(conversation.chatId, `سفارش ثبت نشد: ${message}\nاگر موجودی تمام شده، فروشنده به‌زودی به‌روزش می‌کند.`);
+      return { status: 'handled', replies: 1, kind: 'order_failed' };
+    }
+  }
+
+  /** /orders — سفارش‌های همین چت. */
+  private async myOrders(chatId: string): Promise<HandleResult> {
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    if (!conversation) {
+      await this.send(chatId, 'برای شروع، لینک اختصاصی فروشگاه را باز کنید.');
+      return { status: 'handled', replies: 1, kind: 'no_conversation' };
+    }
+    const orders = await this.orders.listForChat(conversation.shopId, chatId, 5);
+    if (orders.length === 0) {
+      await this.send(chatId, 'هنوز سفارشی ثبت نکرده‌اید.');
+      return { status: 'handled', replies: 1, kind: 'orders_empty' };
+    }
+    const labels: Record<OrderStatus, string> = {
+      [OrderStatus.AWAITING_PAYMENT]: 'در انتظار پرداخت',
+      [OrderStatus.PAID]: 'پرداخت‌شده',
+      [OrderStatus.SHIPPED]: 'ارسال‌شده',
+      [OrderStatus.COMPLETED]: 'تحویل‌شده',
+      [OrderStatus.CANCELLED]: 'لغوشده',
+    };
+    const lines = orders.map(order => [
+      `${order.code} · ${labels[order.status]} · ${order.total.toLocaleString('fa-IR')} تومان`,
+      order.items.map(item => `   • ${item.title}${item.spec ? ` (${item.spec})` : ''} × ${item.quantity.toLocaleString('fa-IR')}`).join('\n'),
+    ].join('\n'));
+    await this.send(chatId, ['🧾 سفارش‌های شما:', '', lines.join('\n\n')].join('\n'));
+    return { status: 'handled', replies: 1, kind: 'orders' };
   }
 
   /** همان آستانه‌ی گزارش‌ها (reports.service) تا پنل و تلگرام یک چیز بگویند. */
@@ -250,6 +551,42 @@ export class TelegramService {
     // '' یعنی وصل‌نشده؛ بدون trim یک مقدار خالی به‌عنوان chatId به تلگرام می‌رفت.
     if (!channel?.ownerChat?.trim()) return false;
     return this.send(channel.ownerChat.trim(), text);
+  }
+
+  /** برای سفارش‌ها و پرداخت‌ها: ارسال پیام ساده به یک چت. */
+  async sendTo(chatId: string, text: string): Promise<boolean> {
+    return this.send(chatId, text);
+  }
+
+  /**
+   * ارسال با دکمه‌های inline. دکمه‌ها فقط به تکه‌ی آخر می‌چسبند؛ اگر پیام طولانی
+   * شد، دکمه‌ی نصفه وسط پیام نمی‌آید.
+   */
+  private async sendWithButtons(chatId: string, text: string, buttons?: BotButton[][]): Promise<boolean> {
+    if (!buttons?.length) return this.send(chatId, text);
+    if (!this.client.configured) {
+      this.logger.warn(`TELEGRAM_BOT_TOKEN ست نشده؛ پیام به ${chatId} ارسال نشد.`);
+      return false;
+    }
+    const inline_keyboard = buttons.map(row => row.map(button => (
+      button.url
+        ? { text: button.text, url: button.url }
+        : { text: button.text, callback_data: button.data ?? '' }
+    )));
+    const parts = splitMessage(text);
+    let allOk = true;
+    for (const [index, part] of parts.entries()) {
+      const result = await this.client.sendMessage({
+        chat_id: chatId,
+        text: part,
+        ...(index === parts.length - 1 ? { reply_markup: { inline_keyboard } } : {}),
+      });
+      if (!result.ok) {
+        allOk = false;
+        this.logger.warn(`sendMessage به ${chatId} ناموفق: ${result.error}${result.description ? ` (${result.description})` : ''}`);
+      }
+    }
+    return allOk;
   }
 
   /** ارسال با تکه‌بندی؛ نتیجه فقط برای شمارش/لاگ است و هرگز throw نمی‌شود. */

@@ -115,7 +115,7 @@ export function TelegramConnect() {
 
         {/* --------------------------------------------------- وضعیت webhook */}
         {status?.botConfigured && (
-          status.webhook?.registered && status.webhook.pointsHere && !status.webhook.lastError ? (
+          status.webhook?.registered && status.webhook.pointsHere && !status.webhook.lastError && status.webhook.buttonsWork !== false ? (
             <div className="row" style={{ gap: 8, alignItems: 'center' }}>
               <span className="badge b-green"><span className="dot" />webhook ثبت شده</span>
               <span className="small muted">
@@ -131,7 +131,9 @@ export function TelegramConnect() {
                   ? 'webhook هنوز ثبت نشده، پس هیچ پیامی به سرور نمی‌رسد.'
                   : status.webhook?.pointsHere === false
                     ? 'webhook به آدرس دیگری اشاره می‌کند (آدرس سرویس عوض شده؟).'
-                    : `تلگرام از این سرور خطا می‌گیرد: ${status.webhook?.lastError || status.webhook?.error || 'نامشخص'}`}
+                    : status.webhook?.buttonsWork === false
+                      ? 'webhook بدون callback_query ثبت شده، پس دکمه‌های انتخاب محصول و سفارش کار نمی‌کنند. یک‌بار دوباره ثبت کنید.'
+                      : `تلگرام از این سرور خطا می‌گیرد: ${status.webhook?.lastError || status.webhook?.error || 'نامشخص'}`}
                 {' '}
                 <button
                   className="btn btn-outline btn-sm"

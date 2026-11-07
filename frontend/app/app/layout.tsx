@@ -7,13 +7,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
 import {
-  IconBell, IconBox, IconChat, IconDashboard, IconLogo, IconLogout, IconMenu,
+  IconBell, IconBox, IconChat, IconDashboard, IconLogo, IconLogout, IconMenu, IconWallet,
   IconSettings, IconSparkles, IconStore, IconUpload, IconUsers, IconX,
 } from '@/components/icons';
 
 const NAV = [
   { href: '/app', label: 'داشبورد', icon: IconDashboard, exact: true },
   { href: '/app/products', label: 'محصولات و موجودی', icon: IconBox },
+  { href: '/app/orders', label: 'سفارش‌ها', icon: IconWallet },
   { href: '/app/import', label: 'ورود کاتالوگ', icon: IconUpload },
   { href: '/app/assistant', label: 'دستیار پاسخ‌گو', icon: IconSparkles },
   { href: '/app/settings', label: 'تنظیمات فروشگاه', icon: IconSettings },
