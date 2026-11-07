@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Delete, Get, Headers, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard, Principal } from '../auth/auth.guard';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
@@ -24,14 +24,33 @@ export class ChannelController {
   @Get()
   async status(@Req() req: { principal: Principal }) {
     const channel = await this.db.channel.findUnique({ where: { shopId: req.principal.shopId } });
-    const identity = await this.telegram.botIdentity();
+    // getMe و getWebhookInfo موازی، تا صفحه‌ی تنظیمات دو بار تایم‌اوت نخورد.
+    const [identity, hook] = await Promise.all([
+      this.telegram.botIdentity(),
+      this.telegram.configured ? this.telegram.webhookInfo() : Promise.resolve(null),
+    ]);
     const botUsername = identity.username || channel?.botUsername || '';
     const conversations = channel
       ? await this.db.telegramConversation.count({ where: { shopId: channel.shopId } })
       : 0;
 
+    const hookUrl = hook?.ok ? (hook.result.url ?? '') : '';
+    const webhook = {
+      registered: Boolean(hookUrl),
+      // آدرس داخل تلگرام با آدرسی که این سرویس فکر می‌کند یکی است؟
+      pointsHere: Boolean(hookUrl) && (
+        (process.env.PUBLIC_API_URL ?? '').trim() !== ''
+          ? hookUrl.startsWith((process.env.PUBLIC_API_URL ?? '').trim().replace(/\/+$/, ''))
+          : true
+      ),
+      pending: hook?.ok ? (hook.result.pending_update_count ?? 0) : 0,
+      lastError: hook?.ok ? (hook.result.last_error_message ?? '') : '',
+      error: hook && !hook.ok ? (hook.description ?? hook.error) : '',
+    };
+
     return {
       botConfigured: identity.configured,
+      webhook,
       botUsername,
       // لینکی که فروشنده به مشتری‌ها می‌دهد
       customerLink: channel && botUsername ? `https://t.me/${botUsername}?start=${channel.code}` : null,
@@ -41,6 +60,45 @@ export class ChannelController {
       ownerLinkedAt: channel?.ownerLinkedAt ?? null,
       conversations,
     };
+  }
+
+  /**
+   * ثبت webhook از سمت خود سرور.
+   *
+   * چرا اینجا و نه با اسکریپت روی لپ‌تاپ: سرور روی Render به تلگرام دسترسی دارد
+   * ولی شبکه‌ی توسعه‌دهنده ممکن است نداشته باشد. سکرت و آدرس از Environment
+   * خوانده می‌شوند، پس با این مسیر هیچ‌وقت نمی‌توان webhook را به آدرس دیگری
+   * نشاند و سکرت هم در پاسخ برنمی‌گردد.
+   */
+  @Post('register-webhook')
+  @HttpCode(200)
+  async registerWebhook(@Headers() headers: Record<string, string | string[] | undefined>) {
+    if (!this.telegram.configured) {
+      throw new BadRequestException('TELEGRAM_BOT_TOKEN روی سرور تنظیم نشده است.');
+    }
+    const secret = (process.env.TELEGRAM_WEBHOOK_SECRET ?? '').trim();
+    if (secret.length < 16) {
+      throw new BadRequestException('TELEGRAM_WEBHOOK_SECRET باید حداقل ۱۶ کاراکتر باشد و روی سرور ست شود.');
+    }
+    const publicUrl = TelegramService.resolvePublicUrl(headers);
+    if (!publicUrl.startsWith('https://')) {
+      // تلگرام فقط https را می‌پذیرد؛ بهتر است همین‌جا روشن بگوییم تا خطای مبهم نگیریم.
+      throw new BadRequestException('آدرس عمومی سرویس پیدا نشد یا https نیست. PUBLIC_API_URL را ست کن.');
+    }
+
+    const url = `${publicUrl}/telegram/webhook/${secret}`;
+    const result = await this.telegram.registerWebhook(url, secret);
+    this.audit.record({
+      action: result.ok ? 'telegram.webhook_registered' : 'telegram.webhook_failed',
+      entity: 'channel',
+      entityId: 'webhook',
+      shopId: undefined,
+      meta: { host: publicUrl, error: result.ok ? undefined : (result.description ?? result.error) },
+    });
+    if (!result.ok) {
+      throw new BadRequestException(result.description ?? `ثبت webhook ناموفق بود (${result.error})`);
+    }
+    return { ok: true, url: url.replace(secret, '…'), pending: 0 };
   }
 
   /** ساخت (یا فعال‌سازی) اتصال این فروشگاه به بات مشترک. */

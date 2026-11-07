@@ -283,4 +283,18 @@ export class TelegramService {
   async webhookInfo() {
     return this.client.getWebhookInfo();
   }
+
+  /**
+   * آدرس عمومی خود این سرویس. اول از `PUBLIC_API_URL`، وگرنه از هدرهای درخواست
+   * (روی Render پشت پروکسی، `x-forwarded-*` درست است). آدرس باید https باشد چون
+   * تلگرام http را نمی‌پذیرد.
+   */
+  static resolvePublicUrl(headers: Record<string, string | string[] | undefined>, env = process.env): string {
+    const explicit = (env.PUBLIC_API_URL ?? '').trim().replace(/\/+$/, '');
+    if (explicit) return explicit;
+    const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value) ?? '';
+    const host = first(headers['x-forwarded-host']) || first(headers.host);
+    const proto = first(headers['x-forwarded-proto']) || 'https';
+    return host ? `${proto}://${host}` : '';
+  }
 }

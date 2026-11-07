@@ -171,6 +171,54 @@ describe('telegram client', () => {
   });
 });
 
+describe('channel webhook registration', () => {
+  // این مسیر به دیتابیس دست نمی‌زند؛ پس بدون دیتابیس هم تست می‌شود.
+  const audit = { record() {} } as never;
+  const db = { channel: {} } as never;
+
+  it('سرور خودش webhook را ثبت می‌کند و سکرت در پاسخ لو نمی‌رود', async () => {
+    const { ChannelController } = await import('../src/telegram/channel.controller');
+    const { TelegramService } = await import('../src/telegram/telegram.service');
+    const controller = new ChannelController(db, new TelegramService(db, audit), audit);
+    reset();
+    const result = await controller.registerWebhook({
+      host: 'forooshyar-api.onrender.com',
+      'x-forwarded-proto': 'https',
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(captured[0].method, 'setWebhook');
+    assert.equal(captured[0].body.url, `https://forooshyar-api.onrender.com/telegram/webhook/${SECRET}`);
+    assert.equal(captured[0].body.secret_token, SECRET);
+    assert.ok(!result.url.includes(SECRET), 'سکرت نباید به پنل برگردد');
+  });
+
+  it('PUBLIC_API_URL بر هدرها اولویت دارد', async () => {
+    const { TelegramService } = await import('../src/telegram/telegram.service');
+    assert.equal(
+      TelegramService.resolvePublicUrl({ host: 'internal:10000' }, { PUBLIC_API_URL: 'https://api.example.com/' } as NodeJS.ProcessEnv),
+      'https://api.example.com',
+    );
+    assert.equal(
+      TelegramService.resolvePublicUrl({ host: 'x', 'x-forwarded-host': 'api.example.com', 'x-forwarded-proto': 'https' }, {} as NodeJS.ProcessEnv),
+      'https://api.example.com',
+    );
+  });
+
+  it('آدرس http رد می‌شود (تلگرام فقط https می‌پذیرد)', async () => {
+    const { ChannelController } = await import('../src/telegram/channel.controller');
+    const { TelegramService } = await import('../src/telegram/telegram.service');
+    const controller = new ChannelController(db, new TelegramService(db, audit), audit);
+    const previous = process.env.PUBLIC_API_URL;
+    process.env.PUBLIC_API_URL = 'http://insecure.local';
+    try {
+      await assert.rejects(() => controller.registerWebhook({}), /https/);
+    } finally {
+      process.env.PUBLIC_API_URL = previous;
+    }
+  });
+});
+
 describe('telegram webhook flow', () => {
   it('بدون دیتابیس: skip', (t) => { if (!databaseReady) t.skip('DATABASE_URL/DB_* تنظیم نشده'); });
   it('سکرت اشتباه → unauthorized و هیچ درخواستی به تلگرام نمی‌رود', async (t) => {

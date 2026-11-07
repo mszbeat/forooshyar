@@ -58,8 +58,18 @@ export type ImportResult = {
   results: { row: number; status: string; errors?: string[] }[];
 };
 export type BotReply = { kind: 'answer' | 'clarify' | 'handoff'; text: string };
+export type TelegramWebhook = {
+  /** آیا تلگرام آدرسی برای این بات ثبت کرده است */
+  registered: boolean;
+  /** آدرس ثبت‌شده به همین سرویس اشاره می‌کند */
+  pointsHere: boolean;
+  pending: number;
+  lastError: string;
+  error: string;
+};
 export type TelegramStatus = {
   botConfigured: boolean;
+  webhook: TelegramWebhook;
   botUsername: string;
   /** لینکی که فروشنده به مشتری‌ها می‌دهد */
   customerLink: string | null;
@@ -192,6 +202,9 @@ export const api = {
 
   telegramStatus: () => request<TelegramStatus>('/channel/telegram'),
   telegramConnect: () => request<TelegramStatus>('/channel/telegram/connect', { method: 'POST' }),
+  /** ثبت webhook از سمت خود سرور (سرور به تلگرام دسترسی دارد، لپ‌تاپ شاید نه) */
+  telegramRegisterWebhook: () =>
+    request<{ ok: boolean; url: string }>('/channel/telegram/register-webhook', { method: 'POST' }),
   telegramOwnerCode: () => request<TelegramOwnerCode>('/channel/telegram/owner-code', { method: 'POST' }),
   telegramDisconnectOwner: () => request<TelegramStatus>('/channel/telegram/disconnect-owner', { method: 'POST' }),
   telegramDisable: () => request<TelegramStatus>('/channel/telegram', { method: 'DELETE' }),

@@ -16,7 +16,7 @@ export function TelegramConnect() {
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [owner, setOwner] = useState<TelegramOwnerCode | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<'connect' | 'owner' | 'disconnect' | 'disable' | null>(null);
+  const [busy, setBusy] = useState<'connect' | 'owner' | 'disconnect' | 'disable' | 'webhook' | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function TelegramConnect() {
   }, []);
 
   const run = useCallback(async (
-    kind: 'connect' | 'owner' | 'disconnect' | 'disable',
+    kind: 'connect' | 'owner' | 'disconnect' | 'disable' | 'webhook',
     action: () => Promise<TelegramStatus | TelegramOwnerCode>,
     success: { title: string; body: string },
   ) => {
@@ -48,6 +48,23 @@ export function TelegramConnect() {
       setBusy(null);
     }
   }, [toast]);
+
+  /** ثبت webhook از سمت سرور؛ بعدش وضعیت را دوباره می‌خوانیم. */
+  async function registerWebhook() {
+    setBusy('webhook');
+    setError('');
+    try {
+      await api.telegramRegisterWebhook();
+      setStatus(await api.telegramStatus());
+      toast.success('webhook ثبت شد', 'از این پس پیام‌های تلگرام به این سرور می‌رسند.');
+    } catch (problem) {
+      const message = problem instanceof ApiError ? problem.message : 'ثبت webhook انجام نشد.';
+      setError(message);
+      toast.error('ثبت webhook انجام نشد', message);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function copy(value: string, what: string) {
     try {
@@ -89,11 +106,46 @@ export function TelegramConnect() {
             <span>
               بات تلگرام هنوز روی سرور پیکربندی نشده است. مدیر سیستم باید
               <span className="mono"> TELEGRAM_BOT_TOKEN </span>
-              را در Environment سرویس API بگذارد و یک‌بار
-              <span className="mono"> npm run telegram:setup </span>
-              را اجرا کند.
+              و
+              <span className="mono"> TELEGRAM_WEBHOOK_SECRET </span>
+              را در Environment سرویس API بگذارد و سرویس را ری‌استارت کند.
             </span>
           </div>
+        )}
+
+        {/* --------------------------------------------------- وضعیت webhook */}
+        {status?.botConfigured && (
+          status.webhook?.registered && status.webhook.pointsHere && !status.webhook.lastError ? (
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <span className="badge b-green"><span className="dot" />webhook ثبت شده</span>
+              <span className="small muted">
+                پیام‌های تلگرام به همین سرور می‌رسند
+                {status.webhook.pending > 0 ? ` · ${status.webhook.pending} پیام در صف` : ''}
+              </span>
+            </div>
+          ) : (
+            <div className="alert alert-warn">
+              <IconAlertCircle />
+              <span>
+                {status.webhook?.registered === false
+                  ? 'webhook هنوز ثبت نشده، پس هیچ پیامی به سرور نمی‌رسد.'
+                  : status.webhook?.pointsHere === false
+                    ? 'webhook به آدرس دیگری اشاره می‌کند (آدرس سرویس عوض شده؟).'
+                    : `تلگرام از این سرور خطا می‌گیرد: ${status.webhook?.lastError || status.webhook?.error || 'نامشخص'}`}
+                {' '}
+                <button
+                  className="btn btn-outline btn-sm"
+                  type="button"
+                  style={{ marginInlineStart: 8 }}
+                  disabled={busy !== null}
+                  onClick={registerWebhook}
+                >
+                  {busy === 'webhook' ? <Spinner size={13} /> : null}
+                  ثبت webhook از سرور
+                </button>
+              </span>
+            </div>
+          )
         )}
 
         {/* ---------------------------------------------------------- مرحله ۱ */}
