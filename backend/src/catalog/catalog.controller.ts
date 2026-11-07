@@ -13,7 +13,7 @@ const adjustment = z.object({ delta: z.number().int().min(-2147483647).max(21474
 @Controller()
 @UseGuards(AuthGuard)
 export class CatalogController {
-  constructor(private readonly catalog: CatalogService) {}
+  constructor(private readonly catalog: CatalogService) { }
   @Get('products') list(@Req() req: Request) { return this.catalog.list(req.principal.shopId); }
   @Post('products') create(@Req() req: Request, @Body() body: unknown) { return this.catalog.createProduct(req.principal.shopId, parse(product, body)); }
   @Get('products/:id') get(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.catalog.product(req.principal.shopId, id); }

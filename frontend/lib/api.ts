@@ -13,7 +13,7 @@ function resolveApiBase(raw: string | undefined): string {
   if (!value) return '/api';
   if (/^https?:\/\//.test(value) || value.startsWith('/')) return value;
   if (process.env.NODE_ENV !== 'production') {
-    console.warn(`[api] NEXT_PUBLIC_API_BASE_URL نامعتبر است (${raw}); از /api هم‌مبدأ استفاده می‌شود.`);
+    console.warn(`[api] NEXT_PUBLIC_API_BASE_URL نامعتبر  است (${raw}); از /api هم‌مبدأ استفاده می‌شود.`);
   }
   return '/api';
 }
