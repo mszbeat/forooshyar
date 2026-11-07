@@ -39,14 +39,18 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # داخل کانتینر باید روی همه‌ی اینترفیس‌ها گوش بدهد، وگرنه Render پورت را
+      # نمی‌بیند و با «No open ports detected on 0.0.0.0» دیپلوی را می‌بندد.
+      # کد هم روی PaaS خودش همین را انتخاب می‌کند؛ این خط برای صریح بودن است.
       - key: HOST
-        value: 0.0.0.0          # داخل کانتینر باید روی همه‌ی اینترفیس‌ها گوش بدهد
+        value: 0.0.0.0
       - key: DATABASE_URL
         fromDatabase:
           name: forooshyar-db
           property: connectionString
       - key: JWT_SECRET
         generateValue: true     # Render خودش یک مقدار تصادفی ۲۵۶ بیتی می‌سازد
+      # PORT را تعریف نکن؛ Render خودش تزریق می‌کند و کد همان را می‌خواند.
       - key: CORS_ORIGINS
         sync: false             # خالی بگذار؛ پنل و API هم‌مبدأ هستند
       - key: AUDIT_LOG_READS

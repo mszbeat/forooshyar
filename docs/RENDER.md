@@ -70,7 +70,38 @@ npm run prisma:deploy && node dist/main.js
 
 ---
 
-## ۴. اگر Blueprint را اعمال می‌کنی
+## ۴. خطای «No open ports detected on 0.0.0.0»
+
+```
+==> No open ports detected on 0.0.0.0, continuing to scan...
+==> Port scan timeout reached, no open ports detected on 0.0.0.0.
+    Detected open ports on localhost -- did you mean to bind one of these to 0.0.0.0?
+```
+
+این یعنی برنامه بالا آمده و حتی به درخواست‌ها جواب می‌دهد (`HEAD / → 200` در لاگ خودت)، ولی روی `127.0.0.1` گوش می‌دهد — یعنی فقط از داخل خود کانتینر در دسترس است. Render از بیرون به پورت وصل می‌شود و چیزی نمی‌بیند.
+
+دو راه، هر دو درست:
+
+1. **متغیر محیطی:** در سرویس API، `HOST=0.0.0.0` را ست کن.
+2. **کد** (انجام شد): اگر `HOST` ست نشده باشد و یکی از نشانه‌های پلتفرم (`RENDER`, `RAILWAY_ENVIRONMENT`, `FLY_APP_NAME`, `DYNO`, `K_SERVICE`) موجود باشد، آدرس bind خودکار `0.0.0.0` می‌شود. روی VPS پیش‌فرض همان `127.0.0.1` امن می‌ماند.
+
+الان در لاگ استارتاپ خود آدرس bind چاپ می‌شود، پس این خطای خاص دیگر مبهم نیست:
+
+```
+[Bootstrap] listening on http://0.0.0.0:10000 (همه‌ی اینترفیس‌ها)
+```
+
+و اگر `HOST` روی loopback بماند در حالی که `PORT` از بیرون تزریق شده، یک هشدار صریح می‌بینی:
+
+```
+WARN [Bootstrap] HOST=127.0.0.1 است ولی PORT از بیرون تزریق شده؛ …
+```
+
+`PORT` را هم دستی ست نکن؛ Render خودش تزریق می‌کند و کد آن را می‌خواند.
+
+---
+
+## ۵. اگر Blueprint را اعمال می‌کنی
 
 `render.yaml` در ریشه‌ی ریپو هست: Dashboard → **New → Blueprint** → ریپو را انتخاب کن → Apply. دو سرویس و یک دیتابیس ساخته می‌شود.
 
@@ -84,7 +115,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۵. اگر دستی می‌سازی (Dashboard)
+## ۶. اگر دستی می‌سازی (Dashboard)
 
 ### سرویس API
 
@@ -114,7 +145,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۶. متغیرهای محیطی
+## ۷. متغیرهای محیطی
 
 ### API
 
@@ -122,7 +153,8 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 |---|---|---|
 | `DATABASE_URL` | از دیتابیس Render (`Internal Database URL`) | اگر `DB_*` کامل ست نشود، API همین را می‌خواند |
 | `JWT_SECRET` | `openssl rand -base64 48` یا Generate در Render | کمتر از ۳۲ کاراکتر → برنامه بالا نمی‌آید |
-| `HOST` | `0.0.0.0` | با `127.0.0.1` از بیرون دیده نمی‌شود |
+| `HOST` | `0.0.0.0` | با `127.0.0.1` از بیرون دیده نمی‌شود (خطای «No open ports») |
+| `PORT` | **ست نکن** | Render خودش تزریق می‌کند |
 | `CORS_ORIGINS` | خالی | پنل هم‌مبدأ است |
 | `AUDIT_LOG_READS` | `false` | خواندن‌ها فقط در لاگ |
 | `AUDIT_RETENTION_DAYS` | `90` | هرس لاگ |
@@ -142,7 +174,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۷. خطای `404` روی ورود — چه بود و چه شد
+## ۸. خطای `404` روی ورود — چه بود و چه شد
 
 در لاگ خودت مسیر `//auth/login` آمده (دو اسلش). دلیلش این بود که `NEXT_PUBLIC_API_BASE_URL` با **اسلش انتهایی** ست شده بود (`https://...onrender.com/`) و کلاینت مسیر را به `//auth/login` تبدیل می‌کرد؛ Express آن را یک مسیر متفاوت می‌بیند و ۴۰۴ می‌دهد.
 
@@ -162,7 +194,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۸. محدودیت‌های پلن Free (صادقانه)
+## ۹. محدودیت‌های پلن Free (صادقانه)
 
 | محدودیت | اثر روی فروشیار | راه‌حل |
 |---|---|---|
@@ -177,7 +209,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۹. بکاپ دیتابیس روی Render
+## ۱۰. بکاپ دیتابیس روی Render
 
 ```bash
 # از URL خارجی دیتابیس استفاده کن (External Database URL → با sslmode)
@@ -193,7 +225,7 @@ gunzip -c forooshyar-….dump.gz | pg_restore --clean --no-owner -d "postgresql:
 
 ---
 
-## ۱۰. چک‌لیست بعد از دیپلوی
+## ۱۱. چک‌لیست بعد از دیپلوی
 
 ```
 1) https://forooshyar-api.onrender.com/health        → {"status":"ok"}
@@ -205,7 +237,7 @@ gunzip -c forooshyar-….dump.gz | pg_restore --clean --no-owner -d "postgresql:
 
 ---
 
-## ۱۱. عیب‌یابی سریع
+## ۱۲. عیب‌یابی سریع
 
 | نشانه | علت | کار |
 |---|---|---|
@@ -213,6 +245,8 @@ gunzip -c forooshyar-….dump.gz | pg_restore --clean --no-owner -d "postgresql:
 | build با `Can't reach database server` / `failed to resolve host dpg-…` | مهاجرت داخل Build Command است | مهاجرت را به Start Command ببر |
 | لاگ: `root.head` / `HEAD /` با ۴۰۴ | Health Check روی `/` | Health Check Path = `/health` (کد هم اکنون روی `/` جواب ۲۰۰ می‌دهد) |
 | دیپلوی «unhealthy» می‌شود ولی سرویس دستی باز می‌شود | همان Health Check | همان بالا |
+| `No open ports detected on 0.0.0.0` + `Detected open ports on localhost` | برنامه روی `127.0.0.1` گوش می‌دهد | `HOST=0.0.0.0` (کد هم حالا روی PaaS خودکار همین کار را می‌کند) |
+| `Authentication failed … at localhost` با اینکه `DATABASE_URL` درست است | فایل `.env` لوکال در ریپو مانده و `DB_*` آن بر `DATABASE_URL` اولویت دارد | `.env` را از سرور/ریپو بردار؛ همه‌چیز از Environment پلتفرم بیاید |
 | `pre-deploy command is not supported for free tier services` | preDeployCommand در Free ممنوع | مهاجرت در Start Command (همان `render.yaml`) |
 | برنامه بالا نمی‌آید، خطای zod روی `DB_*` | فقط بخشی از `DB_*` ست شده | `DB_*` را کامل پر کن یا همه را پاک کن و `DATABASE_URL` بده |
 | `Can't reach database server` | `DB_HOST=localhost` | از `DATABASE_URL` داخلی Render استفاده کن |
