@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../database/prisma.service';
 import { z } from 'zod';
+import { bindPrincipal } from '../logging/request-context';
 
 export interface Principal { userId: string; shopId: string }
 @Injectable()
@@ -17,6 +18,7 @@ export class AuthGuard implements CanActivate {
       const shop = await this.db.shop.findFirst({ where: { id: parsed.shopId, ownerId: parsed.sub }, select: { id: true } });
       if (!shop) throw new UnauthorizedException();
       request.principal = { userId: parsed.sub, shopId: parsed.shopId };
+      bindPrincipal(request.principal);
       return true;
     } catch { throw new UnauthorizedException(); }
   }

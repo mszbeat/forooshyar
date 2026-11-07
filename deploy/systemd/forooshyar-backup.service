@@ -1,0 +1,10 @@
+# /etc/systemd/system/forooshyar-backup.service
+[Unit]
+Description=Backup Forooshyar PostgreSQL database
+
+[Service]
+Type=oneshot
+User=postgres
+EnvironmentFile=/etc/forooshyar/backup.env
+ExecStart=/srv/forooshyar/deploy/backup-db.sh
+SyslogIdentifier=forooshyar-backup

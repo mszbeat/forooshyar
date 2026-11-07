@@ -87,6 +87,7 @@ export default function DashboardPage() {
   return (
     <div className="stack">
       <PageHeader
+        eyebrow="داشبورد"
         title={`سلام${shop?.name ? `، ${shop.name}` : ''} 👋`}
         description={`${faWeekday(new Date())} ${faDate(new Date())} — این خلاصهٔ امروز فروشگاه شماست.`}
         actions={

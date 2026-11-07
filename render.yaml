@@ -1,0 +1,91 @@
+# فروشیار روی Render (پلن Free) — Blueprint
+#
+# چرا این فایل: روی Render نیازی به Nginx، systemd، certbot، فایروال یا swap
+# نیست. خود Render TLS را تمام می‌کند، دامنه و گواهی می‌دهد، پروسه را زنده نگه
+# می‌دارد و دوباره راه می‌اندازد. آنچه مانده: دو سرویس + یک دیتابیس + env ها.
+#
+# استفاده: Render Dashboard → New → Blueprint → این ریپو → Apply.
+# اگر سرویس‌ها را دستی ساخته‌ای، لازم نیست این فایل را اعمال کنی؛ فقط مقادیر
+# Build/Start Command و env ها را از همین فایل کپی کن (docs/RENDER.md).
+#
+# نکته‌های پلن Free که در همین فایل رعایت شده‌اند:
+#   * preDeployCommand در پلن Free پشتیبانی نمی‌شود → مهاجرت دیتابیس داخل
+#     startCommand اجرا می‌شود. `prisma migrate deploy` idempotent است، پس
+#     ری‌استارت‌های بعدی (از جمله بیدار شدن بعد از خواب) امن‌اند.
+#   * سرویس Free بعد از ۱۵ دقیقه بی‌کاری خواب می‌رود و ~۱ دقیقه طول می‌کشد بیدار
+#     شود؛ پروکسی پنل تایم‌اوت ۴۵ ثانیه دارد تا کاربر پیام فارسی ببیند نه صفحه‌ی
+#     قفل‌شده.
+#   * فایل‌سیستم موقتی است → هیچ داده‌ای روی دیسک نگه نمی‌داریم (دیتابیس جداست).
+
+services:
+  # ------------------------------------------------------------------ API (Nest)
+  - type: web
+    name: forooshyar-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: develop
+    rootDir: backend
+    # --include=dev چون tsc و prisma در devDependencies هستند و Render با
+    # NODE_ENV=production نصب می‌کند؛ بدون آن build با «tsc: not found» می‌افتد.
+    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
+    # مهاجرت + اجرا. `prisma` از devDependencies بیلد موجود است.
+    startCommand: npx prisma migrate deploy && node dist/main.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0          # داخل کانتینر باید روی همه‌ی اینترفیس‌ها گوش بدهد
+      - key: DATABASE_URL
+        fromDatabase:
+          name: forooshyar-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true     # Render خودش یک مقدار تصادفی ۲۵۶ بیتی می‌سازد
+      - key: CORS_ORIGINS
+        sync: false             # خالی بگذار؛ پنل و API هم‌مبدأ هستند
+      - key: AUDIT_LOG_READS
+        value: "false"
+      - key: AUDIT_RETENTION_DAYS
+        value: "90"
+      - key: CACHE_ENABLED
+        value: "false"
+      - key: API_PROXY_TIMEOUT_MS
+        value: "45000"
+
+  # --------------------------------------------------------------- پنل (Next.js)
+  - type: web
+    name: forooshyar-web
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: develop
+    rootDir: frontend
+    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
+    # $PORT را خود Render می‌دهد؛ 0.0.0.0 اجباری است (127.0.0.1 از بیرون دیده نمی‌شود).
+    startCommand: npx next start -p $PORT -H 0.0.0.0
+    healthCheckPath: /login
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # آدرس عمومی API. بدون اسلش انتهایی. اگر نام سرویس API را عوض کردی،
+      # این را هم عوض کن و ری‌استارت بده (نه rebuild — در زمان اجرا خوانده می‌شود).
+      - key: API_PROXY_TARGET
+        sync: false
+      # باید خالی بماند: مرورگر فقط با همان origin حرف می‌زند و Next پروکسی می‌کند.
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: ""
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384   # پلن Free فقط ۵۱۲ مگابایت رم دارد
+
+databases:
+  - name: forooshyar-db
+    plan: free
+    region: frankfurt
+    databaseName: forooshyar
+    user: forooshyar
+    # پلن Free بکاپ ندارد و ۳۰ روز بعد منقضی می‌شود (بعد ۱۴ روز داده‌اش پاک
+    # می‌شود). برای داده‌ی واقعی یا پلن پولی بگیر یا بکاپ دستی بگیر.

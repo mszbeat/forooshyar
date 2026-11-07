@@ -220,12 +220,13 @@ export function Switch({ checked, onChange, label, id }: { checked: boolean; onC
 
 /* ------------------------------------------------------------- PageHeader */
 
-export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
+export function PageHeader({ title, description, eyebrow, actions }: { title: string; description?: string; eyebrow?: string; actions?: ReactNode }) {
   return (
     <div className="page-head">
       <div>
+        {eyebrow && <div className="page-eyebrow">{eyebrow}</div>}
         <h1>{title}</h1>
-        {description && <p className="muted small" style={{ marginTop: 2 }}>{description}</p>}
+        {description && <p>{description}</p>}
       </div>
       {actions && <div className="page-head-actions">{actions}</div>}
     </div>

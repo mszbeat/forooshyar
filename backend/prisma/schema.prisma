@@ -7,6 +7,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Append-only audit trail. Every mutating request writes one row; read requests
+// are written to stdout only unless AUDIT_LOG_READS is enabled.
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  createdAt    DateTime @default(now())
+  requestId    String
+  action       String
+  method       String
+  path         String
+  statusCode   Int
+  success      Boolean  @default(true)
+  durationMs   Int      @default(0)
+  shopId       String?  @db.Uuid
+  userId       String?  @db.Uuid
+  entity       String?
+  entityId     String?
+  ip           String?
+  userAgent    String?
+  errorCode    String?
+  errorMessage String?
+  meta         Json?
+  @@index([shopId, createdAt])
+  @@index([shopId, action, createdAt])
+  @@index([createdAt])
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique

@@ -1,0 +1,12 @@
+# /etc/systemd/system/forooshyar-audit-prune.timer
+# systemctl enable --now forooshyar-audit-prune.timer
+[Unit]
+Description=Nightly audit-prune for Forooshyar
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

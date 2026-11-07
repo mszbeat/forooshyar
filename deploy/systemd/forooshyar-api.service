@@ -1,0 +1,44 @@
+# /etc/systemd/system/forooshyar-api.service
+# systemctl daemon-reload && systemctl enable --now forooshyar-api
+[Unit]
+Description=Forooshyar API (NestJS)
+Documentation=https://github.com/mszbeat/forooshyar
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=forooshyar
+Group=forooshyar
+WorkingDirectory=/srv/forooshyar/backend
+# Secrets live in this file (chmod 600), not in the unit and not in git.
+EnvironmentFile=/etc/forooshyar/api.env
+ExecStart=/usr/bin/node dist/main.js
+Restart=always
+RestartSec=3
+# اگر بیش از ۵ بار در دقیقه ری‌استارت شد، متوقف شو تا حلقه نسازد
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# --- hardening ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/forooshyar/backend
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=false
+# سقف حافظه؛ Node با heap پیش‌فرض روی سرور کوچک OOM می‌شود
+MemoryMax=768M
+LimitNOFILE=8192
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forooshyar-api
+
+[Install]
+WantedBy=multi-user.target

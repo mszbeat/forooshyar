@@ -103,6 +103,7 @@ export default function ImportPage() {
   return (
     <div className="stack">
       <PageHeader
+        eyebrow="ورود داده"
         title="ورود کاتالوگ از فایل"
         description="هر ردیف فایل به یک محصول با واریانت خودش تبدیل می‌شود. خطای هر ردیف جدا گزارش می‌شود."
         actions={<button className="btn btn-outline" onClick={downloadSample}><IconDownload size={16} />دانلود فایل نمونه</button>}
@@ -168,15 +169,16 @@ export default function ImportPage() {
               <div className="card-title">ساختار ستون‌ها</div>
               <div className="card-desc">نام ستون‌ها به لاتین باشد</div>
             </div>
+            <span className="card-index">CSV / XLSX</span>
           </div>
           <div className="list">
             {COLUMNS.map(column => (
-              <div className="list-row" key={column.name} style={{ padding: '10px 20px' }}>
-                <div className="list-main">
+              <div className="list-row" key={column.name}>
+                <span className={`badge ${column.required ? 'b-brand' : 'b-gray'}`}>{column.required ? 'الزامی' : 'اختیاری'}</span>
+                <div className="list-main" style={{ textAlign: 'right' }}>
                   <div className="list-title mono">{column.name}</div>
                   <div className="list-sub">{column.desc}</div>
                 </div>
-                <span className={`badge ${column.required ? 'b-brand' : 'b-gray'}`}>{column.required ? 'الزامی' : 'اختیاری'}</span>
               </div>
             ))}
           </div>

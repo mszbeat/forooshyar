@@ -1,0 +1,35 @@
+# /etc/systemd/system/forooshyar-web.service
+[Unit]
+Description=Forooshyar panel (Next.js)
+After=network-online.target forooshyar-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=forooshyar
+Group=forooshyar
+WorkingDirectory=/srv/forooshyar/frontend
+EnvironmentFile=/etc/forooshyar/web.env
+ExecStart=/usr/bin/npx next start -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=3
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/forooshyar/frontend
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+MemoryMax=1024M
+LimitNOFILE=8192
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forooshyar-web
+
+[Install]
+WantedBy=multi-user.target

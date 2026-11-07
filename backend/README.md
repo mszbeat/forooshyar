@@ -2,6 +2,15 @@
 
 NestJS API and Prisma/PostgreSQL database layer. Node.js 20+, npm and an existing PostgreSQL database/user are required. Redis is optional for caching; no Docker required. The requested TypeORM migration has **not** been completed. The server uses Prisma and migration-based schema management; it does not run TypeORM `synchronize`.
 
+## Logging / audit trail
+
+Every request is logged (method, path, status, duration, ip, request id) and every
+domain action (sale, stock change, import, settings change, login) writes a
+structured event with its own metadata. Mutations and failures are stored in the
+`AuditLog` table; successful reads go to stdout only unless `AUDIT_LOG_READS=true`.
+Read the trail with `GET /audit` and `GET /audit/actions`; prune it with
+`npm run audit:prune`. Full details: [`docs/LOGGING.md`](docs/LOGGING.md).
+
 ## Development
 
 From this directory:

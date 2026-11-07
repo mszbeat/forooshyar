@@ -1,0 +1,10 @@
+# /etc/systemd/system/forooshyar-backup.timer
+[Unit]
+Description=Daily Forooshyar database backup
+
+[Timer]
+OnCalendar=*-*-* 02:10:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -73,6 +73,7 @@ export default function AssistantPage() {
   return (
     <div className="stack">
       <PageHeader
+        eyebrow="آزمایشگاه"
         title="دستیار پاسخ‌گو"
         description="همان منطق واقعی پاسخ‌گویی، اجراشده روی کاتالوگ فعلی شما — بدون ارسال پیام و بدون تغییر داده."
         actions={<Link href="/app/settings" className="btn btn-outline"><IconSettings size={16} />تنظیمات پاسخ</Link>}
@@ -121,12 +122,11 @@ export default function AssistantPage() {
             </button>
           </form>
 
-          <div className="card-foot" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div className="card-foot" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <span className="small muted" style={{ marginInlineEnd: 4 }}>نمونه سؤال:</span>
             {SUGGESTIONS.map(suggestion => (
               <button
-                key={suggestion} type="button" className="badge b-gray"
-                style={{ cursor: 'pointer', border: '1px solid var(--line)' }}
+                key={suggestion} type="button" className="chip-btn"
                 onClick={() => setValue(suggestion)}
               >
                 {suggestion}
@@ -138,15 +138,15 @@ export default function AssistantPage() {
         <div className="stack">
           <section className="card card-pad">
             <div className="row" style={{ gap: 10, marginBottom: 10 }}>
-              <span className="stat-ico"><IconShield size={17} /></span>
-              <strong>دستیار چطور تصمیم می‌گیرد؟</strong>
+              <span className="stat-ico"><IconShield size={15} /></span>
+              <span className="card-title" style={{ margin: 0 }}>دستیار چطور تصمیم می‌گیرد؟</span>
             </div>
-            <ul style={{ display: 'grid', gap: 10, fontSize: 'var(--fs-sm)', color: 'var(--ink-2)' }}>
-              <li>۱. متن فارسی نرمال‌سازی می‌شود (ی/ک عربی، اعداد، نیم‌فاصله).</li>
-              <li>۲. قصد پیام تشخیص داده می‌شود: قیمت، موجودی، سایز، ارسال، پرداخت، ساعت کاری.</li>
-              <li>۳. محصول دقیقاً از روی نام در کاتالوگ جست‌وجو می‌شود.</li>
-              <li>۴. اگر بیش از یک محصول یا واریانت مطابق بود، سؤال شفاف‌ساز می‌پرسد.</li>
-              <li>۵. اگر مطمئن نبود یا موضوع حساس بود (تخفیف، مرجوعی، شکایت)، به شما ارجاع می‌دهد.</li>
+            <ul className="steps-plain">
+              <li><span className="n num">۱</span><span>متن فارسی نرمال‌سازی می‌شود (ی/ک عربی، اعداد، نیم‌فاصله).</span></li>
+              <li><span className="n num">۲</span><span>قصد پیام تشخیص داده می‌شود: قیمت، موجودی، سایز، ارسال، پرداخت، ساعت کاری.</span></li>
+              <li><span className="n num">۳</span><span>محصول دقیقاً از روی نام در کاتالوگ جست‌وجو می‌شود.</span></li>
+              <li><span className="n num">۴</span><span>اگر بیش از یک محصول یا واریانت مطابق بود، سؤال شفاف‌ساز می‌پرسد.</span></li>
+              <li><span className="n num">۵</span><span>اگر مطمئن نبود یا موضوع حساس بود (تخفیف، مرجوعی، شکایت)، به شما ارجاع می‌دهد.</span></li>
             </ul>
             <div className="alert alert-warn mt-4">
               <IconAlertCircle />
@@ -156,8 +156,8 @@ export default function AssistantPage() {
 
           <section className="card card-pad">
             <div className="row" style={{ gap: 10, marginBottom: 8 }}>
-              <span className="stat-ico" style={{ background: '#fff' }}><IconSparkles size={17} /></span>
-              <strong>برای پاسخ‌های بهتر</strong>
+              <span className="stat-ico"><IconSparkles size={15} /></span>
+              <span className="card-title" style={{ margin: 0 }}>برای پاسخ‌های بهتر</span>
             </div>
             <p className="small muted" style={{ lineHeight: 1.95 }}>
               نام محصولات را همان‌طور بنویسید که مشتری می‌نویسد. شرایط ارسال، پرداخت و ساعت کاری را در تنظیمات کامل کنید تا
