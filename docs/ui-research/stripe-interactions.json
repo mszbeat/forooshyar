@@ -1,0 +1,241 @@
+{
+  "layout": {
+    "candidates": [
+      {
+        "cls": "section-container navigation__layout",
+        "w": 1298,
+        "left": 71,
+        "maxW": "1298px",
+        "pad": "18px/18px",
+        "ml": "71px"
+      },
+      {
+        "cls": "navigation-menu__background",
+        "w": 1262,
+        "left": 89,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "section-container hero-section__layout",
+        "w": 1266,
+        "left": 87,
+        "maxW": "1266px",
+        "pad": "16px/16px",
+        "ml": "71px"
+      },
+      {
+        "cls": "hero-section__layout-grid",
+        "w": 1232,
+        "left": 104,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "hero-section__eyebrow",
+        "w": 1024,
+        "left": 208,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "hds-button-group hero-section__actions",
+        "w": 1024,
+        "left": 208,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "single-wave__layout",
+        "w": 1266,
+        "left": 87,
+        "maxW": "1266px",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "single-wave__contents",
+        "w": 1393,
+        "left": 337,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "single-wave__static",
+        "w": 1392,
+        "left": 337,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "section-container hero-logo-section",
+        "w": 1266,
+        "left": 87,
+        "maxW": "1266px",
+        "pad": "0px/0px",
+        "ml": "71px"
+      },
+      {
+        "cls": "logo-carousel",
+        "w": 1264,
+        "left": 88,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      },
+      {
+        "cls": "logo-carousel__marquee-container",
+        "w": 1264,
+        "left": 88,
+        "maxW": "none",
+        "pad": "0px/0px",
+        "ml": "0px"
+      }
+    ],
+    "bodyMaxWidth": "none",
+    "bodyPadding": "0px"
+  },
+  "headerAtTop": {
+    "h": 76,
+    "position": "relative",
+    "bg": "rgba(0, 0, 0, 0)",
+    "backdrop": "none",
+    "border": "0px none rgb(0, 0, 0)",
+    "transition": "all"
+  },
+  "headerAfterScroll": {
+    "h": 76,
+    "position": "relative",
+    "bg": "rgba(0, 0, 0, 0)",
+    "backdrop": "none",
+    "border": "0px none rgb(0, 0, 0)",
+    "boxShadow": "none",
+    "top": -600
+  },
+  "megaMenu": [
+    {
+      "cls": "stats-section__stats-menu",
+      "w": 1264,
+      "h": 183,
+      "bg": "rgba(0, 0, 0, 0)",
+      "radius": "0px",
+      "shadow": "none",
+      "links": 1,
+      "cols": "auto"
+    },
+    {
+      "cls": "stats-menu__stat-wrapper",
+      "w": 304,
+      "h": 181,
+      "bg": "rgba(0, 0, 0, 0)",
+      "radius": "8px",
+      "shadow": "none",
+      "links": 0,
+      "cols": "auto"
+    },
+    {
+      "cls": "stats-menu__stat-wrapper",
+      "w": 304,
+      "h": 181,
+      "bg": "rgba(0, 0, 0, 0)",
+      "radius": "8px",
+      "shadow": "none",
+      "links": 0,
+      "cols": "auto"
+    }
+  ],
+  "navLinkHover": {
+    "before": "rgb(255, 255, 255)",
+    "after": "rgb(255, 255, 255)",
+    "bg": "rgb(83, 58, 253)",
+    "radius": "4px"
+  },
+  "paragraphs": [
+    [
+      "16px/normal 400 rgb(0, 0, 0)",
+      51
+    ],
+    [
+      "14px/normal 400 rgb(6, 27, 49)",
+      28
+    ],
+    [
+      "16px/22.4px 400 rgb(6, 27, 49)",
+      12
+    ],
+    [
+      "16px/22.4px 300 rgb(80, 97, 122)",
+      10
+    ],
+    [
+      "22px/24.2px 300 rgb(100, 116, 141)",
+      8
+    ],
+    [
+      "32px/35.2px 300 rgb(100, 116, 141)",
+      4
+    ],
+    [
+      "48px/48px 300 rgb(125, 139, 164)",
+      3
+    ],
+    [
+      "18px/25.2px 300 rgb(80, 97, 122)",
+      3
+    ],
+    [
+      "26px/29.12px 300 rgb(131, 155, 200)",
+      3
+    ],
+    [
+      "16px/22.4px 300 rgb(255, 255, 255)",
+      3
+    ]
+  ],
+  "focus": {
+    "tag": "BUTTON",
+    "text": "Products",
+    "outline": "rgba(84, 82, 251, 0.75) solid 3px",
+    "boxShadow": "none"
+  },
+  "cards": [
+    [
+      "6px | none | 0px none rgb(0, 0, 0)",
+      21
+    ],
+    [
+      "5px | none | 0px none rgb(0, 0, 0)",
+      6
+    ],
+    [
+      "8px | none | 0px none rgb(0, 0, 0)",
+      4
+    ],
+    [
+      "100% | none | 0px none rgb(0, 0, 0)",
+      3
+    ],
+    [
+      "6px | rgba(50, 50, 93, 0.12) 0px 16px 32px 0px | 0px none rgb(0, 0, 0)",
+      2
+    ],
+    [
+      "6px | none | 0px none rgb(0, 0, 238)",
+      2
+    ],
+    [
+      "6px | rgba(23, 23, 23, 0.08) 0px 15px 35px 0px | 0px none rgb(0, 0, 0)",
+      1
+    ],
+    [
+      "6px | rgba(23, 23, 23, 0.06) 0px 3px 6px 0px | 0px none rgb(0, 0, 0)",
+      1
+    ]
+  ]
+}

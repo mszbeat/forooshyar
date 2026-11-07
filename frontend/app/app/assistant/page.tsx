@@ -154,7 +154,7 @@ export default function AssistantPage() {
             </div>
           </section>
 
-          <section className="card card-pad" style={{ background: 'linear-gradient(160deg, var(--brand-50), #fff 70%)', borderColor: 'var(--brand-100)' }}>
+          <section className="card card-pad">
             <div className="row" style={{ gap: 10, marginBottom: 8 }}>
               <span className="stat-ico" style={{ background: '#fff' }}><IconSparkles size={17} /></span>
               <strong>برای پاسخ‌های بهتر</strong>

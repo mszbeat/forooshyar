@@ -219,14 +219,14 @@ export default function ProductsPage() {
           />
         </div>
       ) : (
-        <div className="stack" style={{ gap: 12 }}>
+        <div className="card rows-card">
           {visible.map(product => {
             const activeVariants = product.variants.filter(variant => variant.active);
             const stock = stockOf(product);
             const isOpen = expanded === product.id;
             return (
-              <article className="card" key={product.id} style={{ opacity: product.active ? 1 : 0.72 }}>
-                <div className="card-pad" style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', paddingBottom: 14 }}>
+              <article className="row-item" key={product.id} style={{ opacity: product.active ? 1 : 0.72 }}>
+                <div className="row-item-in">
                   <button
                     className="btn btn-ghost btn-icon btn-sm"
                     onClick={() => setExpanded(isOpen ? null : product.id)}
@@ -236,13 +236,13 @@ export default function ProductsPage() {
                     <IconChevronDown size={16} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
                   </button>
 
-                  <span className="avatar avatar-brand" style={{ width: 40, height: 40, borderRadius: 12 }}>
-                    <IconTag size={18} />
+                  <span className="avatar avatar-brand" style={{ width: 34, height: 34 }}>
+                    <IconTag size={16} />
                   </span>
 
                   <div style={{ minWidth: 0, flex: '1 1 260px' }}>
                     <div className="row" style={{ gap: 8 }}>
-                      <strong style={{ fontSize: 'var(--fs-md)' }}>{product.title}</strong>
+                      <strong style={{ fontSize: 'var(--fs-md)', fontWeight: 500 }}>{product.title}</strong>
                       {!product.active && <span className="badge b-gray">غیرفعال</span>}
                       {product.active && stock === 0 && <span className="badge b-red">ناموجود</span>}
                       {product.active && stock > 0 && needsAttention(product) && <span className="badge b-amber">موجودی کم</span>}
@@ -264,7 +264,7 @@ export default function ProductsPage() {
                   </div>
 
                   <div style={{ textAlign: 'center', minWidth: 78 }}>
-                    <div className="num" style={{ fontWeight: 800, fontSize: 19, letterSpacing: '-0.5px' }}>{faNum(stock)}</div>
+                    <div className="num" style={{ fontWeight: 300, fontSize: 22 }}>{faNum(stock)}</div>
                     <div className="small muted">عدد موجودی</div>
                   </div>
 

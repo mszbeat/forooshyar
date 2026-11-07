@@ -9,11 +9,24 @@ import { EmptyState, PageHeader, Spinner, useToast } from '@/components/ui';
 import { IconAlertCircle, IconCheckCircle, IconDownload, IconFile, IconInfo, IconUpload, IconX } from '@/components/icons';
 
 const SAMPLE_CSV = [
-  'name,price,size,color,stock,sku,category',
-  'مانتو کتان تابستانه,890000,M,کرم,12,MN-KTN-M-KRM,مانتو',
-  'مانتو کتان تابستانه,890000,L,مشکی,3,MN-KTN-L-MSH,مانتو',
-  'شال نخی طرح‌دار,450000,,فیروزه‌ای,25,SHL-NKH-FRZ,شال',
+  'name,price,stock,size,color,sku',
+  'مانتو کتان تابستانه,890000,12,M,کرم,MN-KTN-M-KRM',
+  'مانتو کتان تابستانه,890000,3,L,مشکی,MN-KTN-L-MSH',
+  'شال نخی طرح‌دار,450000,25,,فیروزه‌ای,SHL-NKH-FRZ',
 ].join('\n');
+
+/** Turns the API's field-level errors into a short Persian explanation. */
+function explainRow(errors: string[] | undefined): string {
+  if (!errors || errors.length === 0) return 'ردیف نامعتبر است.';
+  const joined = errors.join(' | ');
+  if (/SKU/i.test(joined)) return 'کد کالا (SKU) تکراری است؛ برای هر واریانت یک کد یکتا وارد کنید.';
+  if (/Formula|unsupported/i.test(joined)) return 'سلول فرمول یا مقدار پشتیبانی‌نشده دارد؛ مقدار را به عدد یا متن ساده تغییر دهید.';
+  if (/title/i.test(joined) && /at most/i.test(joined)) return 'نام محصول بیش از ۲۰۰ کاراکتر است؛ آن را کوتاه کنید.';
+  if (/title/i.test(joined)) return 'نام محصول خالی است؛ این ستون الزامی است.';
+  if (/price/i.test(joined)) return 'قیمت باید عدد صحیح و بزرگ‌تر یا مساوی صفر باشد (بدون واحد، حرف یا علامت منفی).';
+  if (/stock/i.test(joined)) return 'موجودی باید عدد صحیح و بزرگ‌تر یا مساوی صفر باشد (بدون اعشار).';
+  return errors.join(' · ').slice(0, 160);
+}
 
 const COLUMNS = [
   { name: 'name', desc: 'نام محصول', required: true },
@@ -22,7 +35,6 @@ const COLUMNS = [
   { name: 'size', desc: 'سایز واریانت', required: false },
   { name: 'color', desc: 'رنگ واریانت', required: false },
   { name: 'sku', desc: 'کد کالا؛ باید یکتا باشد', required: false },
-  { name: 'category', desc: 'دسته‌بندی محصول', required: false },
 ];
 
 export default function ImportPage() {
@@ -115,7 +127,7 @@ export default function ImportPage() {
               tabIndex={0}
               onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click(); }}
             >
-              <div className="empty-ico" style={{ width: 46, height: 46, borderRadius: 14 }}>
+              <div className="empty-ico" style={{ width: 46, height: 46 }}>
                 <IconUpload size={22} />
               </div>
               <div className="strong" style={{ fontSize: 'var(--fs-md)' }}>فایل را اینجا رها کنید یا کلیک کنید</div>
@@ -124,9 +136,9 @@ export default function ImportPage() {
             </div>
 
             {file && (
-              <div className="row-between" style={{ padding: '10px 14px', border: '1px solid var(--line)', borderRadius: 'var(--r-md)', background: 'var(--surface-2)' }}>
+              <div className="row-between" style={{ padding: '10px 14px', border: '1px solid var(--line)', borderRadius: 'var(--r-sm)', background: 'var(--surface-2)' }}>
                 <div className="row" style={{ gap: 10 }}>
-                  <span className="avatar avatar-brand" style={{ borderRadius: 9 }}><IconFile size={16} /></span>
+                  <span className="avatar avatar-brand"><IconFile size={15} /></span>
                   <div>
                     <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>{file.name}</div>
                     <div className="small muted">{faNum(Math.max(1, Math.round(file.size / 1024)))} کیلوبایت</div>
@@ -208,13 +220,7 @@ export default function ImportPage() {
                     <tr key={row.row}>
                       <td className="td-num">{faNum(row.row)}</td>
                       <td><span className="badge b-red">ثبت نشد</span></td>
-                      <td className="small">
-                        {row.errors?.some(item => item.includes('SKU'))
-                          ? 'کد کالا تکراری است؛ برای هر واریانت کد یکتا وارد کنید.'
-                          : row.errors?.some(item => item.includes('Formula'))
-                            ? 'فرمول یا مقدار پشتیبانی‌نشده در فایل وجود دارد.'
-                            : 'نام، قیمت یا موجودی را بررسی کنید.'}
-                      </td>
+                      <td className="small">{explainRow(row.errors)}</td>
                     </tr>
                   ))}
                 </tbody>

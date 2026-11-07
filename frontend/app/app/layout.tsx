@@ -123,7 +123,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
           >
             <IconMenu size={18} />
           </button>
-          <style>{`@media (max-width: 900px){#nav-toggle{display:inline-flex !important} .sidebar .hide-sm{display:inline-flex !important}}`}</style>
+          <style>{`@media (max-width: 900px){#nav-toggle{display:inline-flex !important} .sidebar .hide-sm{display:inline-flex !important} .topbar .hide-sm{display:block !important} .topbar-sub{display:none}}`}</style>
 
           <div className="hide-sm">
             <div className="topbar-title" style={{ fontSize: 'var(--fs-base)', fontWeight: 600 }}>{shop?.name ?? 'فروشگاه شما'}</div>
@@ -141,7 +141,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
             <div className="row hide-sm" style={{ gap: 8, paddingInlineStart: 4 }}>
               <span className="avatar avatar-brand">{(shop?.name ?? 'ف').trim().charAt(0)}</span>
               <div style={{ lineHeight: 1.4 }}>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{shop?.name ?? 'فروشگاه'}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{shop?.name ?? 'فروشگاه'}</div>
                 <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>مالک فروشگاه</div>
               </div>
             </div>

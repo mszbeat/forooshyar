@@ -4,6 +4,7 @@ A Persian-first sales assistant in development. The repository contains two **se
 
 ```text
 backend/        NestJS API, PostgreSQL migrations, tests and .env.example
+catalogs/       Ready-to-import demo catalog files (CSV/XLSX) and their generator
 frontend/       Next.js seller panel and .env.example
 examples/       Example catalog CSV
 PROJECT_PLAN.md Phased roadmap and task IDs
