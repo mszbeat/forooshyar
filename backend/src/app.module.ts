@@ -35,11 +35,26 @@ class PersianThrottlerGuard extends ThrottlerGuard {
   }
 }
 
+/**
+ * ریشه‌ی API. وجودش عمدی است: اگر Health Check یک سرویس ابری (Render، Railway،
+ * Fly و …) روی `/` تنظیم شود — که پیش‌فرض Render است — بدون این روت پاسخ ۴۰۴ بود
+ * و **دیپلوی به‌خاطر health check شکست می‌خورد**، در حالی که خود سرویس سالم بود.
+ * باید کنترلر جدا باشد؛ `@Controller('health')` + `@Get('/')` مسیر `/` نمی‌سازد.
+ */
+@Controller()
+class RootController {
+  @Get()
+  root() { return { service: 'forooshyar-api', status: 'ok', health: '/health' }; }
+}
+
 @Controller('health')
-class HealthController { @Get() health() { return { status: 'ok' }; } }
+class HealthController {
+  /** Liveness فقط؛ دیتابیس را تست نمی‌کند. Health Check سرویس روی همین است. */
+  @Get() health() { return { status: 'ok' }; }
+}
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, LoggingModule, JwtModule.registerAsync({ global: true, useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])],
-  controllers: [HealthController, AuthController, ShopController, CatalogController, ImportController, FreshController, ReportsController],
+  controllers: [RootController, HealthController, AuthController, ShopController, CatalogController, ImportController, FreshController, ReportsController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }, PrismaService, AuthGuard, AuthService, CatalogService, ImportService, ReportsService, { provide: CacheService, useFactory: () => createCacheService(loadConfig(process.env)) }, { provide: APP_GUARD, useClass: PersianThrottlerGuard }],
 })
 export class AppModule implements NestModule {

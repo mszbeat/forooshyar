@@ -34,9 +34,26 @@ The API listens on port 3001 by default; `GET http://localhost:3001/health` is l
 ```sh
 npm ci
 npm run build
-npm run prisma:deploy
+npm run prisma:deploy     # ← اینجا خوب است: روی سرور، دیتابیس در دسترس است
 npm run start
 ```
+
+> **روی PaaS (Render/Railway/Fly) این ترتیب را عوض کن.** مهاجرت را از مرحله‌ی
+> build بیرون بکش، وگرنه build شکست می‌خورد: میزبان داخلی دیتابیس
+> (`dpg-…-a` روی Render، `*.internal` روی Railway) فقط در زمان **اجرا** قابل
+> resolve است، نه در محیط build. مرحله‌ی build فقط `npm ci` و `npm run build`
+> است و مهاجرت به ابتدای start می‌رود:
+>
+> ```sh
+> # Build Command
+> npm ci --include=dev --no-audit --no-fund && npm run build
+> # Start Command
+> npm run prisma:deploy && npm run start
+> ```
+>
+> `--include=dev` را جا نینداز: اگر `NODE_ENV=production` ست باشد، `npm ci` بقیه‌ی
+> devDependencies را نصب نمی‌کند و build با `tsc: not found` می‌افتد (`prisma` و
+> `ts-node` هم لازم‌اند).
 
 Configure real environment variables or `.env` on the backend host, including `CORS_ORIGINS=https://your-frontend.example` (exact origin, no path/trailing slash; comma-separate multiple origins) and `PORT`. Use HTTPS reverse proxy, private database networking, backups, process supervision, and strong credentials. This setup has not been hardened or validated for production. The current migration runner uses development dependencies, so do not omit them during migration. `CACHE_ENABLED=false` requires no Redis for the current application.
 

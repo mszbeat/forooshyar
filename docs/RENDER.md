@@ -18,7 +18,59 @@
 
 ---
 
-## ۲. اگر Blueprint را اعمال می‌کنی
+## ۲. Build Command و Start Command — و دو دام رایج
+
+روی Render، مرحله‌ی **build** و مرحله‌ی **start** دو چیز جدا هستند و مهم است چه چیزی کجاست:
+
+| سرویس | Build Command | Start Command |
+|---|---|---|
+| API | `npm ci --include=dev --no-audit --no-fund && npm run build` | `npm run prisma:deploy && node dist/main.js` |
+| پنل | `npm ci --include=dev --no-audit --no-fund && npm run build` | `npx next start -p $PORT -H 0.0.0.0` |
+
+**دام ۱ — مهاجرت دیتابیس در build کار نمی‌کند.** اگر `npm run prisma:deploy` را داخل Build Command بگذاری، با `Can't reach database server` یا `failed to resolve host 'dpg-xxxx-a'` شکست می‌خورد. دلیلش این است که شبکه‌ی خصوصی Render و میزبان داخلی دیتابیس **فقط در زمان اجرا** وجود دارند، نه در محیط build. (`preDeployCommand` که جای درست این کار است، در پلن Free پشتیبانی نمی‌شود.)
+
+**دام ۲ — `--include=dev` را جا نینداز.** اگر `NODE_ENV=production` در Environment باشد، `npm ci` بقیه‌ی devDependencies را نصب نمی‌کند و build با `tsc: not found` می‌افتد (و `prisma`/`ts-node` هم برای مهاجرت لازم‌اند).
+
+پس این **غلط** است:
+
+```bash
+# ❌ در Build Command
+npm ci && npm run build && npm run prisma:deploy
+```
+
+و این درست:
+
+```bash
+# ✅ Build
+npm ci --include=dev --no-audit --no-fund && npm run build
+# ✅ Start
+npm run prisma:deploy && node dist/main.js
+```
+
+مهاجرت در start بی‌خطر است چون `prisma migrate deploy` idempotent است: در هر ری‌استارت (از جمله بیدار شدن پس از خواب) اگر مهاجرتی نمانده باشد، کاری نمی‌کند.
+
+---
+
+## ۳. Health Check — علت خطای `HEAD / 404`
+
+لاگی که داری:
+
+```
+{"action":"root.head","method":"HEAD","path":"/","status":404,...,"ip":"127.0.0.1"}
+```
+
+این درخواست **از خود Render** است، نه از کاربر: Health Check سرویس روی `/` تنظیم است و API روی `/` روت نداشت، پس ۴۰۴ می‌گرفت. نتیجه: Render سرویس را ناسالم می‌دید و دیپلوی شکست می‌خورد — در حالی که API کاملاً سالم بود.
+
+دو کار انجام شده:
+
+1. **Health Check Path سرویس API را روی `/health` بگذار** (Settings → Health Check Path). پاسخ `200` با `{"status":"ok"}`.
+2. کد هم مقاوم شد: API حالا روی `/` هم `200` با `{"service":"forooshyar-api","status":"ok"}` می‌دهد، تا اگر Health Check روی پیش‌فرض `/` بماند هم دیپلوی نمیرد.
+
+برای پنل، Health Check Path را `/login` بگذار (به API وابسته نیست، پس اگر API خواب باشد پنل را سالم نمی‌بیند اما خودش هم پاسخ می‌دهد).
+
+---
+
+## ۴. اگر Blueprint را اعمال می‌کنی
 
 `render.yaml` در ریشه‌ی ریپو هست: Dashboard → **New → Blueprint** → ریپو را انتخاب کن → Apply. دو سرویس و یک دیتابیس ساخته می‌شود.
 
@@ -32,7 +84,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۳. اگر دستی می‌سازی (Dashboard)
+## ۵. اگر دستی می‌سازی (Dashboard)
 
 ### سرویس API
 
@@ -41,11 +93,13 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 | Type | Web Service · Node |
 | Root Directory | `backend` |
 | Build Command | `npm ci --include=dev --no-audit --no-fund && npm run build` |
-| Start Command | `npx prisma migrate deploy && node dist/main.js` |
+| Start Command | `npm run prisma:deploy && node dist/main.js` |
 | Health Check Path | `/health` |
 | Region | Frankfurt (نزدیک ایران/آلمان) |
 
 `--include=dev` اجباری است: `tsc` و `prisma` در devDependencies هستند و Render با `NODE_ENV=production` نصب می‌کند؛ بدون آن build با `tsc: not found` می‌افتد.
+
+در Start Command از `npm run prisma:deploy` استفاده شده نه `npx prisma migrate deploy`: این اسکریپت اگر فقط `DB_*` ست شده باشد هم `DATABASE_URL` را می‌سازد (خود `prisma` فقط `DATABASE_URL` را می‌شناسد).
 
 `preDeployCommand` در پلن Free **پشتیبانی نمی‌شود** (Render خطای `pre-deploy command is not supported for free tier services` می‌دهد)، برای همین مهاجرت داخل Start Command است. `prisma migrate deploy` idempotent است، پس هر ری‌استارت بی‌خطر است.
 
@@ -60,7 +114,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۴. متغیرهای محیطی
+## ۶. متغیرهای محیطی
 
 ### API
 
@@ -88,7 +142,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۵. خطای `404` روی ورود — چه بود و چه شد
+## ۷. خطای `404` روی ورود — چه بود و چه شد
 
 در لاگ خودت مسیر `//auth/login` آمده (دو اسلش). دلیلش این بود که `NEXT_PUBLIC_API_BASE_URL` با **اسلش انتهایی** ست شده بود (`https://...onrender.com/`) و کلاینت مسیر را به `//auth/login` تبدیل می‌کرد؛ Express آن را یک مسیر متفاوت می‌بیند و ۴۰۴ می‌دهد.
 
@@ -108,7 +162,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۶. محدودیت‌های پلن Free (صادقانه)
+## ۸. محدودیت‌های پلن Free (صادقانه)
 
 | محدودیت | اثر روی فروشیار | راه‌حل |
 |---|---|---|
@@ -123,7 +177,7 @@ API_PROXY_TARGET = https://forooshyar-api.onrender.com
 
 ---
 
-## ۷. بکاپ دیتابیس روی Render
+## ۹. بکاپ دیتابیس روی Render
 
 ```bash
 # از URL خارجی دیتابیس استفاده کن (External Database URL → با sslmode)
@@ -139,7 +193,7 @@ gunzip -c forooshyar-….dump.gz | pg_restore --clean --no-owner -d "postgresql:
 
 ---
 
-## ۸. چک‌لیست بعد از دیپلوی
+## ۱۰. چک‌لیست بعد از دیپلوی
 
 ```
 1) https://forooshyar-api.onrender.com/health        → {"status":"ok"}
@@ -151,11 +205,14 @@ gunzip -c forooshyar-….dump.gz | pg_restore --clean --no-owner -d "postgresql:
 
 ---
 
-## ۹. عیب‌یابی سریع
+## ۱۱. عیب‌یابی سریع
 
 | نشانه | علت | کار |
 |---|---|---|
-| `tsc: not found` در build | devDependencies نصب نشده | `npm ci --include=dev` |
+| `tsc: not found` در build | `NODE_ENV=production` و `npm ci` بدون dev | `npm ci --include=dev` |
+| build با `Can't reach database server` / `failed to resolve host dpg-…` | مهاجرت داخل Build Command است | مهاجرت را به Start Command ببر |
+| لاگ: `root.head` / `HEAD /` با ۴۰۴ | Health Check روی `/` | Health Check Path = `/health` (کد هم اکنون روی `/` جواب ۲۰۰ می‌دهد) |
+| دیپلوی «unhealthy» می‌شود ولی سرویس دستی باز می‌شود | همان Health Check | همان بالا |
 | `pre-deploy command is not supported for free tier services` | preDeployCommand در Free ممنوع | مهاجرت در Start Command (همان `render.yaml`) |
 | برنامه بالا نمی‌آید، خطای zod روی `DB_*` | فقط بخشی از `DB_*` ست شده | `DB_*` را کامل پر کن یا همه را پاک کن و `DATABASE_URL` بده |
 | `Can't reach database server` | `DB_HOST=localhost` | از `DATABASE_URL` داخلی Render استفاده کن |
