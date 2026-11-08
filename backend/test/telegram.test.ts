@@ -479,7 +479,8 @@ describe('پیام فروشنده به مشتری', () => {
     await setOwnerChat('777');
     const chatId = await joinedChat(9302);
     reset();
-    await telegram.handleUpdate(update(uid(), chatId, 'سایز بزرگ دارید؟') as never);
+    // درخواست صریح «با یک آدم حرف بزنم» → همان لحظه به فروشنده وصل می‌شود.
+    await telegram.handleUpdate(update(uid(), chatId, 'می‌شه با مدیر صحبت کنم؟') as never);
     const notice = String(sends('777').at(-1)!.body.text);
     const code = /#گفتگو ([a-f0-9]{8})/.exec(notice)?.[1];
     assert.ok(code, 'کد گفتگو باید در اعلان باشد');
@@ -612,18 +613,32 @@ describe('telegram webhook flow', () => {
     assert.match(String(sends('501')[0].body.text), /پست/);
   });
 
-  it('موضوع نامطمئن → ارجاع به فروشنده و اعلان، ولی هیچ حدسی', async (t) => {
+  it('جمله‌ی نامفهوم → اول سؤال روشن‌کننده با دکمه، بعد از ۳ بار ارجاع به فروشنده', async (t) => {
     if (!databaseReady) return t.skip('no db');
     const ownerChat = '9999';
     await setOwnerChat(ownerChat);
+    const chatId = await joinedChat(9501);
+
+    // ۱) بار اول: هیچ ارجاعی نمی‌شود؛ سؤال روشن‌کننده با دکمه می‌آید.
+    reset();
+    const first = await telegram.handleUpdate(update(uid(), chatId, 'بلابلا زیرو') as never);
+    assert.equal(first.kind, 'clarify', 'اول باید سؤال کند، نه ارجاع');
+    assert.equal(sends(ownerChat).length, 0, 'هنوز نباید به فروشنده پیام برود');
+    const clarifyMessage = sends(String(chatId)).at(-1)!;
+    assert.ok((clarifyMessage.body.reply_markup as { inline_keyboard?: unknown[] }).inline_keyboard?.length, 'دکمه‌ی گزینه‌ها لازم است');
+
+    // ۲) دو پیام نامفهوم دیگر
+    await telegram.handleUpdate(update(uid(), chatId, 'قققق') as never);
+    await telegram.handleUpdate(update(uid(), chatId, 'ژژژژ') as never);
+
+    // ۳) بار چهارم: بات قبول می‌کند که نفهمیده و به انسان وصل می‌کند.
     reset();
     handoffUpdateId = uid();
-    const result = await telegram.handleUpdate(update(handoffUpdateId, 501, 'می‌خوام مرجوع کنم') as never);
+    const result = await telegram.handleUpdate(update(handoffUpdateId, chatId, 'خخخخ') as never);
     assert.equal(result.kind, 'handoff');
-    const replies = sends();
-    assert.equal(replies.length, 2, 'یک پاسخ به مشتری و یک اعلان به فروشنده');
-    assert.ok(replies.some(entry => String(entry.body.chat_id) === '501'));
-    assert.ok(replies.some(entry => String(entry.body.chat_id) === ownerChat));
+    const notice = sends(ownerChat).at(-1)!;
+    assert.match(String(notice.body.text), /#گفتگو [a-f0-9]{8}/);
+    assert.match(String(notice.body.text), /نفهمید|پاسخ انسانی/);
   });
 
   it('همان update_id دوباره → پاسخ تکراری نمی‌فرستد', async (t) => {

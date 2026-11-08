@@ -1,6 +1,10 @@
-import { answerFresh, normalizePersian, type FreshProduct, type FreshShop } from '../fresh/fresh';
-import { asksShopInfo, discover, productCodeOf, variantsFor, type CatalogProduct } from '../catalog/discovery';
+import { normalizePersian, type FreshShop } from '../fresh/fresh';
+import { discover, productCodeOf, variantsFor, type CatalogProduct } from '../catalog/discovery';
 import { escapeHtml } from './order-flow';
+import {
+  clarifyOptions, detectIntents, MAX_CLARIFY_ROUNDS, needsHuman,
+  type ClarifyOption, type IntentId,
+} from './understanding';
 
 /** دکمه‌ی inline تلگرام؛ یا callback (data) یا لینک (url) — نه هر دو. */
 export type BotButton = { text: string; data?: string; url?: string };
@@ -15,7 +19,7 @@ export type BotReply = {
   parseMode?: 'HTML';
 };
 
-export type BrainShop = FreshShop & { name: string };
+export type BrainShop = FreshShop & { name: string; returns?: string };
 
 const toman = (value: number) => `${value.toLocaleString('fa-IR')} تومان`;
 
@@ -144,46 +148,201 @@ export function clarifyProducts(products: CatalogProduct[], query: string): BotR
   };
 }
 
+/** پیام ارجاع به انسان (فقط وقتی واقعاً لازم است). */
+function handoffReply(shop: BrainShop, reason: string): BotReply {
+  return {
+    kind: 'handoff',
+    reason,
+    text: shop.handoffMessage.trim() || 'برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.',
+  };
+}
+
+/** متن دکمه‌ها به callback تبدیل می‌شود؛ سرویس آن را می‌شناسد. */
+export function clarifyButtons(options: ClarifyOption[]): BotButton[][] {
+  const rows: BotButton[][] = [];
+  for (let index = 0; index < options.length; index += 2) {
+    rows.push(options.slice(index, index + 2).map(option => ({ text: option.label, data: `cl:${option.id}` })));
+  }
+  return rows;
+}
+
+/** پیام «منظورتان را دقیق‌تر بگویید» — با دکمه، نه ارجاع. */
+export function askClarify(shop: BrainShop, products: CatalogProduct[], round: number): BotReply {
+  const options = clarifyOptions({
+    shipping: Boolean(shop.shipping.trim()),
+    payment: Boolean(shop.payment.trim()),
+    hours: Boolean(shop.workingHours.trim()),
+    returns: Boolean(shop.returns?.trim()),
+    products: products.length > 0,
+  });
+  const opener = round === 0
+    ? '🤔 مطمئن نشدم دقیقاً چه چیزی می‌خواهید.'
+    : '🙂 هنوز مطمئن نشدم منظورتون چیه.';
+  return {
+    kind: 'clarify',
+    reason: `unclear_${round + 1}`,
+    parseMode: 'HTML',
+    text: [
+      opener,
+      '',
+      options.length
+        ? 'یکی از گزینه‌های زیر را بزنید، یا جمله‌تان را یک‌جور دیگر بنویسید:'
+        : 'مثلاً بنویسید «قیمت این محصول چنده؟» یا «ارسال چند روزه است؟»',
+    ].join('\n'),
+    buttons: options.length ? clarifyButtons(options) : undefined,
+  };
+}
+
+/** پاسخ یک مفهوم مشخص (برای دکمه‌های سؤال روشن‌کننده). */
+export function answerIntent(intent: IntentId, shop: BrainShop, products: CatalogProduct[]): BotReply | null {
+  const data: Partial<Record<IntentId, string>> = {
+    shipping: shop.shipping.trim(),
+    payment: shop.payment.trim(),
+    hours: shop.workingHours.trim(),
+    returns: (shop.returns ?? '').trim(),
+  };
+  const value = data[intent];
+  if (value) return { kind: 'answer', reason: `intent_${intent}`, text: value };
+
+  if (intent === 'order') {
+    if (products.length === 0) return null;
+    return {
+      kind: 'clarify',
+      reason: 'catalog',
+      text: 'کدام محصول را می‌خواهید سفارش بدهید؟',
+      buttons: productButtons(products),
+    };
+  }
+  if (intent === 'price' || intent === 'size') {
+    if (products.length === 0) return null;
+    return {
+      kind: 'clarify',
+      reason: 'needs_product',
+      parseMode: 'HTML',
+      text: intent === 'price'
+        ? '💰 قیمت و موجودی کدام محصول را می‌خواهید بدانید؟'
+        : '📏 سایز و رنگ کدام محصول را می‌خواهید بدانید؟',
+      buttons: productButtons(products),
+    };
+  }
+  return null;
+}
+
+/** سلام و احوال‌پرسی کوتاه، بدون ارجاع. */
+function greetingReply(shop: BrainShop, products: CatalogProduct[]): BotReply {
+  const capabilities = [
+    products.length ? 'قیمت و موجودی محصول‌ها' : '',
+    shop.shipping.trim() ? 'ارسال و تحویل' : '',
+    shop.payment.trim() ? 'روش‌های پرداخت' : '',
+    shop.workingHours.trim() ? 'ساعت کاری' : '',
+  ].filter(Boolean);
+  return {
+    kind: 'answer',
+    reason: 'greeting',
+    parseMode: 'HTML',
+    text: [
+      `👋 سلام! به «${escapeHtml(shop.name)}» خوش آمدید.`,
+      capabilities.length ? `می‌توانم درباره‌ی ${capabilities.join('، ')} کمکتان کنم.` : 'در خدمتم.',
+      'هر سؤالی داشتید بپرسید.',
+    ].join('\n'),
+  };
+}
+
 /**
  * تصمیم نهایی برای یک پیام متنی مشتری.
  *
- * ترتیب عمدی است: اول محصول (چون واژه‌های محصول در جمله‌های واقعی زیاد است)،
- * بعد دانش فروشگاه (ارسال/پرداخت/ساعت) و در آخر ارجاع به انسان.
+ * ترتیب عمدی است:
+ *  ۱) شکایت/درخواست صریح انسان → ارجاع (سؤال پرسیدن از مشتری عصبانی درست نیست).
+ *  ۲) هر مفهوم قابل‌پاسخ (ساعت کاری، ارسال، پرداخت، مرجوعی) **همان‌جا جواب
+ *     می‌گیرد** — قبلاً جمله‌ای مثل «تایم کاری» به فروشنده ارجاع می‌شد.
+ *  ۳) محصول: نامزد یکتا → قیمت/موجودی؛ چند نامزد → دکمه‌ی انتخاب؛ بدون نامزد →
+ *     «قیمت کدام محصول؟» با دکمه — نه ارجاع.
+ *  ۴) اگر هیچ‌کدام تشخیص داده نشد → سؤال روشن‌کننده؛ بعد از ۳ بار → ارجاع.
  */
-export function composeReply(text: string, shop: BrainShop, products: CatalogProduct[]): BotReply {
-  // ۰) سؤال‌های سطح فروشگاه (ارسال/پرداخت/ساعت) اول جواب می‌گیرند: جمله‌ای مثل
-  // «هزینه ارسال شال ابریشمی چنده» درباره‌ی ارسال است، نه قیمت شال.
-  const q = normalizePersian(text);
-  if (/(ارسال|پست|پیک|تحویل)/u.test(q) && shop.shipping.trim()) {
-    return { kind: 'answer', reason: 'shipping', text: shop.shipping.trim() };
-  }
-  if (/(پرداخت|کارت به کارت|درگاه)/u.test(q) && shop.payment.trim()) {
-    return { kind: 'answer', reason: 'payment', text: shop.payment.trim() };
-  }
-  if (/(ساعت کاری|ساعت کار|کی باز|کی بسته)/u.test(q) && shop.workingHours.trim()) {
-    return { kind: 'answer', reason: 'hours', text: shop.workingHours.trim() };
-  }
+export function composeReply(
+  text: string,
+  shop: BrainShop,
+  products: CatalogProduct[],
+  options: { round?: number } = {},
+): BotReply {
+  const round = options.round ?? 0;
+  const hits = detectIntents(text);
+  if (needsHuman(hits)) return handoffReply(shop, 'human_request');
 
-  const discovery = discover(text, products);
+  // امتیاز نیم (واژه‌ی مبهم مثل «چند») به‌تنهایی دلیل پاسخ نیست.
+  const intents = hits.filter(hit => hit.score >= 1).map(hit => hit.id);
+  const has = (id: IntentId) => intents.includes(id);
 
-  if (discovery.kind === 'many') {
-    return clarifyProducts(discovery.products, text);
-  }
+  const parts: string[] = [];
+  let buttons: BotButton[][] = [];
 
-  if (discovery.kind === 'single') {
-    // «هزینه ارسال این محصول چنده؟» درباره‌ی ارسال است، نه قیمت محصول.
-    if (asksShopInfo(text)) {
-      const fresh = answerFresh(text, shop, products as unknown as FreshProduct[]);
-      if (fresh.kind === 'answer') return { kind: 'answer', reason: 'shop_info', text: fresh.text };
+  // محصول.
+  // اگر جمله صریحاً درباره‌ی یک موضوع فروشگاهی است («ساعت کاریتون چنده؟»،
+  // «هزینه ارسال چقدره»)، «چنده/چقدر» را قیمت محصول نمی‌خوانیم — وگرنه بات
+  // بی‌دلیل می‌پرسد «قیمت کدام محصول؟».
+  const shopStrong = hits.some(hit => hit.score >= 3 && ['shipping', 'payment', 'hours', 'returns'].includes(hit.id));
+  if (intents.some(id => id === 'price' || id === 'stock' || id === 'size')) {
+    const discovery = discover(text, products);
+    if (discovery.kind === 'many') {
+      const reply = clarifyProducts(discovery.products, text);
+      parts.push(reply.text);
+      buttons = reply.buttons ?? [];
+    } else if (discovery.kind === 'single') {
+      const reply = describeProduct(discovery.product, text);
+      parts.push(reply.text);
+      buttons = reply.buttons ?? [];
+    } else if (products.length > 0 && !shopStrong) {
+      // قیمت/موجودی بدون نام محصول: از مشتری می‌پرسیم، به فروشنده ارجاع نمی‌دهیم.
+      const ask = answerIntent(has('price') ? 'price' : 'size', shop, products);
+      if (ask) {
+        parts.push(ask.text);
+        buttons = ask.buttons ?? [];
+      }
     }
-    return describeProduct(discovery.product, text);
   }
 
-  const fresh = answerFresh(text, shop, products as unknown as FreshProduct[]);
-  if (fresh.kind === 'clarify') {
-    // answerFresh بدون نامزد مشخص «نام دقیق را بگو» می‌گوید؛ دکمه‌ای برای نشان
-    // دادن نداریم، پس همان متن را با راهنمای کد محصول همراه می‌کنیم.
-    return { kind: 'clarify', reason: 'fresh_clarify', text: fresh.text };
+  // دانش فروشگاه — همه‌ی موضوع‌های تشخیص‌داده‌شده جواب می‌گیرند.
+  const shopPart = (id: IntentId, value: string, emoji: string) => {
+    if (value.trim()) parts.push(`${emoji} ${value.trim()}`);
+  };
+  if (!parts.length || has('shipping') || has('payment') || has('hours') || has('returns')) {
+    if (has('hours')) shopPart('hours', shop.workingHours, '🕒');
+    if (has('shipping')) shopPart('shipping', shop.shipping, '🚚');
+    if (has('payment')) shopPart('payment', shop.payment, '💳');
+    if (has('returns')) shopPart('returns', shop.returns ?? '', '↩️');
   }
-  return { kind: fresh.kind, reason: 'fresh', text: fresh.text };
+
+  if (has('discount') && !shop.returns?.trim()) {
+    parts.push('🎁 برای تخفیف و کدهای ویژه، فروشنده بهترین گزینه را می‌گوید — همین‌جا پیام بگذارید.');
+  }
+
+  if (has('order') && products.length > 0 && parts.length === 0) {
+    parts.push('🛒 کدام محصول را می‌خواهید؟');
+    buttons = productButtons(products);
+  }
+
+  if (parts.length > 0) {
+    return {
+      kind: buttons.length ? 'clarify' : 'answer',
+      reason: `answer_${intents.join('_') || 'product'}`,
+      text: parts.join('\n\n'),
+      buttons: buttons.length ? buttons : undefined,
+    };
+  }
+
+  // سلام/تشکر تنها
+  if (has('greeting')) return greetingReply(shop, products);
+  if (has('thanks')) {
+    return { kind: 'answer', reason: 'thanks', text: '🙏 خواهش می‌کنم! هر وقت سؤالی داشتید در خدمتم.' };
+  }
+
+  // هیچ پاسخ قابل‌اتکایی پیدا نشد.
+  //
+  // «فهمیدم ولی داده‌اش را ندارم» (مثلاً مرجوعی، وقتی فروشنده سیاستش را وارد
+  // نکرده) هم یک بار دیگر با دکمه می‌پرسیم؛ شاید منظور واقعی مشتری موضوع
+  // دیگری بوده. ارجاع فقط بعد از چند بار تلاش انجام می‌شود.
+  if (round >= MAX_CLARIFY_ROUNDS) {
+    return handoffReply(shop, intents.length ? `no_data_${intents.join('_')}` : `unclear_${round + 1}`);
+  }
+  return askClarify(shop, products, round);
 }

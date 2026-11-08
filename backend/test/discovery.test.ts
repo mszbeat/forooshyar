@@ -4,6 +4,7 @@ import { discover, looksLikeProductQuestion, matchCode, productCode } from '../s
 import { clarifyProducts, composeReply, describeProduct, orderButtons, productButtons } from '../src/telegram/brain';
 import { applyInput, fullAddress, MAX_QUANTITY, normalizePhone, normalizePostalCode, promptFor, startDraft } from '../src/telegram/order-flow';
 import { findCity, findProvince, PROVINCES } from '../src/geo/iran-geo';
+import { detectIntents, MAX_CLARIFY_ROUNDS, needsHuman } from '../src/telegram/understanding';
 
 /**
  * این تست‌ها به دیتابیس و تلگرام نیاز ندارند: منطق خالص تشخیص محصول و
@@ -302,5 +303,96 @@ describe('داده‌ی استان و شهر', () => {
     assert.equal(normalizePostalCode('۱۲۳۴۵۶۷۸۹۰'), '1234567890');
     assert.equal(normalizePostalCode('0123456789'), null);
     assert.equal(normalizePostalCode('12345'), null);
+  });
+});
+
+
+/**
+ * فهم «منظور» مشتری.
+ *
+ * این تست‌ها از دو ایراد واقعی آمده‌اند: «قیمت چند؟» بدون نام محصول فوری به
+ * فروشنده ارجاع داده می‌شد، و «تایم کاری» جواب نمی‌گرفت در حالی که
+ * «ساعت کاری» جواب می‌گرفت.
+ */
+describe('فهم پیام فارسی', () => {
+  const shop = {
+    name: 'بوتیک', tone: '',
+    shipping: 'ارسال با پست پیشتاز، ۲ تا ۴ روز کاری.',
+    payment: 'پرداخت آنلاین یا کارت‌به‌کارت.',
+    workingHours: 'هر روز از ساعت ۹:۰۰ تا ۲۳:۰۰.',
+    returns: 'تا ۷ روز، اگر برچسب نخورده باشد.',
+    handoffMessage: 'همکارم تماس می‌گیرد.',
+  };
+
+  const products = [{
+    id: 'p1', title: 'مانتو کتان', description: '', category: 'مانتو', active: true,
+    variants: [
+      { id: 'v1', size: '۳۸', color: 'کرم', price: 640000, stock: 3, active: true },
+      { id: 'v2', size: '۴۰', color: 'مشکی', price: 690000, stock: 0, active: true },
+    ],
+  }] as never;
+
+  it('«تایم کاری» و «ساعت کاری» یک پاسخ می‌گیرند', () => {
+    const a = composeReply('ساعت کاری', shop as never, products);
+    const b = composeReply('تایم کاری', shop as never, products);
+    const c = composeReply('ساعت کاریتون چنده؟', shop as never, products);
+    assert.equal(a.text, b.text);
+    assert.equal(a.kind, 'answer');
+    assert.match(c.text, /۹:۰۰/, 'پسوند «تون/چنده» نباید معنی را عوض کند');
+    assert.doesNotMatch(c.text, /کدام محصول/);
+  });
+
+  it('«قیمت چند؟» بدون نام محصول → سؤال با دکمه، نه ارجاع', () => {
+    const reply = composeReply('قیمت چند؟', shop as never, products);
+    assert.equal(reply.kind, 'clarify');
+    assert.match(reply.text, /کدام محصول/);
+    assert.ok(reply.buttons?.length, 'باید دکمه‌ی محصول‌ها را نشان دهد');
+  });
+
+  it('موضوع‌های مختلف با عبارت‌های مختلف یک پاسخ می‌گیرند', () => {
+    const pairs: [string, string][] = [
+      ['هزینه ارسال چقدره', 'پست چطوره'],
+      ['کارت به کارت قبول می‌کنید', 'چطور پرداخت کنم'],
+      ['مرجوعی دارید؟', 'می‌تونم تعویض کنم'],
+    ];
+    for (const [first, second] of pairs) {
+      const a = composeReply(first, shop as never, products);
+      const b = composeReply(second, shop as never, products);
+      assert.equal(a.kind, 'answer', first);
+      assert.equal(b.kind, 'answer', second);
+      assert.equal(a.text, b.text, `${first} و ${second} باید یک جواب بگیرند`);
+    }
+  });
+
+  it('دو موضوع در یک پیام → هر دو جواب می‌گیرند (نه ارجاع)', () => {
+    const reply = composeReply('مانتو کتان قیمتش چنده و چند روزه می‌رسه؟', shop as never, products);
+    assert.match(reply.text, /۶۴۰٬۰۰۰|640/);
+    assert.match(reply.text, /پست پیشتاز/);
+  });
+
+  it('شکایت و درخواست آدم واقعی همان لحظه به انسان می‌رسد', () => {
+    assert.equal(needsHuman(detectIntents('این خیلی افتضاح بود')), true);
+    assert.equal(composeReply('می‌شه با مدیر صحبت کنم؟', shop as never, products).kind, 'handoff');
+  });
+
+  it('مرجوعی وقتی فروشنده سیاستش را پر کرده، خودِ بات جواب می‌دهد', () => {
+    const reply = composeReply('می‌خوام مرجوع کنم', shop as never, products);
+    assert.equal(reply.kind, 'answer');
+    assert.match(reply.text, /۷ روز/);
+  });
+
+  it('نامفهوم: اول سؤال، آخرین بار ارجاع', () => {
+    for (let round = 0; round < MAX_CLARIFY_ROUNDS; round += 1) {
+      const reply = composeReply('بلابلا زیرو', shop as never, products, { round });
+      assert.equal(reply.kind, 'clarify', `دور ${round + 1}`);
+      assert.ok(reply.buttons?.length);
+    }
+    const last = composeReply('بلابلا زیرو', shop as never, products, { round: MAX_CLARIFY_ROUNDS });
+    assert.equal(last.kind, 'handoff');
+  });
+
+  it('سلام و تشکر جواب مهربان می‌گیرند، نه ارجاع', () => {
+    assert.equal(composeReply('سلام', shop as never, products).kind, 'answer');
+    assert.equal(composeReply('ممنون از راهنماییت', shop as never, products).kind, 'answer');
   });
 });

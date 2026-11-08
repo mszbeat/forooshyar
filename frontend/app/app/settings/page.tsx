@@ -9,8 +9,8 @@ import { Field, PageHeader, SkeletonBlock, Spinner, useToast } from '@/component
 import { TelegramConnect } from '@/components/telegram-connect';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
 
-type Form = Pick<Shop, 'name' | 'tone' | 'shipping' | 'payment' | 'workingHours' | 'handoffMessage'>;
-const EMPTY: Form = { name: '', tone: '', shipping: '', payment: '', workingHours: '', handoffMessage: '' };
+type Form = Pick<Shop, 'name' | 'tone' | 'shipping' | 'payment' | 'workingHours' | 'returns' | 'handoffMessage'>;
+const EMPTY: Form = { name: '', tone: '', shipping: '', payment: '', workingHours: '', returns: '', handoffMessage: '' };
 
 export default function SettingsPage() {
   const { shop, reloadShop } = useAuth();
@@ -23,7 +23,7 @@ export default function SettingsPage() {
   useEffect(() => {
     let alive = true;
     api.shop()
-      .then(data => { if (alive) setForm({ name: data.name, tone: data.tone, shipping: data.shipping, payment: data.payment, workingHours: data.workingHours, handoffMessage: data.handoffMessage }); })
+      .then(data => { if (alive) setForm({ name: data.name, tone: data.tone, shipping: data.shipping, payment: data.payment, workingHours: data.workingHours, returns: data.returns ?? '', handoffMessage: data.handoffMessage }); })
       .catch(() => { if (alive) setError('دریافت تنظیمات انجام نشد.'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -58,7 +58,7 @@ export default function SettingsPage() {
     );
   }
 
-  const completeness = [form.name, form.tone, form.shipping, form.payment, form.workingHours, form.handoffMessage].filter(value => value.trim().length > 0).length;
+  const completeness = [form.name, form.tone, form.shipping, form.payment, form.workingHours, form.returns, form.handoffMessage].filter(value => value.trim().length > 0).length;
   const percent = Math.round((completeness / 6) * 100);
 
   return (
@@ -117,7 +117,11 @@ export default function SettingsPage() {
                 <input id="workingHours" className="input" maxLength={2000} value={form.workingHours} onChange={set('workingHours')}
                   placeholder="شنبه تا پنجشنبه، ۱۰ صبح تا ۸ شب." />
               </Field>
-              <Field label="پیام ارجاع به فروشنده" htmlFor="handoffMessage" hint="هر جا دستیار مطمئن نبود، همین پیام برای مشتری ارسال می‌شود.">
+              <Field label="سیاست مرجوعی و تعویض" htmlFor="returns" hint="اگر پرش کنید، بات سؤال «مرجوعی دارید؟» را خودش جواب می‌دهد. خالی باشد، بعد از چند سؤال به شما ارجاع می‌دهد.">
+                <textarea id="returns" className="textarea" maxLength={2000} value={form.returns} onChange={set('returns')}
+                  placeholder="مثال: تا ۷ روز پس از دریافت، اگر برچسب نخورده باشد، تعویض یا مرجوع می‌کنیم." />
+              </Field>
+              <Field label="پیام ارجاع به فروشنده" htmlFor="handoffMessage" hint="فقط وقتی ارسال می‌شود که بات بعد از چند سؤال هم منظور مشتری را نفهمیده باشد.">
                 <textarea id="handoffMessage" className="textarea" maxLength={2000} value={form.handoffMessage} onChange={set('handoffMessage')} />
               </Field>
             </div>
@@ -153,6 +157,7 @@ export default function SettingsPage() {
               <PreviewRow label="اگر بپرسند «ارسال چطوریه؟»" value={form.shipping} fallback="به فروشنده ارجاع داده می‌شود" />
               <PreviewRow label="اگر بپرسند «پرداخت چطوره؟»" value={form.payment} fallback="به فروشنده ارجاع داده می‌شود" />
               <PreviewRow label="اگر بپرسند «کی باز هستید؟»" value={form.workingHours} fallback="به فروشنده ارجاع داده می‌شود" />
+              <PreviewRow label="اگر بپرسند «مرجوعی دارید؟»" value={form.returns} fallback="اول می‌پرسد، بعد ارجاع می‌دهد" />
               </div>
             </div>
           </section>
