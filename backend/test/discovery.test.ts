@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { discover, looksLikeProductQuestion, matchCode, productCode } from '../src/catalog/discovery';
+import { discover, looksLikeProductQuestion, matchCode, productCode, suggest } from '../src/catalog/discovery';
 import { clarifyProducts, composeReply, describeProduct, orderButtons, productButtons } from '../src/telegram/brain';
 import { applyInput, fullAddress, MAX_QUANTITY, normalizePhone, normalizePostalCode, promptFor, startDraft } from '../src/telegram/order-flow';
 import { findCity, findProvince, PROVINCES } from '../src/geo/iran-geo';
@@ -109,6 +109,39 @@ describe('تشخیص محصول از حرف مشتری', () => {
     // شماره‌گذاری پیوسته است تا مشتری بداند مورد نهم ادامه‌ی همان فهرست است.
     assert.match(second.text, /۹\. <b>کفش مدل 8<\/b>/);
     assert.match(second.text, /۱۰\. <b>کفش مدل 9<\/b>/);
+  });
+
+  const SHOP_STUB = {
+    name: 'بوتیک تست', tone: '',
+    shipping: 'پست پیشتاز، ۲ روز کاری.', payment: 'کارت به کارت.',
+    workingHours: '۹ تا ۱۸.', returns: '۷ روز مرجوعی.',
+    handoffMessage: 'ارجاع به فروشنده.',
+  };
+
+  it('محصول ناموجود در کاتالوگ → «محصولی با این عنوان نیست» (نه سؤال مبهم)', () => {
+    const reply = composeReply('قیمت شلوار جین چنده؟', SHOP_STUB as never, PRODUCTS as never);
+    assert.equal(reply.reason, 'product_not_found');
+    assert.match(reply.text, /محصولی با عنوان/);
+    assert.match(reply.text, /شلوار جین/);
+  });
+
+  it('محصول هست ولی موجودی صفر → «موجودی تمام شده» با دکمه‌ی خبر', () => {
+    const soldOut = [
+      { id: 'zzzzzz99-9999-9999-9999-999999999999', title: 'کت پشمی', variants: [
+        { id: 'v9', size: 'M', color: 'کرم', price: 1_800_000, stock: 0 },
+      ] },
+    ];
+    const reply = composeReply('قیمت کت پشمی چنده؟', SHOP_STUB as never, soldOut as never);
+    assert.equal(reply.reason, 'out_of_stock');
+    assert.match(reply.text, /تمام شده/);
+    assert.deepEqual(reply.buttons, [[{ text: '🔔 اگر موجود شد خبرم کن', data: `watch:${soldOut[0].id}` }]]);
+  });
+
+  it('پیشنهاد محصول مشابه وقتی نام دقیق پیدا نشد', () => {
+    // «کت پشمی کرم» با «کت» مشترک است؛ پیشنهاد باید آن را بیاورد.
+    const near = suggest('کت پشمی زمستونی', PRODUCTS);
+    assert.ok(near.some(product => product.title === 'کت پشمی کرم'), JSON.stringify(near.map(p => p.title)));
+    assert.deepEqual(suggest('شلوار جین', PRODUCTS), []);
   });
 
   it('تشخیص «سؤال محصولی» درست کار می‌کند', () => {

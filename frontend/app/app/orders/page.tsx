@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError, type ChatMessage, type Order, type OrderStatus, type OrdersSummary } from '@/lib/api';
 import { faDateTime, faNum, relativeTime, toman } from '@/lib/format';
 import { EmptyState, Modal, PageHeader, Segmented, SkeletonBlock, Spinner, StatCard, useToast } from '@/components/ui';
 import {
   IconAlertCircle, IconArrowLeft, IconBox, IconCheckCircle, IconClock, IconDownload,
-  IconMoney, IconPackage, IconRefresh, IconSend, IconWallet,
+  IconMoney, IconPackage, IconRefresh, IconReply, IconSend, IconWallet, IconX,
 } from '@/components/icons';
 
 type Filter = 'all' | OrderStatus;
@@ -61,6 +61,11 @@ export default function OrdersPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  // ریپلای: پیامی که فروشنده روی آن «پاسخ» زده است.
+  const [quoting, setQuoting] = useState<ChatMessage | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -88,8 +93,9 @@ export default function OrdersPage() {
     if (!open || !reply.trim()) return;
     setSending(true);
     try {
-      setMessages(await api.sendOrderMessage(open.id, reply.trim()));
+      setMessages(await api.sendOrderMessage(open.id, reply.trim(), quoting?.id));
       setReply('');
+      setQuoting(null);
       toast.success('پیام برای مشتری رفت', 'در تلگرام مشتری نمایش داده شد.');
     } catch (problem) {
       toast.error('ارسال پیام انجام نشد', problem instanceof ApiError ? problem.message : undefined);
@@ -331,24 +337,74 @@ export default function OrdersPage() {
                   <span className="badge b-gray">@{open.chatId}</span>
                 </div>
 
-                <div className="chat" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                <div className="chat" ref={chatRef} style={{ maxHeight: 300, overflowY: 'auto' }}>
                   {messages.length === 0 && (
                     <div className="small muted" style={{ padding: '6px 2px' }}>
                       هنوز پیامی رد‌و‌بدل نشده. اولین پیام را بفرستید.
                     </div>
                   )}
                   {messages.map(item => (
-                    <div key={item.id} className={`bubble ${item.direction === 'in' ? 'bubble-in' : 'bubble-out'}`}>
-                      <div>{item.text}</div>
-                      <div className="bubble-meta">{item.direction === 'in' ? 'مشتری' : 'شما'} · {relativeTime(item.createdAt)}</div>
+                    <div
+                      key={item.id}
+                      id={`msg-${item.id}`}
+                      className={`msg ${item.direction === 'in' ? 'in' : 'out'} ${flash === item.id ? 'flash' : ''}`}
+                    >
+                      <span className="msg-actions">
+                        <button
+                          type="button"
+                          className="msg-reply-btn"
+                          onClick={() => {
+                            setQuoting(item);
+                            inputRef.current?.focus();
+                          }}
+                          aria-label="پاسخ به این پیام"
+                        >
+                          <IconReply size={11} />
+                          پاسخ
+                        </button>
+                      </span>
+                      <div className={`bubble ${item.direction === 'in' ? 'bubble-in' : 'bubble-out'}`}>
+                        {item.replyText ? (
+                          <button
+                            type="button"
+                            className={`quote from-${item.replyFrom === 'out' ? 'out' : 'in'}`}
+                            title="رفتن به پیام اصلی"
+                            onClick={() => {
+                              if (!item.replyToId) return;
+                              document.getElementById(`msg-${item.replyToId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              setFlash(item.replyToId);
+                              window.setTimeout(() => setFlash(null), 1200);
+                            }}
+                          >
+                            <span className="quote-body">
+                              <span className="quote-who">{item.replyFrom === 'out' ? 'شما' : 'مشتری'}</span>
+                              <span className="quote-text">{item.replyText}</span>
+                            </span>
+                          </button>
+                        ) : null}
+                        <div>{item.text}</div>
+                        <div className="bubble-meta">{item.direction === 'in' ? 'مشتری' : 'شما'} · {relativeTime(item.createdAt)}</div>
+                      </div>
                     </div>
                   ))}
                 </div>
 
+                {quoting && (
+                  <div className="composer-reply">
+                    <span className="body">
+                      <span className="who">پاسخ به {quoting.direction === 'in' ? 'مشتری' : 'خودتان'}</span>
+                      <span className="snippet">{quoting.text.slice(0, 90)}</span>
+                    </span>
+                    <button type="button" onClick={() => setQuoting(null)} aria-label="لغو پاسخ">
+                      <IconX size={14} />
+                    </button>
+                  </div>
+                )}
                 <div className="row mt-2" style={{ gap: 8, alignItems: 'stretch' }}>
                   <input
+                    ref={inputRef}
                     className="input"
-                    placeholder="پاسخ به مشتری…"
+                    placeholder={quoting ? 'پاسخ شما به این پیام…' : 'پاسخ به مشتری…'}
                     value={reply}
                     maxLength={2000}
                     onChange={event => setReply(event.target.value)}
