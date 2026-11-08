@@ -2,10 +2,12 @@ import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
-import { type CatalogProduct } from '../catalog/discovery';
+import { discover, type CatalogProduct } from '../catalog/discovery';
+import { AiService } from '../ai/ai.service';
+import { answerWithAi } from '../ai/answer';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
-import { type BotButton, answerIntent, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
+import { type BotButton, answerIntent, clarifyProducts, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
 import { MAX_CLARIFY_ROUNDS, type IntentId } from './understanding';
 import { applyInput, draftTitle, escapeHtml, fullAddress, promptFor, startDraft, type OrderDraft } from './order-flow';
 import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } from './telegram.client';
@@ -81,6 +83,7 @@ export class TelegramService {
     // چرخه‌ی عمدی و محدود: بات سفارش می‌سازد، سفارش‌ها با بات اعلان می‌دهند.
     @Inject(forwardRef(() => OrdersService)) private readonly orders: OrdersService,
     @Inject(forwardRef(() => PaymentsService)) private readonly payments: PaymentsService,
+    private readonly ai: AiService,
   ) {}
 
   get configured(): boolean {
@@ -275,14 +278,41 @@ export class TelegramService {
     const forwardSource = message ? TelegramService.forwardSource(message) : '';
     // چند پیام نامفهوم پشت‌سرهم؟ تا ۳ بار سؤال می‌پرسیم، بعد از آن ارجاع.
     const round = TelegramService.clarifyRound(conversation.clarify);
-    const reply = composeReply(text, shop as BrainShop, products, { round });
+    let reply = composeReply(text, shop as BrainShop, products, { round });
+
+    // اگر موتور قاعده‌محور پیام را نفهمید، مدل زبانی (اگر وصل باشد) یک بار
+    // شانس دارد. سفارش و پرداخت هرگز به مدل سپرده نمی‌شوند؛ فقط پاسخ‌دادن.
+    if (this.ai.enabled && reply.kind === 'clarify' && (reply.reason ?? '').startsWith('unclear')) {
+      const history = await this.recentMessages(conversation.shopId, chatId, 8);
+      const answer = await answerWithAi(this.ai, { shop: shop as BrainShop, products, history }, text);
+      if (answer.ok) {
+        reply = { kind: 'answer', reason: 'ai_answer', text: answer.text };
+        this.audit.record({
+          action: 'telegram.ai_answer', entity: 'conversation', entityId: conversation.id,
+          shopId: conversation.shopId, meta: { model: this.ai.model, productsInContext: answer.included },
+        });
+      } else {
+        this.audit.record({
+          action: 'telegram.ai_skipped', entity: 'conversation', entityId: conversation.id,
+          shopId: conversation.shopId, meta: { reason: answer.reason },
+        });
+      }
+    }
+
     if (process.env.DEBUG_CLARIFY) this.logger.debug(`clarify round=${round} text=${text} kind=${reply.kind} reason=${reply.reason}`);
 
     // پاسخ روشن → شمارنده‌ی «نفهمیدم» صفر می‌شود؛ سؤال روشن‌کننده → یکی جلو.
     const unclear = reply.kind === 'clarify' && (reply.reason ?? '').startsWith('unclear');
+    // پرسشِ فهرست صفحه‌بندی‌شده ذخیره می‌شود تا دکمه‌ی «بعدی» همان محصولات را
+    // دوباره بسازد (و نه کاتالوگ کامل را).
+    const clarifyState = unclear
+      ? { round: round + 1, last: text.slice(0, 200) }
+      : reply.listQuery
+        ? { round: 0, listQuery: reply.listQuery }
+        : null;
     await this.db.telegramConversation.update({
       where: { id: conversation.id },
-      data: { clarify: unclear ? { round: round + 1, last: text.slice(0, 200) } : Prisma.DbNull },
+      data: { clarify: clarifyState ?? Prisma.DbNull },
     });
 
     let replies = 0;
@@ -377,6 +407,17 @@ export class TelegramService {
     return products.length > 500 ? products.slice(0, 500) : products;
   }
 
+  /** چند پیام آخر گفتگو، برای زمینه‌ی مدل زبانی. */
+  private async recentMessages(shopId: string, chatId: string, take: number) {
+    const rows = await this.db.chatMessage.findMany({
+      where: { shopId, chatId },
+      orderBy: { createdAt: 'desc' },
+      take,
+      select: { direction: true, text: true },
+    });
+    return rows.reverse().map(row => ({ direction: row.direction === 'in' ? 'in' as const : 'out' as const, text: row.text }));
+  }
+
   // ------------------------------------------------------------- دکمه‌های inline
   private async handleCallback(callback: IncomingCallback): Promise<HandleResult> {
     const chatId = String(callback.message?.chat.id ?? callback.from.id);
@@ -390,6 +431,25 @@ export class TelegramService {
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
     }
     await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { lastSeenAt: new Date() } });
+
+    // صفحه‌بندی فهرست محصولات: دکمه‌ی «بعدی»/«قبلی».
+    // فهرست از روی همان پرسشی بازسازی می‌شود که صفحه‌ی قبلی را ساخته بود.
+    if (data.startsWith('pg:')) {
+      const page = Math.max(0, Number.parseInt(data.slice(3), 10) || 0);
+      const state = (conversation.clarify ?? {}) as { listQuery?: string };
+      const query = (state.listQuery ?? '').trim();
+      const products = await this.catalog(conversation.shopId);
+      const discovery = query ? discover(query, products) : ({ kind: 'none' } as const);
+      const list = discovery.kind === 'many'
+        ? discovery.products
+        : discovery.kind === 'single'
+          ? [discovery.product]
+          : products;
+      const reply = clarifyProducts(list, query || 'کاتالوگ فروشگاه', page);
+      const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons, reply.parseMode)) ? 1 : 0;
+      this.audit.record({ action: 'telegram.list_page', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { page, query } });
+      return { status: 'handled', replies, kind: 'list_page' };
+    }
 
     // دکمه‌های «منظورتان کدام است؟»
     if (data.startsWith('cl:')) {

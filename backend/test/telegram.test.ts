@@ -79,11 +79,12 @@ before(async () => {
   const { TelegramService } = await import('../src/telegram/telegram.service');
   const { OrdersService } = await import('../src/orders/orders.service');
   const { PaymentsService } = await import('../src/payments/payments.service');
+  const { AiService } = await import('../src/ai/ai.service');
   // AuditService واقعی ولی بدون دیتابیس‌زدنِ اضافی: همان نسخه‌ای که در برنامه است
   const { AuditService } = await import('../src/logging/audit.service');
   const audit = new AuditService(prisma as never, false);
   // چرخه‌ی بات/سفارش در تست: اول بات با جای خالی، بعد سفارش، بعد وصل‌کردن.
-  telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never);
+  telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never, new AiService());
   const orders = new OrdersService(prisma as never, audit, telegram);
   payments = new PaymentsService(orders);
   Object.assign(telegram as unknown as Record<string, unknown>, { orders, payments });
@@ -200,7 +201,8 @@ describe('channel webhook registration', () => {
   it('سرور خودش webhook را ثبت می‌کند و سکرت در پاسخ لو نمی‌رود', async () => {
     const { ChannelController } = await import('../src/telegram/channel.controller');
     const { TelegramService } = await import('../src/telegram/telegram.service');
-    const controller = new ChannelController(db, new TelegramService(db, audit), audit);
+    const { AiService } = await import('../src/ai/ai.service');
+    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService()), audit);
     reset();
     const result = await controller.registerWebhook({
       host: 'forooshyar-api.onrender.com',
@@ -229,7 +231,8 @@ describe('channel webhook registration', () => {
   it('آدرس http رد می‌شود (تلگرام فقط https می‌پذیرد)', async () => {
     const { ChannelController } = await import('../src/telegram/channel.controller');
     const { TelegramService } = await import('../src/telegram/telegram.service');
-    const controller = new ChannelController(db, new TelegramService(db, audit), audit);
+    const { AiService } = await import('../src/ai/ai.service');
+    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService()), audit);
     const previous = process.env.PUBLIC_API_URL;
     process.env.PUBLIC_API_URL = 'http://insecure.local';
     try {
@@ -271,7 +274,7 @@ describe('رفع ابهام و انتخاب محصول در بات', () => {
     assert.equal(result.status === 'handled' && result.kind, 'clarify');
 
     const [message] = sends('9101');
-    assert.match(String(message.body.text), /بیش از یک محصول/);
+    assert.match(String(message.body.text), /مرتبط پیدا شد/);
     const markup = message.body.reply_markup as { inline_keyboard: { text: string; callback_data: string }[][] };
     const buttons = markup.inline_keyboard.flat();
     assert.equal(buttons.length, 2);

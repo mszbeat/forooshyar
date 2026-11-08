@@ -17,6 +17,13 @@ export type BotReply = {
   reason?: string;
   /** 'HTML' یعنی متن با تگ‌های تلگرام قالب‌بندی شده و مقادیر کاربر escape شده‌اند. */
   parseMode?: 'HTML';
+  /**
+   * پرسشی که این پیام بر اساس آن ساخته شده. سرویس آن را در وضعیت گفتگو ذخیره
+   * می‌کند تا دکمه‌های «بعدی/قبلی» بتوانند همان فهرست را دوباره بسازند.
+   */
+  listQuery?: string;
+  /** لیست صفحه‌بندی‌شده: فقط محصولات این صفحه. */
+  pageInfo?: { page: number; pages: number; total: number };
 };
 
 export type BrainShop = FreshShop & { name: string; returns?: string };
@@ -33,7 +40,7 @@ function productLine(product: CatalogProduct, index: number): string {
   const price = cheapest ? `از ${toman(cheapest.price)}` : 'قیمت ثبت نشده';
   const stock = inStock.length > 0 ? `${inStock.length.toLocaleString('fa-IR')} سایز/رنگ موجود` : 'ناموجود';
   return [
-    `${NUMERALS[index] ?? `${index + 1}.`} <b>${escapeHtml(product.title)}</b>`,
+    `${numeral(index)} <b>${escapeHtml(product.title)}</b>`,
     `    💰 ${price} · 📦 ${stock}`,
     `    🏷 <code>${productCodeOf(product)}</code>`,
   ].join('\n');
@@ -46,15 +53,27 @@ function productLine(product: CatalogProduct, index: number): string {
  * حتی «کت پشمی» و «کت چرم» شبیه هم دیده می‌شدند). یک ردیف تمام‌عرض، عنوان کامل
  * و شماره‌ی همان ردیف فهرست را نشان می‌دهد.
  */
-export function productButtons(products: CatalogProduct[]): BotButton[][] {
-  return products.slice(0, 6).map((product, index) => [{
-    text: `${NUMERALS[index] ?? `${index + 1}.`} ${product.title} · ${productCodeOf(product)}`,
+export function productButtons(products: CatalogProduct[], offset = 0): BotButton[][] {
+  return products.slice(0, PAGE_SIZE).map((product, index) => [{
+    text: `${numeral(offset + index)} ${product.title} · ${productCodeOf(product)}`,
     data: `p:${product.id}`,
   }]);
 }
 
+/**
+ * چند محصول در هر صفحه.
+ *
+ * ۸ عدد تجربی است: در تلگرام دسکتاپ و موبایل یک اسکرول کوتاه، و برای فهرست
+ * دکمه‌های تمام‌عرض بدون اینکه بقیه‌ی گفتگو را از دید خارج کند.
+ */
+export const PAGE_SIZE = 8;
+
 /** شماره‌های فارسی برای هم‌خوانی دکمه‌ها با فهرست متن. */
-const NUMERALS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
+const NUMERALS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣'];
+
+function numeral(index: number): string {
+  return NUMERALS[index] ?? `${(index + 1).toLocaleString('fa-IR')}.`;
+}
 
 /** دکمه‌های «ثبت سفارش» برای سایز/رنگ‌های موجود. */
 export function orderButtons(product: CatalogProduct): BotButton[][] {
@@ -131,20 +150,51 @@ export function describeProduct(product: CatalogProduct, query: string): BotRepl
   };
 }
 
-/** پیام رفع ابهام: چند محصول نامزد + راهنمای کد. */
-export function clarifyProducts(products: CatalogProduct[], query: string): BotReply {
+/**
+ * فهرست محصولات نامزد، صفحه‌به‌صفحه.
+ *
+ * چرا صفحه‌بندی: قبلاً فقط ۶ محصول اول فرستاده می‌شد و اگر مشتری ۱۰ کفش داشت،
+ * بقیه عملاً از دسترس خارج می‌شدند. حالا همه‌ی نامزدها با ۸ مورد در هر صفحه
+ * می‌آیند و دکمه‌ی «بعدی/قبلی» کاربر را به بقیه می‌رساند.
+ */
+export function clarifyProducts(products: CatalogProduct[], query: string, page = 0): BotReply {
+  const pages = Math.max(1, Math.ceil(products.length / PAGE_SIZE));
+  const current = Math.min(Math.max(page, 0), pages - 1);
+  const offset = current * PAGE_SIZE;
+  const slice = products.slice(offset, offset + PAGE_SIZE);
+
+  const header = [
+    `🔎 «<i>${escapeHtml(query.trim().slice(0, 60))}</i>»`,
+    products.length > 1
+      ? `<b>${products.length.toLocaleString('fa-IR')} محصول</b> مرتبط پیدا شد.`
+      : '<b>یک محصول</b> مرتبط پیدا شد.',
+  ];
+  if (pages > 1) header.push(`صفحه‌ی ${(current + 1).toLocaleString('fa-IR')} از ${pages.toLocaleString('fa-IR')}`);
+
+  const buttons = productButtons(slice, offset);
+  if (pages > 1) {
+    const nav: BotButton[] = [];
+    if (current > 0) nav.push({ text: '◀ قبلی', data: `pg:${current - 1}` });
+    if (current < pages - 1) nav.push({ text: `بعدی ▶`, data: `pg:${current + 1}` });
+    if (nav.length) buttons.push(nav);
+  }
+
   return {
-    kind: 'clarify',
+    kind: pages > 1 || products.length > 1 ? 'clarify' : 'answer',
     reason: 'ambiguous',
     parseMode: 'HTML',
     text: [
-      `🤔 «<i>${escapeHtml(query.trim().slice(0, 60))}</i>» به بیش از یک محصول می‌خورد.`,
+      header.join('\n'),
       '',
-      products.slice(0, 6).map((product, index) => productLine(product, index)).join('\n\n'),
+      slice.map((product, index) => productLine(product, offset + index)).join('\n\n'),
       '',
-      '👇 یکی را از دکمه‌های زیر انتخاب کنید، یا نام دقیق/کد محصول را بفرستید.',
+      products.length > 1
+        ? '👇 یکی را از دکمه‌های زیر انتخاب کنید، یا نام دقیق/کد محصول را بفرستید.'
+        : '👇 برای دیدن سایز/رنگ و ثبت سفارش، دکمه‌ی زیر را بزنید.',
     ].join('\n'),
-    buttons: productButtons(products),
+    buttons,
+    listQuery: query.trim(),
+    pageInfo: { page: current, pages, total: products.length },
   };
 }
 
@@ -263,7 +313,7 @@ export function composeReply(
   text: string,
   shop: BrainShop,
   products: CatalogProduct[],
-  options: { round?: number } = {},
+  options: { round?: number; page?: number } = {},
 ): BotReply {
   const round = options.round ?? 0;
   const hits = detectIntents(text);
@@ -284,7 +334,7 @@ export function composeReply(
   if (intents.some(id => id === 'price' || id === 'stock' || id === 'size')) {
     const discovery = discover(text, products);
     if (discovery.kind === 'many') {
-      const reply = clarifyProducts(discovery.products, text);
+      const reply = clarifyProducts(discovery.products, text, options.page ?? 0);
       parts.push(reply.text);
       buttons = reply.buttons ?? [];
     } else if (discovery.kind === 'single') {

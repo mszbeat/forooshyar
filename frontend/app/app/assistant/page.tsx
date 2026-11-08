@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
-import { api, ApiError, type BotReply } from '@/lib/api';
+import { api, ApiError, type AiStatus, type BotReply } from '@/lib/api';
 import { faNum } from '@/lib/format';
 import { PageHeader, Spinner, useToast } from '@/components/ui';
 import { RichText } from '@/components/richtext';
 import { IconAlertCircle, IconChat, IconSend, IconSettings, IconShield, IconSparkles } from '@/components/icons';
 
-type Message = { id: number; role: 'customer' | 'bot'; text: string; kind?: BotReply['kind'] };
+type Message = { id: number; role: 'customer' | 'bot'; text: string; kind?: BotReply['kind']; source?: 'rules' | 'ai' };
 
 const SUGGESTIONS = [
   'سلام',
@@ -34,6 +34,7 @@ export default function AssistantPage() {
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [stats, setStats] = useState({ products: 0, variants: 0 });
+  const [ai, setAi] = useState<AiStatus | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const counter = useRef(0);
 
@@ -44,6 +45,7 @@ export default function AssistantPage() {
         variants: list.flatMap(product => product.variants).filter(variant => variant.active).length,
       }))
       .catch(() => { /* the panel still works without the counter */ });
+    api.botAi().then(setAi).catch(() => setAi(null));
   }, []);
 
   useEffect(() => {
@@ -60,7 +62,7 @@ export default function AssistantPage() {
     setBusy(true);
     try {
       const reply = await api.botPreview(text);
-      setMessages(previous => [...previous, { id: id + 1000, role: 'bot', text: reply.text, kind: reply.kind }]);
+      setMessages(previous => [...previous, { id: id + 1000, role: 'bot', text: reply.text, kind: reply.kind, source: reply.source }]);
       window.localStorage.setItem('forooshyar.botTested', '1');
     } catch (problem) {
       const message = problem instanceof ApiError ? problem.message : 'ارتباط با سرور برقرار نشد.';
@@ -90,15 +92,27 @@ export default function AssistantPage() {
                 <div className="card-desc">مشتری فرضی · بدون کانال متصل</div>
               </div>
             </div>
-            <span className="badge b-brand"><span className="dot" />آزمایشی</span>
+            <div className="row" style={{ gap: 8 }}>
+              {ai && (
+                <span
+                  className={`badge ${ai.ready ? 'b-green' : 'b-gray'}`}
+                  title={ai.ready ? `پاسخ‌های نامفهوم را ${ai.model} کامل می‌کند` : 'بات فقط با موتور قاعده‌محور و کاتالوگ جواب می‌دهد.'}
+                >
+                  <span className="dot" />
+                  {ai.ready ? `هوش مصنوعی: ${ai.model}` : 'هوش مصنوعی: خاموش'}
+                </span>
+              )}
+              <span className="badge b-brand"><span className="dot" />آزمایشی</span>
+            </div>
           </div>
 
           <div className="chat" ref={scroller}>
             {messages.map(message => (
               <div key={message.id} className={`bubble ${message.role === 'customer' ? 'bubble-out' : 'bubble-in'}`}>
                 {message.role === 'bot' && message.kind && (
-                  <div style={{ marginBottom: 6 }}>
+                  <div style={{ marginBottom: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <span className={`badge ${KIND_LABEL[message.kind].tone}`}>{KIND_LABEL[message.kind].text}</span>
+                    {message.source === 'ai' && <span className="badge b-blue">پاسخ مدل زبانی</span>}
                   </div>
                 )}
                 {message.role === 'bot' ? <RichText text={message.text} /> : <div>{message.text}</div>}

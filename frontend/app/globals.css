@@ -257,7 +257,177 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 }
 .topbar-title { font-size: var(--fs-md); font-weight: 700; letter-spacing: -0.01em; }
 .topbar-sub { font-size: var(--fs-xs); color: var(--ink-3); margin-top: -2px; }
-.topbar-actions { margin-inline-start: auto; display: flex; align-items: center; gap: var(--sp-2); }
+.topbar-actions { margin-inline-start: auto; display: flex; align-items: center; gap: 10px; }
+
+/* بلوک کاربر: آواتار و دو خط متن، همه با یک خط مبنا ---------------------- */
+.topbar-heading { min-width: 0; }
+.topbar-divider { width: 1px; height: 26px; background: var(--line); margin-inline: 2px; }
+.topbar .topbar-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px 5px 6px;
+  border-radius: var(--r-full);
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.16s var(--ease), border-color 0.16s var(--ease);
+}
+.topbar .topbar-user:hover { background: var(--surface-2); border-color: var(--line); }
+.topbar .topbar-user .avatar { width: 32px; height: 32px; border-radius: 10px; }
+.topbar-user-text { display: grid; gap: 1px; text-align: start; line-height: 1.35; }
+.topbar-user-name {
+  font-size: 12.5px; font-weight: 600; color: var(--ink);
+  max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.topbar-user-role { font-size: 10.5px; color: var(--ink-3); }
+.topbar-user-exit { color: var(--ink-3); opacity: 0; transition: opacity 0.16s var(--ease); margin-inline-start: -2px; }
+.topbar .topbar-user:hover .topbar-user-exit { opacity: 1; }
+
+/* زنگ اعلان‌ها ------------------------------------------------------------ */
+.notif { position: relative; }
+.notif-btn { position: relative; }
+.notif-btn.on { background: var(--surface-2); border-color: var(--line-strong); }
+.notif-dot {
+  position: absolute;
+  top: -5px;
+  /* نشان روی گوشه‌ی «شروع» می‌نشیند تا در RTL کنار زنگ بماند و از لبه‌ی صفحه بیرون نزند. */
+  inset-inline-start: -5px;
+  min-width: 17px; height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger, #c0392b);
+  color: #fff;
+  font-size: 10px; font-weight: 700; line-height: 17px;
+  text-align: center;
+  border: 2px solid var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.notif-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 10px);
+  width: min(370px, calc(100vw - 28px));
+  background: var(--surface, #fff);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md, 16px);
+  box-shadow: 0 26px 54px -26px rgba(23, 17, 38, 0.4), 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  z-index: 60;
+  overflow: hidden;
+  animation: notifIn 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes notifIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+.notif-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 13px 15px 11px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+}
+.notif-title { font-size: 13.5px; font-weight: 700; }
+.notif-sub { font-size: 11px; color: var(--ink-3); margin-top: 1px; }
+.notif-tools { display: flex; gap: 2px; }
+.notif-body { max-height: min(62vh, 420px); overflow-y: auto; overscroll-behavior: contain; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 12px 15px;
+  text-decoration: none; color: inherit;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  transition: background 0.14s var(--ease);
+}
+.notif-item:last-child { border-bottom: 0; }
+.notif-item:hover { background: var(--surface-2); }
+.notif-item.unread { background: color-mix(in srgb, var(--brand-50) 55%, transparent); }
+.notif-item.unread:hover { background: var(--brand-50); }
+.notif-ico {
+  flex: 0 0 auto;
+  width: 30px; height: 30px; border-radius: 9px;
+  display: grid; place-items: center;
+  background: var(--surface-3); color: var(--ink-2);
+  border: 1px solid var(--line);
+}
+.notif-ico.tone-brand { background: var(--brand-50); color: var(--brand-700); border-color: var(--brand-100); }
+.notif-ico.tone-amber { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-line); }
+.notif-ico.tone-danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-line); }
+.notif-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.notif-item-title { font-size: 12.5px; font-weight: 600; }
+.notif-item-body {
+  font-size: 11.5px; color: var(--ink-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; line-height: 1.7;
+}
+.notif-item-time { font-size: 10.5px; color: var(--ink-3); margin-top: 2px; }
+.notif-unread-dot {
+  flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--brand); margin-top: 6px;
+}
+.notif-empty {
+  padding: 30px 22px; text-align: center;
+  font-size: 12px; color: var(--ink-3); line-height: 2;
+}
+.notif-empty-ico {
+  display: grid; place-items: center;
+  width: 42px; height: 42px; margin: 0 auto 10px;
+  border-radius: 12px; background: var(--surface-3); color: var(--ink-2);
+}
+.notif-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 10px 15px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.notif-link {
+  font-size: 11.5px; font-weight: 600; color: var(--brand-700);
+  background: none; border: 0; cursor: pointer; font-family: inherit; text-decoration: none;
+}
+.notif-link:disabled { color: var(--ink-3); cursor: default; }
+.notif-link:not(:disabled):hover { text-decoration: underline; }
+
+/* سرصفحه‌ی داشبورد: نام فروشگاه به‌جای ایموجی --------------------------- */
+.dash-hero { display: flex; flex-direction: column; gap: 14px; padding-bottom: 26px; margin-bottom: 26px; border-bottom: 1px solid var(--line); }
+.dash-overline {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11.5px; font-weight: 700; color: var(--brand-700);
+  letter-spacing: 0.02em;
+}
+.dash-overline::before {
+  content: ''; width: 18px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--brand), var(--saffron));
+}
+.dash-greet { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.dash-greet-hi {
+  font-size: var(--fs-base); font-weight: 500; color: var(--ink-3);
+  letter-spacing: -0.01em;
+}
+.dash-greet-name {
+  display: inline-flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  font-size: clamp(27px, 3vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.22;
+  color: var(--ink);
+}
+.dash-greet-name .swash {
+  display: inline-block;
+  width: 34px; height: 34px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, var(--brand-100), var(--brand-50));
+  border: 1px solid var(--brand-100);
+  color: var(--brand-700);
+  font-size: 15px; font-weight: 800;
+  letter-spacing: 0;
+  display: grid; place-items: center;
+  align-self: center;
+  box-shadow: 0 8px 18px -12px var(--brand);
+}
+.dash-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--ink-3); }
+.dash-meta .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--line-strong); }
+.dash-actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-self: flex-start; }
+
 
 .page { padding: var(--sp-8) var(--sp-6) var(--sp-12); max-width: var(--container); width: 100%; margin: 0 auto; }
 .page-tight { padding: var(--sp-6); }
@@ -694,7 +864,6 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .w-full { width: 100%; }
 .nowrap { white-space: nowrap; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hide-sm { display: initial; }
 
 /* 6. Motion ----------------------------------------------------------------- */
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
@@ -734,6 +903,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   .topbar { padding: 0 var(--sp-4); }
   .page, .page-tight { padding: var(--sp-5) var(--sp-4) var(--sp-10); }
   .hide-sm { display: none; }
+  /* دکمه‌ی کاربر روی موبایل مخفی می‌شود (نام فروشگاه در عنوان کنار منو هست) */
+  .topbar .topbar-user { display: none; }
   .topbar > #nav-toggle { order: -2; }
   .topbar-actions { order: 2; }
   .page-head { flex-direction: column; align-items: flex-start; }
