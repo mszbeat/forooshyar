@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, type AttentionItem, type Summary } from '@/lib/api';
 import { faDate, faNum, faWeekday, relativeTime, toman, tomanShort, variantLabel } from '@/lib/format';
-import { EmptyState, PageHeader, SkeletonBlock, SkeletonRows, StatCard, useToast } from '@/components/ui';
+import { EmptyState, SkeletonBlock, SkeletonRows, StatCard, useToast } from '@/components/ui';
 import {
   IconAlert, IconArrowLeft, IconBolt, IconBox, IconCheckCircle, IconClock,
   IconMoney, IconPackage, IconPlus, IconSparkles, IconTrendUp, IconUpload, IconWallet,
@@ -86,23 +86,35 @@ export default function DashboardPage() {
 
   return (
     <div className="stack">
-      <PageHeader
-        eyebrow="داشبورد"
-        title={`سلام${shop?.name ? `، ${shop.name}` : ''} 👋`}
-        description={`${faWeekday(new Date())} ${faDate(new Date())} — این خلاصهٔ امروز فروشگاه شماست.`}
-        actions={
-          <>
-            <Link href="/app/import" className="btn btn-outline">
-              <IconUpload size={16} />
-              ورود کاتالوگ
-            </Link>
-            <Link href="/app/products?new=1" className="btn btn-primary">
-              <IconPlus size={16} />
-              محصول جدید
-            </Link>
-          </>
-        }
-      />
+      <div className="dash-hero">
+        <div>
+          <span className="dash-overline">داشبورد فروشگاه</span>
+        </div>
+        <h1 className="dash-greet">
+          <span className="dash-greet-hi">خوش آمدید</span>
+          <span className="dash-greet-name">
+            {shop?.name ?? 'فروشگاه شما'}
+            <span className="swash" aria-hidden="true">{(shop?.name ?? 'ف').trim().charAt(0)}</span>
+          </span>
+        </h1>
+        <div className="dash-meta">
+          <span>{faWeekday(new Date())}</span>
+          <span className="sep" aria-hidden="true" />
+          <span>{faDate(new Date())}</span>
+          <span className="sep" aria-hidden="true" />
+          <span>این خلاصهٔ امروز فروشگاه شماست.</span>
+        </div>
+        <div className="dash-actions">
+          <Link href="/app/import" className="btn btn-outline">
+            <IconUpload size={16} />
+            ورود کاتالوگ
+          </Link>
+          <Link href="/app/products?new=1" className="btn btn-primary">
+            <IconPlus size={16} />
+            محصول جدید
+          </Link>
+        </div>
+      </div>
 
       {empty && (
         <div className="card card-pad">

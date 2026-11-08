@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
+import { NotificationBell } from '@/components/notifications';
 import {
-  IconBell, IconBox, IconChat, IconDashboard, IconLogo, IconLogout, IconMenu, IconWallet,
+  IconBox, IconChat, IconDashboard, IconLogo, IconLogout, IconMenu, IconWallet,
   IconSettings, IconSparkles, IconStore, IconUpload, IconUsers, IconX,
 } from '@/components/icons';
 
@@ -124,9 +125,9 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
           >
             <IconMenu size={18} />
           </button>
-          <style>{`@media (max-width: 900px){#nav-toggle{display:inline-flex !important} .sidebar .hide-sm{display:inline-flex !important} .topbar .hide-sm{display:block !important} .topbar-sub{display:none}}`}</style>
+          <style>{`@media (max-width: 900px){#nav-toggle{display:inline-flex !important} .sidebar .hide-sm{display:inline-flex !important} .topbar .topbar-heading{display:block !important} .topbar-sub{display:none}}`}</style>
 
-          <div className="hide-sm">
+          <div className="topbar-heading hide-sm">
             <div className="topbar-title" style={{ fontSize: 'var(--fs-base)', fontWeight: 600 }}>{shop?.name ?? 'فروشگاه شما'}</div>
             <div className="topbar-sub">{meta.title}</div>
           </div>
@@ -136,16 +137,21 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
               <IconSparkles size={15} />
               تست پاسخ
             </Link>
-            <button type="button" className="btn btn-outline btn-icon hide-sm" aria-label="اعلان‌ها" title="اعلان‌ها">
-              <IconBell size={17} />
-            </button>
-            <div className="row hide-sm" style={{ gap: 8, paddingInlineStart: 4 }}>
+            <NotificationBell />
+            <span className="topbar-divider hide-sm" aria-hidden="true" />
+            <button
+              type="button"
+              className="topbar-user hide-sm"
+              onClick={logout}
+              title="خروج از حساب"
+            >
               <span className="avatar avatar-brand">{(shop?.name ?? 'ف').trim().charAt(0)}</span>
-              <div style={{ lineHeight: 1.4 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{shop?.name ?? 'فروشگاه'}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>مالک فروشگاه</div>
-              </div>
-            </div>
+              <span className="topbar-user-text">
+                <span className="topbar-user-name">{shop?.name ?? 'فروشگاه شما'}</span>
+                <span className="topbar-user-role">مالک فروشگاه</span>
+              </span>
+              <IconLogout size={15} className="topbar-user-exit" />
+            </button>
           </div>
         </header>
 

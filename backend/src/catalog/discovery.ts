@@ -42,6 +42,12 @@ const STOPWORDS = new Set([
   'ارسال', 'پست', 'پیک', 'تحویل', 'پرداخت', 'درگاه', 'کارت',
   'سلام', 'درود', 'وقت', 'بخیر', 'خسته', 'نباشید', 'ممنون', 'مرسی',
   'ها', 'های', 'سفارشت', 'سفارشش',
+  // کلمات پرسشی/زمانی که هیچ محصولی را توصیف نمی‌کنند
+  'روز', 'روزه', 'روزست', 'چندم', 'کی', 'زمان', 'طول', 'میکشه', 'می‌کشه',
+  'میرسه', 'می‌رسه', 'میرسد', 'می‌رسد', 'میاد', 'می‌آید', 'میفرستید', 'می‌فرستید',
+  'بفرستید', 'بفرستین', 'می', 'شما', 'شماها', 'الان', 'الآن', 'بعد', 'قبل',
+  // عدد و واحد پول: «۶۴۰ هزار تومان» قیمت است، نه نام محصول
+  'هزار', 'میلیون', 'میلیارد', 'تخفیف', 'ارزان', 'گران', 'ارزانتر', 'گران‌تر',
 ]);
 
 /** کد کوتاه و خوانای محصول؛ جای uuid در پیام‌های تلگرام. */
@@ -58,25 +64,45 @@ function tokens(text: string): string[] {
 }
 
 function meaningful(token: string): boolean {
-  return token.length >= 2 && !STOPWORDS.has(token);
+  if (token.length < 2) return false;
+  // عدد خالص (۶۴۰ / 640) نام محصول نیست؛ اگر شمرده شود، هر جمله‌ی قیمت‌دار
+  // پوشش را پایین می‌آورد و محصول درست پیدا نمی‌شود.
+  if (/^[0-9۰-۹]+$/u.test(token)) return false;
+  return !STOPWORDS.has(token);
 }
 
 /**
- * امتیاز شباهت عنوان به پرسش: مجموع طول توکن‌های عنوانی که در پرسش آمده.
- * طول توکن وزن است تا «ابریشمی» از «کت» مهم‌تر باشد.
+ * امتیاز شباهت عنوان به پرسش.
+ *
+ * `score` مجموع طول توکن‌های مشترک است («ابریشمی» از «کت» مهم‌تر است) و
+ * `coverage` نسبت توکن‌های **پرسش** است که عنوان توضیح می‌دهد.
+ *
+ * چرا پوشش را از سمت پرسش می‌گیریم: قبلاً از سمت عنوان بود و «قیمت کفش» با
+ * عنوان «کفش راحتی چرم مردانه» (۱ از ۴ = ۰٫۲۵) زیر آستانه می‌افتاد و بات
+ * می‌گفت «کدام محصول؟» — در حالی که مشتری دقیقاً گفته بود کدام دسته را
+ * می‌خواهد. حالا هر محصولی که کل پرسش را توضیح دهد نامزد است.
  */
-function score(queryTokens: Set<string>, title: string): { score: number; coverage: number } {
+function score(queryTokens: string[], query: Set<string>, title: string): { score: number; coverage: number; titleCoverage: number } {
   const titleTokens = tokens(title).filter(meaningful);
-  if (titleTokens.length === 0) return { score: 0, coverage: 0 };
+  if (titleTokens.length === 0) return { score: 0, coverage: 0, titleCoverage: 0 };
   let matched = 0;
   let matchedLength = 0;
+  let queryLength = 0;
   for (const token of titleTokens) {
-    if (queryTokens.has(token)) {
+    if (query.has(token)) {
       matched += 1;
       matchedLength += token.length;
     }
   }
-  return { score: matchedLength, coverage: matched / titleTokens.length };
+  for (const token of queryTokens) queryLength += token.length;
+  return {
+    score: matchedLength,
+    // پوشش بر اساس **وزن حروف** است، نه تعداد توکن: «مانتو کتان» (۹ حرف)
+    // در برابر «روزه» (۴ حرف) وزن بیشتری دارد، پس یک کلمه‌ی نامربوط کوتاه
+    // جمله را از دامنه‌ی محصول بیرون نمی‌اندازد.
+    coverage: queryLength === 0 ? 0 : matchedLength / queryLength,
+    titleCoverage: matched / titleTokens.length,
+  };
 }
 
 /** آیا جمله‌ی مشتری درباره‌ی یک محصول است (نه ارسال/ساعت کاری/سلام)؟ */
@@ -89,11 +115,18 @@ export function looksLikeProductQuestion(text: string): boolean {
 const INTENTS_OTHER = /(ارسال|پست|پیک|تحویل|ساعت کاری|ساعت کار|کی باز|کی بسته|پرداخت|کارت به کارت|درگاه)/u;
 
 /**
- * حداقل نسبت توکن‌های عنوان که باید در پرسش باشد.
- * ۰٫۳ عمدی است: «این کت چنده» باید «کت چرم مشکی» (۱ از ۳) را نامزد کند،
- * ولی «سلام» یا «ارسال چنده» نباید هیچ محصولی را نامزد کند.
+ * حداقل نسبت توکن‌های **پرسش** که عنوان باید توضیح دهد.
+ *
+ * ۰٫۵: «قیمت مانتو کتان سایز ۴۲» (سه توکن) با عنوان «مانتو کتان» (۲ از ۳)
+ * قبول است، ولی جمله‌ای که فقط نیمی از حرفش درباره‌ی محصول است محصول نامزد
+ * نمی‌کند. «سلام» و «ارسال چنده» هم چون توکن معناداری ندارند به اینجا نمی‌رسند.
  */
-const MIN_COVERAGE = 0.3;
+const MIN_COVERAGE = 0.5;
+
+/** ۱ اگر حداقل یک سایز/رنگ موجود باشد، وگرنه ۰ — فقط برای ترتیب نمایش. */
+function availability(product: CatalogProduct): number {
+  return product.variants.some(variant => variant.stock > 0) ? 1 : 0;
+}
 
 /**
  * محصول(های) نامزد برای یک پرسش.
@@ -103,25 +136,38 @@ const MIN_COVERAGE = 0.3;
  *    «این کت چنده» محصول «کت چرم مشکی» را نامزد بداند.
  *  - اگر دو نامزد با پوشش نزدیک باشند، تصمیم با کاربر است (kind: 'many').
  */
-export function discover(text: string, products: CatalogProduct[], limit = 6): Discovery {
+export function discover(text: string, products: CatalogProduct[], limit = 200): Discovery {
   const q = normalizePersian(text);
   if (!q) return { kind: 'none' };
 
   const byCode = matchCode(text, products);
   if (byCode) return { kind: 'single', product: byCode };
 
-  const queryTokens = new Set(tokens(text).filter(meaningful));
+  const queryList = tokens(text).filter(meaningful);
+  const queryTokens = new Set(queryList);
   if (queryTokens.size === 0) return { kind: 'none' };
 
   const scored = products
-    .map(product => ({ product, ...score(queryTokens, product.title) }))
+    .map(product => ({ product, ...score(queryList, queryTokens, product.title) }))
     .filter(entry => entry.score > 0 && entry.coverage >= MIN_COVERAGE)
-    .sort((a, b) => b.score - a.score || b.coverage - a.coverage);
+    .sort((a, b) =>
+      b.coverage - a.coverage
+      // در فهرست، محصول موجود بالاتر می‌آید تا مشتری اول گزینه‌ی قابل‌خرید را ببیند.
+      || availability(b.product) - availability(a.product)
+      || b.score - a.score
+      || b.titleCoverage - a.titleCoverage
+      || a.product.title.localeCompare(b.product.title, 'fa'));
 
   if (scored.length === 0) return { kind: 'none' };
+  // یک نامزد یکتا که **همه‌ی** حرف مشتری را توضیح می‌دهد → همان محصول.
   if (scored.length === 1) return { kind: 'single', product: scored[0].product };
+  if (scored[0].coverage === 1 && scored[0].coverage > scored[1].coverage) {
+    return { kind: 'single', product: scored[0].product };
+  }
 
-  // دو محصول با یک نام: تصمیم را به کاربر بده، نه به ضریب حدسی.
+  // چند محصول هم‌ارز («قیمت کفش» با سه کفش): تصمیم را به کاربر بده.
+  // سقف بالا است چون رابط کاربری خودش صفحه‌بندی می‌کند (۸ مورد در هر صفحه)؛
+  // قبلاً ۶ مورد بریده می‌شد و بقیه‌ی محصولات مشتری هرگز دیده نمی‌شد.
   return { kind: 'many', products: scored.slice(0, limit).map(entry => entry.product) };
 }
 

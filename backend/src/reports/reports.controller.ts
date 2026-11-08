@@ -12,4 +12,7 @@ export class ReportsController {
   @Get('attention') attention(@Req() req: { principal: Principal }) {
     return this.reports.attention(req.principal.shopId);
   }
+  @Get('notifications') notifications(@Req() req: { principal: Principal }) {
+    return this.reports.notifications(req.principal.shopId);
+  }
 }

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { OrderStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -74,6 +75,87 @@ export class ReportsService {
         variant: { select: { id: true, size: true, color: true, price: true, product: { select: { id: true, title: true } } } },
       },
     });
+  }
+
+
+  /**
+   * اعلان‌های پنل (زنگ بالای صفحه).
+   *
+   * همه از دیتابیس ساخته می‌شوند — هیچ اعلان نمایشی/ساختگی وجود ندارد:
+   *  - سفارش در انتظار پرداخت یا پرداخت‌شده‌ی تازه
+   *  - آخرین پیامِ هر گفتگو اگر از سمت مشتری باشد (یعنی فروشنده جواب نداده)
+   *  - موجودی تمام‌شده یا رو به اتمام
+   */
+  async notifications(shopId: string, take = 12) {
+    const now = new Date();
+    const since = new Date(now.getTime() - 14 * DAY);
+
+    const [orders, conversations, lowStock] = await Promise.all([
+      this.db.order.findMany({
+        where: { shopId, status: { in: [OrderStatus.AWAITING_PAYMENT, OrderStatus.PAID] } },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        select: { id: true, code: true, total: true, status: true, customerName: true, createdAt: true },
+      }),
+      this.db.chatMessage.findMany({
+        where: { shopId, createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        take: 60,
+        select: { id: true, chatId: true, direction: true, text: true, createdAt: true },
+      }),
+      this.attention(shopId, 5),
+    ]);
+
+    type Item = {
+      id: string; kind: 'order' | 'message' | 'stock';
+      title: string; body: string; at: string; href: string; tone: 'brand' | 'amber' | 'danger';
+    };
+    const items: Item[] = [];
+
+    for (const order of orders) {
+      const awaiting = order.status === OrderStatus.AWAITING_PAYMENT;
+      items.push({
+        id: `order:${order.id}`,
+        kind: 'order',
+        title: awaiting ? `سفارش ${order.code} منتظر پرداخت است` : `پرداخت سفارش ${order.code} انجام شد`,
+        body: `${order.customerName || 'مشتری'} · ${order.total.toLocaleString('fa-IR')} تومان`,
+        at: order.createdAt.toISOString(),
+        href: '/app/orders',
+        tone: awaiting ? 'amber' : 'brand',
+      });
+    }
+
+    // فقط **آخرین** پیام هر گفتگو مهم است؛ اگر مشتری جواب نگرفته، اعلان می‌شود.
+    const seen = new Set<string>();
+    for (const message of conversations) {
+      if (seen.has(message.chatId)) continue;
+      seen.add(message.chatId);
+      if (message.direction !== 'in') continue;
+      items.push({
+        id: `msg:${message.id}`,
+        kind: 'message',
+        title: 'پیام بی‌پاسخ مشتری',
+        body: message.text.slice(0, 90),
+        at: message.createdAt.toISOString(),
+        href: '/app/orders',
+        tone: 'brand',
+      });
+    }
+
+    for (const variant of lowStock) {
+      items.push({
+        id: `stock:${variant.id}`,
+        kind: 'stock',
+        title: variant.stock === 0 ? 'موجودی تمام شد' : `فقط ${variant.stock.toLocaleString('fa-IR')} عدد مانده`,
+        body: [variant.product.title, variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join(' · '),
+        at: variant.stockUpdatedAt.toISOString(),
+        href: '/app/products',
+        tone: variant.stock === 0 ? 'danger' : 'amber',
+      });
+    }
+
+    items.sort((a, b) => (a.at < b.at ? 1 : -1));
+    return { items: items.slice(0, take), total: items.length, generatedAt: now.toISOString() };
   }
 
   /** Variants that need attention: out of stock, running low or stale. */

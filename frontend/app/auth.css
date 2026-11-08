@@ -1,0 +1,383 @@
+/* ===========================================================================
+   صفحه‌ی ورود و ثبت‌نام — دو نیمه‌ی متقارن با گذار متحرک
+   ---------------------------------------------------------------------------
+   ایده: یک صفحه‌ی تقسیم‌شده که نیمه‌ی فرم و نیمه‌ی «روایت برند» جای خود را
+   عوض می‌کنند. فرم ورود در سمت راست است؛ با زدن ثبت‌نام همه‌ی فرم به سمت چپ
+   می‌رود و پنل طراحی به سمت راست می‌آید (و برعکس). حرکت با transform انجام
+   می‌شود تا روی موبایل هم نرم باشد.
+   ========================================================================== */
+
+.authx {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: var(--paper, #faf7f2);
+  isolation: isolate;
+}
+
+/* رنگ پس‌زمینه‌ی نیمه‌ی فرم: بافت کاغذی خیلی ملایم */
+.authx-form-side::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(680px 420px at 82% 8%, rgba(75, 46, 204, 0.05), transparent 70%),
+    radial-gradient(560px 380px at 10% 92%, rgba(227, 154, 45, 0.06), transparent 70%);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------ نیمه‌ی فرم */
+.authx-form-side {
+  position: relative;
+  grid-column: 1;
+  display: grid;
+  place-items: center;
+  padding: 40px 28px;
+  transition: transform 0.82s cubic-bezier(0.76, 0, 0.24, 1);
+  will-change: transform;
+}
+
+.authx-form-card {
+  width: min(430px, 100%);
+  position: relative;
+  z-index: 1;
+}
+
+/* ------------------------------------------------------------ پنل طراحی */
+.authx-visual {
+  position: absolute;
+  z-index: 2;
+  inset-block: 14px;
+  inset-inline-end: 14px;
+  width: calc(50% - 28px);
+  border-radius: 30px;
+  overflow: hidden;
+  color: #f4f0ea;
+  background:
+    radial-gradient(120% 90% at 88% 4%, rgba(227, 154, 45, 0.22), transparent 55%),
+    radial-gradient(120% 80% at 6% 96%, rgba(75, 46, 204, 0.55), transparent 60%),
+    linear-gradient(160deg, #1d1533 0%, #171126 46%, #120e1e 100%);
+  box-shadow: 0 34px 70px -34px rgba(23, 17, 38, 0.65), 0 2px 0 rgba(255, 255, 255, 0.04) inset;
+  transition: transform 0.82s cubic-bezier(0.76, 0, 0.24, 1);
+  will-change: transform;
+}
+
+/* دانه‌ی ریز روی پنل تا تیره‌ی تخت و «دیجیتالی» به‌نظر نرسد */
+.authx-visual::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.13'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* هاله‌ی نور که آرام نفس می‌کشد */
+.authx-glow {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  filter: blur(10px);
+  background: radial-gradient(circle, rgba(139, 108, 255, 0.42), transparent 62%);
+  animation: authxBreath 9s ease-in-out infinite;
+  pointer-events: none;
+}
+.authx-glow.b { inset-inline-start: -140px; inset-block-start: 42%; animation-delay: -4s; opacity: 0.75; }
+
+@keyframes authxBreath {
+  0%, 100% { transform: scale(1) translateY(0); opacity: 0.85; }
+  50% { transform: scale(1.14) translateY(-16px); opacity: 0.55; }
+}
+
+.authx-visual-inner {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 26px;
+  padding: 34px 36px 30px;
+}
+
+.authx-brand { display: flex; align-items: center; gap: 11px; }
+.authx-brand .mark {
+  width: 40px; height: 40px; border-radius: 13px;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #fff;
+  backdrop-filter: blur(6px);
+}
+.authx-brand .name { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+.authx-brand .role { font-size: 11.5px; color: rgba(244, 240, 234, 0.55); margin-top: -1px; }
+
+/* روایت: تیتر بزرگ، با کلمه‌ی کلیدی رنگی */
+.authx-copy { animation: authxRise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.authx-copy .kick {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em;
+  color: #f7d9a4;
+  background: rgba(227, 154, 45, 0.14);
+  border: 1px solid rgba(227, 154, 45, 0.3);
+  border-radius: 999px; padding: 4px 12px; margin-bottom: 18px;
+}
+.authx-copy h2 {
+  font-size: clamp(23px, 2.3vw, 29px);
+  font-weight: 800;
+  line-height: 1.42;
+  letter-spacing: -0.03em;
+  color: #fdfbf7;
+}
+.authx-copy h2 em {
+  font-style: normal;
+  color: #c9b8ff;
+  position: relative;
+}
+.authx-copy h2 em::after {
+  content: '';
+  position: absolute;
+  inset-inline: -2px; bottom: 1px;
+  height: 7px;
+  background: linear-gradient(90deg, rgba(139, 108, 255, 0.42), rgba(139, 108, 255, 0));
+  border-radius: 4px;
+  z-index: -1;
+}
+.authx-copy p {
+  margin-top: 14px;
+  font-size: 13.5px;
+  line-height: 2;
+  color: rgba(244, 240, 234, 0.66);
+  max-width: 40ch;
+}
+
+/* نمونه‌ی گفتگو: دو حباب که نوبتی ظاهر می‌شوند */
+.authx-chat { display: grid; gap: 10px; margin-top: 26px; }
+.authx-bubble {
+  max-width: 88%;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  border-radius: 16px;
+  animation: authxBubble 0.62s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.authx-bubble.in {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f4f0ea;
+  border-start-start-radius: 5px;
+  animation-delay: 0.15s;
+}
+.authx-bubble.out {
+  justify-self: end;
+  background: #f5efe3;
+  color: #221a38;
+  border-start-end-radius: 5px;
+  font-weight: 600;
+  animation-delay: 0.55s;
+}
+.authx-bubble.out b { color: #4b2ecc; font-weight: 800; }
+
+/* فهرست کوتاه توانایی‌ها؛ جای خالی پایین پنل را پر می‌کند و ادعای عددی ندارد */
+.authx-feats { display: grid; gap: 12px; margin-top: 24px; }
+.authx-feat {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 12.5px; line-height: 1.8; color: rgba(244, 240, 234, 0.74);
+  animation: authxRise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.authx-feat:nth-child(2) { animation-delay: 0.08s; }
+.authx-feat:nth-child(3) { animation-delay: 0.16s; }
+.authx-feat .tick {
+  flex: 0 0 auto; width: 19px; height: 19px; margin-top: 2px;
+  border-radius: 6px; display: grid; place-items: center;
+  background: rgba(87, 211, 168, 0.14);
+  border: 1px solid rgba(87, 211, 168, 0.28);
+  color: #7fe0bd;
+}
+.authx-feat b { color: #fdfbf7; font-weight: 700; }
+
+@keyframes authxBubble {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes authxRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+.authx-foot {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11.5px; color: rgba(244, 240, 234, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+}
+.authx-foot .dot { width: 6px; height: 6px; border-radius: 50%; background: #57d3a8; box-shadow: 0 0 0 4px rgba(87, 211, 168, 0.16); }
+
+/* ------------------------------------------------------- فرم و کنترل‌ها */
+.authx-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 999px;
+  background: var(--surface-3, #efe9df);
+  border: 1px solid var(--line, #e6dfd4);
+  margin-bottom: 26px;
+}
+.authx-tabs .thumb {
+  position: absolute;
+  top: 5px; bottom: 5px;
+  width: calc(50% - 5px);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 6px 16px -8px rgba(23, 17, 38, 0.35), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  transition: transform 0.52s cubic-bezier(0.5, 1.4, 0.4, 1);
+  inset-inline-start: 5px;
+}
+.authx.register .authx-tabs .thumb { transform: translateX(-100%); }
+.authx-tabs button {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-3, #6f6683);
+  padding: 10px 8px;
+  border-radius: 999px;
+  transition: color 0.25s var(--ease, ease);
+}
+.authx-tabs button[aria-selected='true'] { color: var(--ink, #1a1526); }
+
+.authx-head h1 {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+}
+.authx-head p { margin-top: 8px; font-size: 13px; color: var(--ink-3, #6f6683); line-height: 1.9; }
+
+.authx-pane { animation: authxPane 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes authxPane {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+.authx-form { display: grid; gap: 15px; margin-top: 22px; }
+
+.authx-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap; margin-top: -3px;
+}
+.authx-check {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--ink-2, #443c57); cursor: pointer;
+}
+.authx-check input {
+  appearance: none;
+  width: 17px; height: 17px; border-radius: 5px; margin: 0;
+  border: 1.5px solid var(--line-strong, #d6ccbd);
+  background: #fff;
+  display: grid; place-items: center; cursor: pointer;
+  transition: background 0.16s, border-color 0.16s;
+}
+.authx-check input:checked { background: var(--brand, #4b2ecc); border-color: var(--brand, #4b2ecc); }
+.authx-check input:checked::after {
+  content: '';
+  width: 9px; height: 5px;
+  border-inline-start: 2px solid #fff; border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+.authx-link {
+  font-size: 12.5px; font-weight: 600; color: var(--brand-700, #3a22a3);
+  background: none; border: 0; cursor: pointer; text-decoration: none; font-family: inherit;
+}
+.authx-link:hover { text-decoration: underline; }
+
+.authx-submit { margin-top: 4px; }
+
+.authx-note {
+  margin-top: 18px;
+  font-size: 11.5px;
+  line-height: 1.9;
+  color: var(--ink-3, #6f6683);
+  text-align: center;
+}
+.authx-demo {
+  margin-top: 16px;
+  justify-content: center;
+  border: 1px dashed var(--line-strong, #d6ccbd);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: var(--ink-2, #443c57);
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+}
+.authx-demo code {
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  direction: ltr;
+  background: var(--surface-3, #efe9df);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.authx-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--ink-3, #6f6683); text-decoration: none;
+  margin-top: 22px;
+}
+.authx-back:hover { color: var(--ink, #1a1526); }
+
+/* --------------------------------------------------------- گذار و تقارن */
+/* ثبت‌نام: پنل طراحی به سمت راست می‌رود، فرم به سمت چپ. */
+.authx.register .authx-visual { transform: translateX(calc(100% + 28px)); }
+.authx.register .authx-form-side { transform: translateX(-100%); }
+
+/* خط عمودی ظریفی که محل تقسیم را نشان می‌دهد */
+.authx-seam {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  width: 1px;
+  background: linear-gradient(to bottom, transparent, var(--line, #e6dfd4) 18%, var(--line, #e6dfd4) 82%, transparent);
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------- موبایل */
+@media (max-width: 940px) {
+  .authx { grid-template-columns: minmax(0, 1fr); }
+  .authx-seam { display: none; }
+  .authx-visual {
+    position: relative;
+    inset: auto;
+    width: auto;
+    margin: 14px 14px 0;
+    min-height: 250px;
+    transition: none;
+    transform: none !important;
+  }
+  .authx.register .authx-visual { transform: none; }
+  .authx-visual-inner { padding: 24px; gap: 18px; }
+  .authx-copy h2 { font-size: 21px; }
+  .authx-copy p, .authx-chat, .authx-feats { display: none; }
+  .authx-form-side { padding: 26px 18px 40px; transform: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .authx-visual, .authx-form-side, .authx-tabs .thumb { transition-duration: 0.01ms; }
+  .authx-glow { animation: none; }
+  .authx-copy, .authx-bubble, .authx-pane { animation-duration: 0.01ms; }
+}

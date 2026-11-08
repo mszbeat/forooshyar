@@ -63,6 +63,54 @@ describe('تشخیص محصول از حرف مشتری', () => {
     assert.equal(discover('سلام', PRODUCTS).kind, 'none');
   });
 
+  it('«قیمت کفش» همه‌ی کفش‌ها را نامزد می‌کند (باگ قدیمی: «کدام محصول؟»)', () => {
+    const shoes = [
+      { id: 'k1', title: 'کفش راحتی چرم مردانه', variants: [] },
+      { id: 'k2', title: 'کفش ورزشی زنانه', variants: [] },
+      { id: 'k3', title: 'کفش پیاده‌روی بچگانه', variants: [] },
+      { id: 'k4', title: 'مانتو کتان', variants: [] },
+    ] as never;
+    const result = discover('قیمت کفش', shoes);
+    assert.equal(result.kind, 'many');
+    if (result.kind === 'many') {
+      assert.equal(result.products.length, 3);
+      assert.ok(result.products.every(product => product.title.includes('کفش')));
+    }
+  });
+
+  it('عنوان دقیق یکتا → همان محصول', () => {
+    const shoes = [
+      { id: 'k1', title: 'کفش راحتی چرم مردانه', variants: [] },
+      { id: 'k2', title: 'کفش ورزشی زنانه', variants: [] },
+    ] as never;
+    const result = discover('قیمت کفش ورزشی زنانه چنده؟', shoes);
+    assert.equal(result.kind, 'single');
+    if (result.kind === 'single') assert.equal(result.product.title, 'کفش ورزشی زنانه');
+  });
+
+  it('صفحه‌بندی فهرست: ۸ مورد در هر صفحه و همه‌ی محصولات قابل دسترس', () => {
+    const many = Array.from({ length: 10 }, (_, index) => ({
+      id: `s${index}`, title: `کفش مدل ${index}`, variants: [],
+    })) as never;
+
+    const first = clarifyProducts(many, 'قیمت کفش', 0);
+    assert.equal(first.pageInfo?.total, 10);
+    assert.equal(first.pageInfo?.pages, 2);
+    // ۸ دکمه‌ی محصول + ردیف ناوبری
+    assert.equal((first.buttons ?? []).length, 9);
+    assert.deepEqual((first.buttons ?? []).at(-1)?.map(button => button.data), ['pg:1']);
+    assert.doesNotMatch(first.text, /قبلی/);
+
+    const second = clarifyProducts(many, 'قیمت کفش', 1);
+    assert.equal((second.buttons ?? []).length, 3, '۲ محصول + ردیف ناوبری');
+    assert.deepEqual((second.buttons ?? []).at(-1)?.map(button => button.data), ['pg:0']);
+    assert.match(second.text, /صفحه‌ی ۲ از ۲/);
+
+    // شماره‌گذاری پیوسته است تا مشتری بداند مورد نهم ادامه‌ی همان فهرست است.
+    assert.match(second.text, /۹\. <b>کفش مدل 8<\/b>/);
+    assert.match(second.text, /۱۰\. <b>کفش مدل 9<\/b>/);
+  });
+
   it('تشخیص «سؤال محصولی» درست کار می‌کند', () => {
     assert.equal(looksLikeProductQuestion('این کت چنده'), true);
     assert.equal(looksLikeProductQuestion('سلام خوبید'), false);

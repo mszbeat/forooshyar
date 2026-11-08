@@ -48,6 +48,16 @@ export type Summary = {
   };
   recent: Movement[];
 };
+export type NotificationItem = {
+  id: string;
+  kind: 'order' | 'message' | 'stock' | 'system';
+  title: string;
+  body: string;
+  at: string;
+  href: string;
+  tone: 'brand' | 'amber' | 'danger';
+};
+export type Notifications = { items: NotificationItem[]; total: number; generatedAt: string };
 export type AttentionItem = {
   id: string; size: string; color: string; price: number; stock: number;
   stockUpdatedAt: string; severity: 'out' | 'low' | 'stale';
@@ -57,7 +67,20 @@ export type ImportResult = {
   imported: number; failed: number;
   results: { row: number; status: string; errors?: string[] }[];
 };
-export type BotReply = { kind: 'answer' | 'clarify' | 'handoff'; text: string };
+export type BotReply = {
+  kind: 'answer' | 'clarify' | 'handoff';
+  text: string;
+  reason?: string;
+  /** 'ai' یعنی پاسخ از مدل زبانی آمده، نه از موتور قاعده‌محور. */
+  source?: 'rules' | 'ai';
+};
+export type AiStatus = {
+  enabled: boolean;
+  ready: boolean;
+  model: string;
+  provider: string;
+  reason: string;
+};
 export type TelegramWebhook = {
   /** آیا تلگرام آدرسی برای این بات ثبت کرده است */
   registered: boolean;
@@ -221,6 +244,7 @@ export const api = {
   },
 
   botPreview: (message: string) => request<BotReply>('/bot/preview', { method: 'POST', body: { message } }),
+  botAi: () => request<AiStatus>('/bot/ai'),
 
   telegramStatus: () => request<TelegramStatus>('/channel/telegram'),
   telegramConnect: () => request<TelegramStatus>('/channel/telegram/connect', { method: 'POST' }),
@@ -248,4 +272,5 @@ export const api = {
 
   summary: () => request<Summary>('/reports/summary'),
   attention: () => request<AttentionItem[]>('/reports/attention'),
+  notifications: () => request<Notifications>('/reports/notifications'),
 };
