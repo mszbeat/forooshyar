@@ -5,7 +5,8 @@ import { AuditService } from '../logging/audit.service';
 import { type CatalogProduct } from '../catalog/discovery';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
-import { type BotButton, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
+import { type BotButton, answerIntent, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
+import { MAX_CLARIFY_ROUNDS, type IntentId } from './understanding';
 import { applyInput, draftTitle, escapeHtml, fullAddress, promptFor, startDraft, type OrderDraft } from './order-flow';
 import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } from './telegram.client';
 
@@ -250,7 +251,7 @@ export class TelegramService {
 
     const shop = await this.db.shop.findUniqueOrThrow({
       where: { id: conversation.shopId },
-      select: { shipping: true, payment: true, workingHours: true, handoffMessage: true, name: true },
+      select: { shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
     });
 
     await this.db.telegramConversation.update({
@@ -272,7 +273,17 @@ export class TelegramService {
 
     const products = await this.catalog(conversation.shopId);
     const forwardSource = message ? TelegramService.forwardSource(message) : '';
-    const reply = composeReply(text, shop as BrainShop, products);
+    // چند پیام نامفهوم پشت‌سرهم؟ تا ۳ بار سؤال می‌پرسیم، بعد از آن ارجاع.
+    const round = TelegramService.clarifyRound(conversation.clarify);
+    const reply = composeReply(text, shop as BrainShop, products, { round });
+    if (process.env.DEBUG_CLARIFY) this.logger.debug(`clarify round=${round} text=${text} kind=${reply.kind} reason=${reply.reason}`);
+
+    // پاسخ روشن → شمارنده‌ی «نفهمیدم» صفر می‌شود؛ سؤال روشن‌کننده → یکی جلو.
+    const unclear = reply.kind === 'clarify' && (reply.reason ?? '').startsWith('unclear');
+    await this.db.telegramConversation.update({
+      where: { id: conversation.id },
+      data: { clarify: unclear ? { round: round + 1, last: text.slice(0, 200) } : Prisma.DbNull },
+    });
 
     let replies = 0;
     if (reply.kind === 'handoff' && /^(سفارش|خرید|میخوام بخرم|می‌خوام بخرم|سفارش بدم|می‌خوام سفارش بدم)$/u.test(text.trim()) && products.length > 0) {
@@ -292,13 +303,18 @@ export class TelegramService {
 
     if (reply.kind === 'handoff') {
       const code = TelegramService.conversationCode(conversation.id);
+      const transcript = await this.recentTranscript(conversation.shopId, chatId, 6);
       const notified = await this.notifyOwner(conversation.shopId, [
         `🔔 <b>سؤال نیازمند پاسخ انسانی</b> در «${escapeHtml(shop.name)}»`,
         `از: ${escapeHtml(conversation.firstName || 'مشتری')}${conversation.username ? ` (@${escapeHtml(conversation.username)})` : ''}`,
         ...(forwardSource ? [`فوروارد از: ${escapeHtml(forwardSource)}`] : []),
         '',
         escapeHtml(text),
+        ...(transcript ? ['', '<b>چند پیام آخر:</b>', ...transcript.map(line => `<i>${escapeHtml(line)}</i>`)] : []),
         '',
+        ...(reply.reason?.startsWith('unclear') || reply.reason?.startsWith('no_data')
+          ? [`⚠️ بات بعد از ${MAX_CLARIFY_ROUNDS.toLocaleString('fa-IR')} بار پرسیدن، منظور مشتری را نفهمید.`]
+          : []),
         `↩️ برای پاسخ، روی همین پیام «پاسخ» بزنید.`,
         `#گفتگو ${code}`,
       ].join('\n'), true);
@@ -313,6 +329,28 @@ export class TelegramService {
       meta: { kind: reply.kind, reason: reply.reason ?? null, chars: text.length, forwarded: Boolean(forwardSource), handoffNotified: reply.kind === 'handoff' },
     });
     return { status: 'handled', replies, kind: reply.kind };
+  }
+
+  /** تعداد سؤال‌های روشن‌کننده‌ای که تا حالا پرسیده‌ایم. */
+  static clarifyRound(value: unknown): number {
+    if (!value || typeof value !== 'object') return 0;
+    const round = (value as { round?: unknown }).round;
+    return typeof round === 'number' && round > 0 && round < 50 ? round : 0;
+  }
+
+  /** چند پیام آخر گفتگو، برای اینکه فروشنده بفهمد مشتری چه گفته بود. */
+  private async recentTranscript(shopId: string, chatId: string, take = 6): Promise<string[]> {
+    try {
+      const rows = await this.db.chatMessage.findMany({
+        where: { shopId, chatId },
+        orderBy: { createdAt: 'desc' },
+        take,
+        select: { direction: true, text: true },
+      });
+      return rows.reverse().map(item => `${item.direction === 'in' ? 'مشتری' : 'فروشنده'}: ${item.text.slice(0, 120)}`);
+    } catch {
+      return [];
+    }
   }
 
   /** ثبت پیام مشتری در تاریخچه‌ی گفتگو؛ خطا نباید مسیر اصلی را بشکند. */
@@ -352,6 +390,25 @@ export class TelegramService {
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
     }
     await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { lastSeenAt: new Date() } });
+
+    // دکمه‌های «منظورتان کدام است؟»
+    if (data.startsWith('cl:')) {
+      const intent = data.slice(3) as IntentId;
+      const shop = await this.db.shop.findUniqueOrThrow({
+        where: { id: conversation.shopId },
+        select: { shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
+      });
+      const products = await this.catalog(conversation.shopId);
+      const answer = answerIntent(intent, shop as BrainShop, products);
+      await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { clarify: Prisma.DbNull } });
+      if (!answer) {
+        await this.send(chatId, 'این مورد را فروشنده بهتر می‌داند؛ پیامتان را برای ایشان می‌فرستم.');
+        return { status: 'handled', replies: 1, kind: 'clarify_empty' };
+      }
+      const replies = (await this.sendWithButtons(chatId, answer.text, answer.buttons, answer.parseMode)) ? 1 : 0;
+      this.audit.record({ action: 'telegram.clarify_pick', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { intent } });
+      return { status: 'handled', replies, kind: 'clarify_pick' };
+    }
 
     // انتخاب محصول از لیست رفع ابهام
     if (data.startsWith('p:')) {

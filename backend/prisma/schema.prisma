@@ -52,6 +52,8 @@ model Shop {
   payment        String                 @default("")
   workingHours   String                 @default("")
   handoffMessage String                 @default("برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.")
+  /// سیاست مرجوعی/تعویض؛ اگر پر باشد بات خودش جواب می‌دهد.
+  returns        String                 @default("")
   createdAt      DateTime               @default(now())
   products       Product[]
   variants       Variant[]
@@ -168,6 +170,8 @@ model TelegramConversation {
   firstName    String   @default("")
   messageCount Int      @default(0)
   draft        Json?
+  /// وضعیت سؤال روشن‌کننده: { round, messages[] } — بعد از چند بار، ارجاع به انسان.
+  clarify      Json?
   lastSeenAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 

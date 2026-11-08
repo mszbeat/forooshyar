@@ -31,7 +31,7 @@ export type Product = {
 };
 export type Shop = {
   id: string; name: string; tone: string; shipping: string; payment: string;
-  workingHours: string; handoffMessage: string;
+  workingHours: string; returns: string; handoffMessage: string;
 };
 export type Movement = {
   id: string; delta: number; reason: string; createdAt: string;

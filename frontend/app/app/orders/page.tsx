@@ -40,6 +40,15 @@ const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string; icon: 
   ],
 };
 
+/** «کوچه بهار» را «کوچه کوچه بهار» نمی‌کنیم. */
+function stripPrefix(value: string, words: string[]): string {
+  const text = value.trim();
+  for (const word of words) {
+    if (text.startsWith(`${word} `)) return text.slice(word.length + 1).trim();
+  }
+  return text;
+}
+
 export default function OrdersPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -299,11 +308,11 @@ export default function OrdersPage() {
                 <span style={{ display: 'inline-block', lineHeight: 1.9 }}>
                   {[
                     [open.province, open.city].filter(Boolean).join('، '),
-                    open.street,
-                    open.alley && open.alley !== 'ندارد' ? `کوچه ${open.alley}` : '',
-                    open.plaque ? `پلاک ${open.plaque}` : '',
-                    open.unit && open.unit !== 'ندارد' ? `واحد ${open.unit}` : '',
-                    open.postalCode ? `کد پستی ${open.postalCode}` : '',
+                    open.street && stripPrefix(open.street, ['خیابان', 'بلوار']) ? `خیابان ${stripPrefix(open.street, ['خیابان', 'بلوار'])}` : '',
+                    open.alley && open.alley !== 'ندارد' ? `کوچه ${stripPrefix(open.alley, ['کوچه'])}` : '',
+                    open.plaque ? `پلاک ${faNum(Number(open.plaque) || open.plaque)}` : '',
+                    open.unit && open.unit !== 'ندارد' ? `واحد ${faNum(Number(open.unit) || open.unit)}` : '',
+                    open.postalCode ? `کد پستی ${open.postalCode.replace(/\d/g, digit => '۰۱۲۳۴۵۶۷۸۹'[Number(digit)])}` : '',
                   ].filter(Boolean).join('، ') || open.address || '—'}
                 </span>
               </div>

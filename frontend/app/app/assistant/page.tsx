@@ -6,17 +6,18 @@ import Link from 'next/link';
 import { api, ApiError, type BotReply } from '@/lib/api';
 import { faNum } from '@/lib/format';
 import { PageHeader, Spinner, useToast } from '@/components/ui';
+import { RichText } from '@/components/richtext';
 import { IconAlertCircle, IconChat, IconSend, IconSettings, IconShield, IconSparkles } from '@/components/icons';
 
 type Message = { id: number; role: 'customer' | 'bot'; text: string; kind?: BotReply['kind'] };
 
 const SUGGESTIONS = [
   'سلام',
-  'قیمت مانتو کتان تابستانه چنده؟',
-  'شال نخی موجوده؟',
-  'ارسال چطوریه؟',
-  'ساعت کاریتون چنده؟',
+  'تایم کاریتون چنده؟',
+  'قیمت مانتو کتان چنده؟',
+  'هزینه ارسال چقدره؟',
   'می‌خوام مرجوع کنم',
+  'بلابلا زیرو',
 ];
 
 const KIND_LABEL: Record<BotReply['kind'], { text: string; tone: string }> = {
@@ -100,7 +101,7 @@ export default function AssistantPage() {
                     <span className={`badge ${KIND_LABEL[message.kind].tone}`}>{KIND_LABEL[message.kind].text}</span>
                   </div>
                 )}
-                <div>{message.text}</div>
+                {message.role === 'bot' ? <RichText text={message.text} /> : <div>{message.text}</div>}
               </div>
             ))}
             {busy && (
@@ -142,11 +143,11 @@ export default function AssistantPage() {
               <span className="card-title" style={{ margin: 0 }}>دستیار چطور تصمیم می‌گیرد؟</span>
             </div>
             <ul className="steps-plain">
-              <li><span className="n num">۱</span><span>متن فارسی نرمال‌سازی می‌شود (ی/ک عربی، اعداد، نیم‌فاصله).</span></li>
-              <li><span className="n num">۲</span><span>قصد پیام تشخیص داده می‌شود: قیمت، موجودی، سایز، ارسال، پرداخت، ساعت کاری.</span></li>
-              <li><span className="n num">۳</span><span>محصول دقیقاً از روی نام در کاتالوگ جست‌وجو می‌شود.</span></li>
-              <li><span className="n num">۴</span><span>اگر بیش از یک محصول یا واریانت مطابق بود، سؤال شفاف‌ساز می‌پرسد.</span></li>
-              <li><span className="n num">۵</span><span>اگر مطمئن نبود یا موضوع حساس بود (تخفیف، مرجوعی، شکایت)، به شما ارجاع می‌دهد.</span></li>
+              <li><span className="n num">۱</span><span>متن نرمال‌سازی می‌شود (ی/ک عربی، اعداد، نیم‌فاصله) و معادل محاوره‌ای جایگزین می‌شود — «تایم» = «ساعت»، «تومن» = «تومان».</span></li>
+              <li><span className="n num">۲</span><span>مفهوم جمله تشخیص داده می‌شود، نه کلمه‌ی دقیق: «قیمتش چنده»، «چند میشه»، «نرخش» همه یعنی قیمت.</span></li>
+              <li><span className="n num">۳</span><span>اگر یک پیام چند موضوع داشت، به همه جواب می‌دهد («قیمتش چنده و چند روزه می‌رسه؟»).</span></li>
+              <li><span className="n num">۴</span><span>محصول را از کاتالوگ پیدا می‌کند؛ اگر چند نامزد بود، دکمه‌ی انتخاب نشان می‌دهد.</span></li>
+              <li><span className="n num">۵</span><span>اگر نفهمید، با دکمه‌های «قیمت»، «ارسال»، «پرداخت»، «ساعت کاری» می‌پرسد. فقط اگر بعد از ۳ بار هم روشن نشد، به شما ارجاع می‌دهد.</span></li>
             </ul>
             <div className="alert alert-warn mt-4">
               <IconAlertCircle />
@@ -160,8 +161,9 @@ export default function AssistantPage() {
               <span className="card-title" style={{ margin: 0 }}>برای پاسخ‌های بهتر</span>
             </div>
             <p className="small muted" style={{ lineHeight: 1.95 }}>
-              نام محصولات را همان‌طور بنویسید که مشتری می‌نویسد. شرایط ارسال، پرداخت و ساعت کاری را در تنظیمات کامل کنید تا
-              دستیار بتواند بدون ارجاع پاسخ دهد.
+              نام محصولات را همان‌طور بنویسید که مشتری می‌نویسد. شرایط ارسال، پرداخت، ساعت کاری و
+              <b> سیاست مرجوعی </b>
+              را در تنظیمات کامل کنید تا دستیار همان‌جا جواب بدهد و مجبور نشود به شما ارجاع دهد.
             </p>
             <div className="row mt-3">
               <Link href="/app/settings" className="btn btn-soft btn-sm">تکمیل تنظیمات</Link>
