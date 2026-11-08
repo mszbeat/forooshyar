@@ -4,10 +4,10 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
 import { discover, type CatalogProduct } from '../catalog/discovery';
 import { AiService } from '../ai/ai.service';
-import { answerWithAi } from '../ai/answer';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
 import { type BotButton, answerIntent, clarifyProducts, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
+import { resolveReply } from '../ai/understand';
 import { MAX_CLARIFY_ROUNDS, type IntentId } from './understanding';
 import { applyInput, draftTitle, escapeHtml, fullAddress, promptFor, startDraft, type OrderDraft } from './order-flow';
 import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } from './telegram.client';
@@ -303,22 +303,22 @@ export class TelegramService {
     // شانس دارد. سفارش و پرداخت هرگز به مدل سپرده نمی‌شوند؛ فقط پاسخ‌دادن.
     // مدل زبانی وقتی کمک می‌کند که قاعده‌ها «نفهمیدم» یا «داده‌اش را ندارم» بدهند.
     // پاسخ روشنِ قاعده‌محور و مسیر سفارش هرگز با مدل جایگزین نمی‌شود.
-    const aiWanted = this.ai.enabled
-      && reply.kind === 'clarify'
-      && /^(unclear|no_data)/.test(reply.reason ?? '');
-    if (aiWanted) {
+    // فقط وقتی قاعده‌محور مطمئن نیست. `resolveReply` خودش تشخیص می‌دهد
+    // «پیدا نشد» یعنی محصول نبوده یا مشتری با واژه‌ی دیگری گفته است.
+    if (this.ai.enabled) {
       const history = await this.recentMessages(conversation.shopId, chatId, 8);
-      const answer = await answerWithAi(this.ai, { shop: shop as BrainShop, products, history }, text);
-      if (answer.ok) {
-        reply = { kind: 'answer', reason: 'ai_answer', text: answer.text };
+      const understood = await resolveReply({ ai: this.ai, shop: shop as BrainShop, products, text, rule: reply, history });
+      if (understood.source !== 'rules') {
+        reply = { kind: understood.kind, reason: understood.reason, text: understood.text, buttons: understood.buttons };
         this.audit.record({
-          action: 'telegram.ai_answer', entity: 'conversation', entityId: conversation.id,
-          shopId: conversation.shopId, meta: { model: this.ai.model, productsInContext: answer.included },
+          action: understood.source === 'ai_match' ? 'telegram.ai_match' : 'telegram.ai_answer',
+          entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId,
+          meta: { model: this.ai.model, match: understood.ai?.match, keywords: understood.ai?.keywords, query: text.slice(0, 120) },
         });
-      } else {
+      } else if (understood.ai?.skip) {
         this.audit.record({
           action: 'telegram.ai_skipped', entity: 'conversation', entityId: conversation.id,
-          shopId: conversation.shopId, meta: { reason: answer.reason },
+          shopId: conversation.shopId, meta: { reason: understood.ai.skip },
         });
       }
     }

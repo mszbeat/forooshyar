@@ -110,20 +110,26 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="adm-side-foot">
-          <div className="adm-check">
-            <span className="ico"><IconSparkles size={14} /></span>
-            <span>مدل زبانی</span>
-            <span className="mono">{ai?.ready ? 'READY' : ai?.enabled ? 'WAIT' : 'OFF'}</span>
-          </div>
-          <div className="adm-check">
-            <span className="ico" style={{ color: bot?.configured ? '#9ee6c8' : '#f3ccc5' }}><IconBolt size={14} /></span>
-            <span>ربات تلگرام</span>
-            <span className="mono">{bot?.configured ? 'ONLINE' : 'OFF'}</span>
-          </div>
-          <div className="adm-check">
-            <span className="ico" style={{ color: db ? '#9ee6c8' : '#f3ccc5' }}><IconStore size={14} /></span>
-            <span>دیتابیس</span>
-            <span className="mono">{db ? `${db.latencyMs}ms` : 'DOWN'}</span>
+          {/* یک کارتِ واحد با سه ردیف هم‌عرض: قبلاً سه کارت جداگانه بود که هرکدام
+              عرض خودش را می‌گرفت و از لبه‌ی سایدبار بیرون می‌زد. */}
+          <div className="adm-status" role="status" aria-label="وضعیت سرویس‌ها">
+            <div className="row0">
+              <span className="ico"><IconSparkles size={13} /></span>
+              <span className="nm">مدل زبانی</span>
+              <span className={`vl ${ai?.ready ? 'on' : ai?.enabled ? '' : 'off'}`}>
+                {ai?.ready ? 'READY' : ai?.enabled ? 'WAIT' : 'OFF'}
+              </span>
+            </div>
+            <div className="row0">
+              <span className="ico" style={bot?.configured ? undefined : { color: '#f3ccc5' }}><IconBolt size={13} /></span>
+              <span className="nm">ربات تلگرام</span>
+              <span className={`vl ${bot?.configured ? 'on' : 'off'}`}>{bot?.configured ? 'ONLINE' : 'OFF'}</span>
+            </div>
+            <div className="row0">
+              <span className="ico" style={db ? undefined : { color: '#f3ccc5' }}><IconStore size={13} /></span>
+              <span className="nm">دیتابیس</span>
+              <span className={`vl ${db ? 'on' : 'off'}`}>{db ? `${db.latencyMs}ms` : 'DOWN'}</span>
+            </div>
           </div>
 
           <div className="adm-ident">

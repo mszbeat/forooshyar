@@ -5,7 +5,53 @@ import type { ReactNode } from 'react';
 import { Spinner } from '@/components/ui';
 import { IconCheck, IconRefresh, IconAlertCircle } from '@/components/icons';
 
-export type ProbeResult = { tone: 'ok' | 'bad'; lines: { label: string; value: string }[]; error?: string };
+export type ProbeResult = {
+  tone: 'ok' | 'bad';
+  lines: { label: string; value: string }[];
+  /** پیام کوتاه و خوانا برای آدم؛ متن خام در `detail` می‌آید. */
+  error?: string;
+  /** بدنه‌ی خام پاسخ ارائه‌دهنده (JSON/HTML) — در یک جعبه‌ی جدا و اسکرول‌دار. */
+  detail?: string;
+  statusText?: string;
+};
+
+/**
+ * خطای درگاه را از دل متن خام بیرون می‌کشد.
+ *
+ * چرا: درگاه‌ها خطا را به شکل `HTTP 400 {"error":{"message":"…","user_id":"…"}}`
+ * برمی‌گردانند. نشان‌دادن همان رشته در کارت، خط بلند و بی‌فایده‌ای می‌ساخت که از
+ * عرض کارت بیرون می‌زد و روی کارت همسایه می‌افتاد. اینجا پیامِ قابل‌خواندن جدا
+ * می‌شود و بقیه (شناسه‌ی درخواست و…) در جزئیات می‌ماند.
+ */
+export function splitProviderError(raw: string): { headline: string; detail: string; code: string } {
+  const text = (raw ?? '').trim();
+  const codeMatch = text.match(/^(?:HTTP\s*)?(\d{3})\b/);
+  const code = codeMatch?.[1] ?? '';
+  const jsonStart = text.indexOf('{');
+  let message = '';
+  let detail = '';
+  if (jsonStart !== -1) {
+    const jsonText = text.slice(jsonStart);
+    try {
+      const parsed = JSON.parse(jsonText) as { error?: { message?: string; code?: unknown } | string; message?: string };
+      const nested = parsed.error;
+      message = typeof nested === 'string' ? nested : (nested?.message ?? parsed.message ?? '');
+      detail = JSON.stringify(parsed, null, 2);
+    } catch {
+      detail = jsonText;
+    }
+  }
+  if (!message) {
+    // پیام غیر JSON (مثلاً متن HTML یا خطای شبکه): فقط خط اول را نشان می‌دهیم.
+    const firstLine = text.split('\n').find(line => line.trim() && !/^(HTTP\s*)?\d{3}/.test(line.trim())) ?? text;
+    message = firstLine.replace(/\s+/g, ' ').slice(0, 220);
+  }
+  return {
+    headline: message || 'درگاه پاسخ معتبری برنگرداند.',
+    detail: detail || (text.length > message.length ? text : ''),
+    code,
+  };
+}
 
 /**
  * یک کارت «سرویس» با دکمه‌ی آزمون اتصال.
@@ -36,7 +82,8 @@ export function ServiceCard({
     try {
       setResult(await onProbe());
     } catch (problem) {
-      setResult({ tone: 'bad', lines: [], error: problem instanceof Error ? problem.message : 'آزمون انجام نشد.' });
+      const split = splitProviderError(problem instanceof Error ? problem.message : '');
+      setResult({ tone: 'bad', lines: [], error: split.headline, detail: split.detail, statusText: split.code });
     } finally {
       setBusy(false);
     }
@@ -76,14 +123,22 @@ export function ServiceCard({
       {result && (
         <div className={`adm-note ${result.tone === 'ok' ? 'ok' : 'bad'}`}>
           {result.tone === 'ok' ? <IconCheck size={16} /> : <IconAlertCircle size={16} />}
-          <div style={{ display: 'grid', gap: 4 }}>
+          <div style={{ display: 'grid', gap: 5, minWidth: 0 }}>
             {result.lines.map(line => (
               <div key={line.label} className="row-between" style={{ gap: 10 }}>
                 <span>{line.label}</span>
-                <b className="num ltr">{line.value}</b>
+                <b className="num ltr" style={{ overflowWrap: 'anywhere', maxWidth: '62%', textAlign: 'end' }}>{line.value}</b>
               </div>
             ))}
-            {result.error && <span>{result.error}</span>}
+            {result.error && (
+              <div style={{ display: 'grid', gap: 5 }}>
+                <div style={{ display: 'flex', gap: 7, alignItems: 'baseline' }}>
+                  {result.statusText && <span className="adm-tag t-restart num">{result.statusText}</span>}
+                  <span style={{ overflowWrap: 'anywhere', fontWeight: 600 }}>{result.error}</span>
+                </div>
+                {result.detail && <div className="probe-detail">{result.detail}</div>}
+              </div>
+            )}
           </div>
         </div>
       )}

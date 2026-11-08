@@ -58,8 +58,11 @@ export default function SettingsPage() {
     );
   }
 
-  const completeness = [form.name, form.tone, form.shipping, form.payment, form.workingHours, form.returns, form.handoffMessage].filter(value => value.trim().length > 0).length;
-  const percent = Math.round((completeness / 6) * 100);
+  // فهرست فیلدها تنها منبع شمارش است: قبلاً هفت مقدار شمرده می‌شد ولی بر شش
+  // تقسیم می‌شد و پروفایل کامل «۱۱۷٪» نشان می‌داد. حالا عدد هرگز از ۱۰۰ رد نمی‌شود.
+  const profileFields = [form.name, form.tone, form.shipping, form.payment, form.workingHours, form.returns, form.handoffMessage];
+  const completeness = profileFields.filter(value => value.trim().length > 0).length;
+  const percent = Math.min(100, Math.round((completeness / profileFields.length) * 100));
 
   return (
     <div className="stack">
@@ -142,7 +145,7 @@ export default function SettingsPage() {
             <div className="kv-k" style={{ marginBottom: 10 }}>کامل‌بودن پروفایل</div>
             <div className="row" style={{ gap: 8, alignItems: 'baseline' }}>
               <span className="num" style={{ fontSize: 34, fontWeight: 300, lineHeight: 1 }}>{percent}٪</span>
-              <span className="small muted">از ۶ فیلد</span>
+              <span className="small muted">از <span className="num">{completeness.toLocaleString('fa-IR')}</span> فیلدِ تکمیل‌شده از <span className="num">{profileFields.length.toLocaleString('fa-IR')}</span></span>
             </div>
             <div className="progress mt-3"><span style={{ width: `${percent}%` }} /></div>
             <p className="small muted mt-3" style={{ lineHeight: 1.95 }}>

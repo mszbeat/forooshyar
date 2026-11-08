@@ -20,12 +20,21 @@ describe('فهرست تنظیمات پنل ادمین', () => {
     }
   });
 
-  it('هر ارائه‌دهنده‌ی مدل آدرس درگاه و حداقل یک مدل دارد', () => {
+  it('هر میزبان مدل آدرس درگاه (یا حالت دستی) و حداقل یک مدل دارد', () => {
     for (const provider of AI_PROVIDERS) {
-      assert.match(provider.baseUrl, /^https?:\/\//, provider.id);
+      // میزبان «دلخواه» آدرس ثابت ندارد؛ ادمین خودش وارد می‌کند.
+      if (provider.custom) assert.equal(provider.baseUrl, '', provider.id);
+      else assert.match(provider.baseUrl, /^https?:\/\//, provider.id);
       assert.ok(provider.models.length > 0, provider.id);
       for (const model of provider.models) assert.ok(model.value.length > 2, provider.id);
     }
+  });
+
+  it('فهرست میزبان‌ها همان سه گزینه‌ی پنل است و مدل رایگان علامت دارد', () => {
+    assert.deepEqual(AI_PROVIDERS.map(provider => provider.id), ['openrouter', 'openai', 'custom']);
+    const free = AI_PROVIDERS.flatMap(provider => provider.models).filter(model => model.free);
+    assert.ok(free.length >= 3, `مدل رایگان: ${free.length}`);
+    assert.ok(free.every(model => model.value.includes(':free')), 'علامت free باید با شناسه‌ی واقعی مدل بخواند');
   });
 
   it('مقادیر رمزآلود هرگز کامل برنمی‌گردند', () => {

@@ -100,12 +100,15 @@ export type SettingGroup = {
   settings: SettingView[];
 };
 
+export type AiModel = { value: string; label: string; hint?: string; free?: boolean };
 export type AiProvider = {
   id: string;
   label: string;
   baseUrl: string;
   keyHint: string;
-  models: { value: string; label: string; hint?: string }[];
+  /** درگاه دستی: آدرسش را ادمین خودش می‌نویسد. */
+  custom?: boolean;
+  models: AiModel[];
 };
 
 export type SettingsPayload = { groups: SettingGroup[]; providers: AiProvider[]; restartRequired: string[] };
@@ -136,7 +139,10 @@ export type Overview = {
   }[];
 };
 
-export type AiProbe = { ok: boolean; latencyMs: number; model: string; provider: string; sample?: string; error?: string };
+export type AiProbe = {
+  ok: boolean; latencyMs: number; model: string; provider: string;
+  sample?: string; error?: string; status?: number;
+};
 export type TelegramProbe = {
   ok: boolean; error: string | null;
   bot: { id: number; username: string | null } | null;
@@ -156,9 +162,16 @@ export const adminApi = {
   overview: () => call<Overview>('/admin/overview'),
   settings: () => call<SettingsPayload>('/admin/settings'),
   save: (values: Record<string, string>) =>
-    call<{ saved: string[]; skipped: string[]; restartRequired: string[] }>('/admin/settings', { method: 'PUT', body: { values } }),
+    call<{ saved: string[]; skipped: string[]; restartRequired: string[]; appliedLive?: string[] }>(
+      '/admin/settings', { method: 'PUT', body: { values } },
+    ),
 
-  probeAi: () => call<AiProbe>('/admin/diagnostics/ai', { method: 'POST', body: {} }),
+  /**
+   * آزمون مدل با مقادیر پیش‌نویس (ذخیره‌نشده).
+   * سرور همان لحظه یک درخواست واقعی می‌فرستد؛ چیزی در دیتابیس نوشته نمی‌شود.
+   */
+  probeAi: (draft?: { baseUrl?: string; model?: string; apiKey?: string }) =>
+    call<AiProbe>('/admin/diagnostics/ai', { method: 'POST', body: draft ?? {} }),
   probeTelegram: () => call<TelegramProbe>('/admin/diagnostics/telegram', { method: 'POST', body: {} }),
   probeDatabase: (url?: string) => call<DatabaseProbe>('/admin/diagnostics/database', { method: 'POST', body: url ? { url } : {} }),
   database: () => call<{ latencyMs: number; version: string; size: string; tables: number; migrations: { name: string; at: string | null }[] }>('/admin/database'),

@@ -38,7 +38,7 @@ export const GROUPS: { id: SettingGroup; label: string; description: string }[] 
   { id: 'ai', label: 'مدل هوش مصنوعی', description: 'مدل زبانی که «نفهمیدم»های بات را جواب می‌دهد؛ بدون کلید، بات با موتور قاعده‌محور کار می‌کند.' },
   { id: 'telegram', label: 'تلگرام', description: 'توکن بات، سکرت webhook و آدرس عمومی سرویس.' },
   { id: 'payments', label: 'پرداخت', description: 'درگاه زرین‌پال یا حالت آزمایشی.' },
-  { id: 'database', label: 'دیتابیس', description: 'اتصال PostgreSQL؛ تغییر آدرس تا ری‌استارت بعدی اثر نمی‌کند.' },
+  { id: 'database', label: 'دیتابیس', description: 'اتصال PostgreSQL؛ تنها تنظیمی که برای اثر قطعی یک ری‌استارت سرویس لازم دارد.' },
   { id: 'system', label: 'سیستم', description: 'CORS، کش، لاگ گردش و پرچم‌های عیب‌یابی.' },
 ];
 
@@ -49,54 +49,74 @@ export const GROUPS: { id: SettingGroup; label: string; description: string }[] 
  * OpenAI. به همین دلیل انتخاب ارائه‌دهنده فقط دو فیلد را پر می‌کند، نه یک
  * مسیر کد جداگانه.
  */
-export const AI_PROVIDERS: {
+export type AiModel = {
+  value: string;
+  label: string;
+  hint?: string;
+  /** مدل رایگان (مثل مدل‌های :free اوپن‌روتر) — پنل می‌تواند فقط همین‌ها را نشان دهد. */
+  free?: boolean;
+};
+
+export type AiProvider = {
   id: string;
   label: string;
   baseUrl: string;
   keyHint: string;
-  models: { value: string; label: string; hint?: string }[];
-}[] = [
-  {
-    id: 'openai',
-    label: 'OpenAI',
-    baseUrl: 'https://api.openai.com/v1',
-    keyHint: 'sk-…',
-    models: [
-      { value: 'gpt-4o-mini', label: 'GPT-4o mini', hint: 'ارزان و سریع؛ پیشنهاد پیش‌فرض' },
-      { value: 'gpt-4o', label: 'GPT-4o', hint: 'دقیق‌تر، گران‌تر' },
-      { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
-      { value: 'o4-mini', label: 'o4-mini', hint: 'استدلالی؛ کندتر' },
-    ],
-  },
+  /** آدرس درگاه دستی است و باید خود ادمین بنویسد. */
+  custom?: boolean;
+  models: AiModel[];
+};
+
+/**
+ * سه درگاه، یک قرارداد.
+ *
+ * همه‌شان `POST {baseUrl}/chat/completions` را با استاندارد OpenAI جواب می‌دهند،
+ * پس انتخاب درگاه فقط دو مقدار (`AI_BASE_URL` و `AI_MODEL`) را پر می‌کند و هیچ
+ * مسیر کد جدایی برای هر شرکت وجود ندارد. فهرست مدل‌ها هم فقط «پیشنهاد» است؛
+ * ادمین همیشه می‌تواند نام مدل را دستی بنویسد، چون ارائه‌دهنده‌ها هر هفته مدل
+ * اضافه و حذف می‌کنند و یک فهرست ثابت خیلی زود کهنه می‌شود.
+ */
+export const AI_PROVIDERS: AiProvider[] = [
   {
     id: 'openrouter',
     label: 'OpenRouter',
     baseUrl: 'https://openrouter.ai/api/v1',
     keyHint: 'sk-or-…',
     models: [
-      { value: 'openai/gpt-4o-mini', label: 'GPT-4o mini' },
+      { value: 'openai/gpt-4o-mini', label: 'GPT-4o mini', hint: 'ارزان و سریع' },
       { value: 'google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash' },
+      { value: 'google/gemini-flash-1.5:free', label: 'Gemini Flash 1.5 (رایگان)', free: true },
+      { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (رایگان)', free: true },
+      { value: 'meta-llama/llama-3.1-8b-instruct:free', label: 'Llama 3.1 8B (رایگان)', hint: 'سریع‌ترین', free: true },
+      { value: 'mistralai/mistral-small-3.1-24b-instruct:free', label: 'Mistral Small 3.1 (رایگان)', free: true },
+      { value: 'qwen/qwen-2.5-72b-instruct:free', label: 'Qwen 2.5 72B (رایگان)', free: true },
+      { value: 'deepseek/deepseek-chat-v3-0324:free', label: 'DeepSeek V3 (رایگان)', free: true },
       { value: 'anthropic/claude-3.5-haiku', label: 'Claude 3.5 Haiku' },
       { value: 'deepseek/deepseek-chat', label: 'DeepSeek Chat' },
     ],
   },
   {
-    id: 'groq',
-    label: 'Groq',
-    baseUrl: 'https://api.groq.com/openai/v1',
-    keyHint: 'gsk_…',
+    id: 'openai',
+    label: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    keyHint: 'sk-…',
     models: [
-      { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-      { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B', hint: 'سریع‌ترین' },
+      { value: 'gpt-4o-mini', label: 'GPT-4o mini', hint: 'پیشنهاد پیش‌فرض؛ ارزان و سریع' },
+      { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+      { value: 'gpt-4o', label: 'GPT-4o', hint: 'دقیق‌تر، گران‌تر' },
+      { value: 'o4-mini', label: 'o4-mini', hint: 'استدلالی؛ کندتر' },
     ],
   },
   {
-    id: 'self',
-    label: 'مدل خودمیزبان',
-    baseUrl: 'http://127.0.0.1:8000/v1',
-    keyHint: 'اگر کلید ندارد: local',
+    id: 'custom',
+    label: 'درگاه دلخواه (سازگار با OpenAI)',
+    baseUrl: '',
+    keyHint: 'local یا sk-…',
+    custom: true,
     models: [
+      { value: 'gpt-4o-mini', label: 'gpt-4o-mini' },
       { value: 'qwen2.5:7b', label: 'Qwen 2.5 7B (Ollama)' },
+      { value: 'llama3.1:8b', label: 'Llama 3.1 8B (Ollama)' },
       { value: 'local-model', label: 'مدل سروشده در vLLM' },
     ],
   },
@@ -153,18 +173,18 @@ export const SETTINGS: SettingDef[] = [
   {
     key: 'DATABASE_URL', group: 'database', label: 'آدرس اتصال PostgreSQL', kind: 'secret', optional: true, restart: true,
     placeholder: 'postgresql://user:pass@host:5432/db?schema=public',
-    hint: 'اگر خالی باشد از متغیر محیطی سرور استفاده می‌شود. تغییرش تا ری‌استارت بعدی اثر ندارد.',
+    hint: 'اگر خالی باشد از متغیر محیطی سرور استفاده می‌شود. جابه‌جایی دیتابیس تنها تنظیمی است که ری‌استارت سرویس لازم دارد (دکمه‌ی «بازراه‌اندازی»).',
   },
 
   // --------------------------------------------------------------------- سیستم
   {
-    key: 'CORS_ORIGINS', group: 'system', label: 'مبدأهای مجاز (CORS)', kind: 'text', optional: true, restart: true,
+    key: 'CORS_ORIGINS', group: 'system', label: 'مبدأهای مجاز (CORS)', kind: 'text', optional: true,
     placeholder: 'https://panel.example.com,https://admin.example.com',
     hint: 'با کاما جدا کنید؛ بدون مسیر و بدون اسلش انتهایی.',
   },
-  { key: 'CACHE_ENABLED', group: 'system', label: 'کش توزیع‌شده', kind: 'bool', fallback: 'false', restart: true, hint: 'نیازمند REDIS_URL.' },
-  { key: 'REDIS_URL', group: 'system', label: 'آدرس Redis', kind: 'secret', optional: true, restart: true, placeholder: 'redis://…' },
-  { key: 'AUDIT_LOG_READS', group: 'system', label: 'ثبت درخواست‌های خواندنی در دفتر گردش', kind: 'bool', fallback: 'false', restart: true },
+  { key: 'CACHE_ENABLED', group: 'system', label: 'کش توزیع‌شده', kind: 'bool', fallback: 'false', hint: 'نیازمند REDIS_URL؛ با ذخیره، اتصال بی‌درنگ ساخته می‌شود.' },
+  { key: 'REDIS_URL', group: 'system', label: 'آدرس Redis', kind: 'secret', optional: true, placeholder: 'redis://…' },
+  { key: 'AUDIT_LOG_READS', group: 'system', label: 'ثبت درخواست‌های خواندنی در دفتر گردش', kind: 'bool', fallback: 'false' },
   { key: 'DEBUG_CLARIFY', group: 'system', label: 'لاگ عیب‌یابی مرحله‌ی «نفهمیدم»', kind: 'bool', fallback: 'false' },
 ];
 
