@@ -49,7 +49,8 @@ export class FreshController {
       return { kind: 'handoff', text: shop.handoffMessage.trim() || 'برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.' };
     }
     const reply = composeReply(message, shop as BrainShop, products);
-    if (this.ai.enabled && reply.kind === 'clarify' && (reply.reason ?? '').startsWith('unclear')) {
+    const aiWanted = this.ai.enabled && reply.kind === 'clarify' && /^(unclear|no_data)/.test(reply.reason ?? '');
+    if (aiWanted) {
       const answer = await answerWithAi(this.ai, { shop: shop as BrainShop, products }, message);
       if (answer.ok) return { kind: 'answer', reason: 'ai_answer', text: answer.text, source: 'ai' };
       return { kind: reply.kind, reason: reply.reason, text: reply.text, source: 'rules', aiSkipped: answer.reason };

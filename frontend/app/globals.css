@@ -795,6 +795,98 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .bubble-in { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-start-start-radius: var(--r-xs); }
 .bubble-out { align-self: flex-end; background: linear-gradient(180deg, #5b3ce0, var(--brand)); color: #fff; border-start-end-radius: var(--r-xs); }
 .bubble-meta { font-size: 10px; opacity: 0.65; margin-top: 5px; }
+
+/* --- ریپلای در گفتگو -------------------------------------------------------
+   هر پیام یک دکمه‌ی «پاسخ» در hover می‌گیرد و نقل‌قول بالای حباب می‌نشیند؛
+   کلیک روی نقل‌قول به همان پیام می‌پرد. سمتِ نقل‌قول (مشتری/شما) با یک نوار
+   رنگی سمت شروع مشخص می‌شود، بدون خواندن متن. */
+.msg { position: relative; display: flex; flex-direction: column; max-width: 82%; }
+.msg.in { align-self: flex-start; align-items: flex-start; }
+.msg.out { align-self: flex-end; align-items: flex-end; }
+.msg .bubble { max-width: 100%; }
+.msg-actions {
+  position: absolute;
+  top: -9px;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+  transform: translateY(3px);
+  z-index: 2;
+}
+.msg.in .msg-actions { inset-inline-end: -8px; }
+.msg.out .msg-actions { inset-inline-start: -8px; }
+.msg:hover .msg-actions, .msg:focus-within .msg-actions { opacity: 1; transform: none; }
+.msg-reply-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 24px; padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 10.5px; font-family: inherit; cursor: pointer;
+  box-shadow: var(--sh-sm, 0 2px 8px -4px rgba(23,17,38,.3));
+}
+.msg-reply-btn:hover { color: var(--brand-700); border-color: var(--brand-100); background: var(--brand-50); }
+
+.quote {
+  display: flex; gap: 8px; align-items: stretch;
+  margin-bottom: 7px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.7;
+  text-align: start;
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+  transition: background 0.15s var(--ease);
+}
+.msg.in .quote { background: var(--surface-3); }
+.quote:hover { background: rgba(255, 255, 255, 0.26); }
+.msg.in .quote:hover { background: var(--line); }
+.quote::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 3px;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.55;
+}
+.quote.from-in::before { background: var(--brand); opacity: 1; }
+.quote.from-out::before { background: var(--amber, #e39a2d); opacity: 1; }
+.quote-body { min-width: 0; }
+.quote-who { font-weight: 700; font-size: 10px; opacity: 0.85; display: block; margin-bottom: 1px; }
+.quote-text {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  opacity: 0.9;
+}
+.msg.flash .bubble { animation: msgFlash 1.1s var(--ease); }
+@keyframes msgFlash {
+  0%, 100% { box-shadow: none; }
+  25% { box-shadow: 0 0 0 3px var(--brand-100); }
+}
+
+/* پیش‌نمایش نقل‌قول بالای کادر نوشتن */
+.composer-reply {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 11px;
+  border: 1px solid var(--brand-100);
+  border-inline-start: 3px solid var(--brand);
+  border-radius: 10px;
+  background: var(--brand-50);
+  margin-top: 10px;
+  font-size: 11.5px;
+}
+.composer-reply .body { flex: 1; min-width: 0; }
+.composer-reply .who { font-weight: 700; color: var(--brand-700); font-size: 10.5px; display: block; }
+.composer-reply .snippet { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.composer-reply button {
+  border: 0; background: none; cursor: pointer; color: var(--ink-3);
+  display: grid; place-items: center; padding: 3px; border-radius: 6px;
+}
+.composer-reply button:hover { background: #fff; color: var(--ink); }
 /* پیام بات در پنل: همان HTML تلگرام، بدون تگ دیده‌شدن */
 .rt { white-space: pre-wrap; line-height: 1.95; }
 .rt b { font-weight: 700; }

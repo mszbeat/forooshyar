@@ -50,7 +50,7 @@ export type Summary = {
 };
 export type NotificationItem = {
   id: string;
-  kind: 'order' | 'message' | 'stock' | 'system';
+  kind: 'order' | 'message' | 'stock' | 'waitlist' | 'system';
   title: string;
   body: string;
   at: string;
@@ -119,6 +119,10 @@ export type Order = {
 export type ChatMessage = {
   id: string; chatId: string; direction: 'in' | 'out'; text: string;
   orderId: string | null; createdAt: string;
+  /** اگر این پیام ریپلای باشد: متن نقل‌شده و نویسنده‌ی پیام اصلی. */
+  replyToId?: string | null;
+  replyText?: string;
+  replyFrom?: 'in' | 'out' | '';
 };
 export type OrdersSummary = {
   awaitingPayment: number; paidLast24h: number; revenueLast24h: number;
@@ -267,8 +271,8 @@ export const api = {
   setOrderStatus: (id: string, status: OrderStatus) =>
     request<Order>(`/orders/${id}/status`, { method: 'POST', body: { status } }),
   orderMessages: (id: string) => request<ChatMessage[]>(`/orders/${id}/messages`),
-  sendOrderMessage: (id: string, text: string) =>
-    request<ChatMessage[]>(`/orders/${id}/message`, { method: 'POST', body: { text } }),
+  sendOrderMessage: (id: string, text: string, replyToId?: string) =>
+    request<ChatMessage[]>(`/orders/${id}/message`, { method: 'POST', body: { text, ...(replyToId ? { replyToId } : {}) } }),
 
   summary: () => request<Summary>('/reports/summary'),
   attention: () => request<AttentionItem[]>('/reports/attention'),

@@ -1,5 +1,5 @@
 import { normalizePersian, type FreshShop } from '../fresh/fresh';
-import { discover, productCodeOf, variantsFor, type CatalogProduct } from '../catalog/discovery';
+import { discover, productCodeOf, productTokens, suggest, totalStock, variantsFor, type CatalogProduct } from '../catalog/discovery';
 import { escapeHtml } from './order-flow';
 import {
   clarifyOptions, detectIntents, MAX_CLARIFY_ROUNDS, needsHuman,
@@ -147,6 +147,58 @@ export function describeProduct(product: CatalogProduct, query: string): BotRepl
     parseMode: 'HTML',
     text: lines.join('\n'),
     buttons: orderButtons(product),
+  };
+}
+
+/**
+ * «محصولی با این عنوان نداریم».
+ *
+ * چرا این پیام لازم است: قبلاً اگر مشتری نام محصولی را می‌گفت که در کاتالوگ
+ * نبود، بات می‌پرسید «قیمت کدام محصول؟» — یعنی حرف مشتری را نشنیده می‌گرفت.
+ * حالا صریح می‌گوید پیدا نشد، و اگر محصولی شبیه آن باشد چند گزینه پیشنهاد
+ * می‌دهد تا مشتری با یک دکمه به آن برسد.
+ */
+export function notFoundReply(query: string, products: CatalogProduct[]): BotReply {
+  const near = suggest(query, products);
+  const asked = query.trim().slice(0, 60);
+  const lines = [
+    `🔍 محصولی با عنوان «<i>${escapeHtml(asked)}</i>» در کاتالوگ فروشگاه نیست.`,
+    '',
+    'می‌توانید نام دقیق محصول یا کد آن را بفرستید؛ اگر محصول تازه‌ای منتظرتان است، فروشنده هم می‌تواند اضافه کند.',
+  ];
+  if (near.length) {
+    lines.splice(2, 0, 'شاید منظورتان یکی از این‌ها باشد:');
+    lines.splice(3, 0, near.map((product, index) => productLine(product, index)).join('\n\n'));
+  }
+  return {
+    kind: near.length ? 'clarify' : 'answer',
+    reason: 'product_not_found',
+    parseMode: 'HTML',
+    text: lines.join('\n'),
+    buttons: near.length ? productButtons(near) : products.length ? productButtons(products.slice(0, PAGE_SIZE)) : undefined,
+    listQuery: near.length ? '' : undefined,
+  };
+}
+
+/**
+ * محصول هست ولی موجودی‌اش صفر است.
+ *
+ * دکمه‌ی «خبرم کن» یک درخواست واقعی می‌سازد (`StockAlert`); به‌محض اینکه
+ * فروشنده موجودی را زیاد کند، همین مشتری در تلگرام پیام می‌گیرد.
+ */
+export function outOfStockReply(product: CatalogProduct): BotReply {
+  const lastPrice = [...product.variants].sort((a, b) => a.price - b.price)[0];
+  return {
+    kind: 'clarify',
+    reason: 'out_of_stock',
+    parseMode: 'HTML',
+    text: [
+      `😔 موجودی <b>${escapeHtml(product.title)}</b> تمام شده است.`,
+      lastPrice ? `آخرین قیمت ثبت‌شده: ${toman(lastPrice.price)}` : '',
+      '',
+      'اگر موجود شود خبرتان می‌کنم؛ کافی است دکمه‌ی زیر را بزنید.',
+    ].filter(Boolean).join('\n'),
+    buttons: [[{ text: '🔔 اگر موجود شد خبرم کن', data: `watch:${product.id}` }]],
   };
 }
 
@@ -325,6 +377,9 @@ export function composeReply(
 
   const parts: string[] = [];
   let buttons: BotButton[][] = [];
+  // پاسخِ محصول (قیمت/موجودی) برای نگه‌داشتن دلیل دقیق در `reason`.
+  let reply: BotReply | null = null;
+  let productReason = '';
 
   // محصول.
   // اگر جمله صریحاً درباره‌ی یک موضوع فروشگاهی است («ساعت کاریتون چنده؟»،
@@ -338,7 +393,18 @@ export function composeReply(
       parts.push(reply.text);
       buttons = reply.buttons ?? [];
     } else if (discovery.kind === 'single') {
-      const reply = describeProduct(discovery.product, text);
+      // محصول پیدا شد؛ اگر هیچ سایز/رنگی موجود نیست، «موجودی تمام شده» + دکمه‌ی خبر.
+      reply = totalStock(discovery.product) === 0
+        ? outOfStockReply(discovery.product)
+        : describeProduct(discovery.product, text);
+      productReason = reply.reason ?? '';
+      parts.push(reply.text);
+      buttons = reply.buttons ?? [];
+    } else if (productTokens(text).length > 0 && !shopStrong) {
+      // نام محصول گفته شد ولی در کاتالوگ نیست → صریح بگو پیدا نشد.
+      // فقط نام محصول نقل می‌شود، نه کل جمله («قیمت»، «چنده» و…).
+      reply = notFoundReply(productTokens(text).join(' '), products);
+      productReason = reply.reason ?? '';
       parts.push(reply.text);
       buttons = reply.buttons ?? [];
     } else if (products.length > 0 && !shopStrong) {
@@ -374,7 +440,9 @@ export function composeReply(
   if (parts.length > 0) {
     return {
       kind: buttons.length ? 'clarify' : 'answer',
-      reason: `answer_${intents.join('_') || 'product'}`,
+      // وقتی فقط پاسخ محصول آمده، دلیل دقیق‌تر آن را نگه می‌داریم
+      // (`out_of_stock` / `product_not_found` / `price`).
+      reason: parts.length === 1 && productReason ? productReason : `answer_${intents.join('_') || 'product'}`,
       text: parts.join('\n\n'),
       buttons: buttons.length ? buttons : undefined,
     };

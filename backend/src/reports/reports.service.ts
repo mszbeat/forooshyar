@@ -90,7 +90,7 @@ export class ReportsService {
     const now = new Date();
     const since = new Date(now.getTime() - 14 * DAY);
 
-    const [orders, conversations, lowStock] = await Promise.all([
+    const [orders, conversations, lowStock, waiting] = await Promise.all([
       this.db.order.findMany({
         where: { shopId, status: { in: [OrderStatus.AWAITING_PAYMENT, OrderStatus.PAID] } },
         orderBy: { createdAt: 'desc' },
@@ -104,10 +104,16 @@ export class ReportsService {
         select: { id: true, chatId: true, direction: true, text: true, createdAt: true },
       }),
       this.attention(shopId, 5),
+      // مشتریانی که «اگر موجود شد خبرم کن» زده‌اند و هنوز خبر نگرفته‌اند.
+      this.db.stockAlert.groupBy({
+        by: ['productId'],
+        where: { shopId, notifiedAt: null },
+        _count: { _all: true },
+      }),
     ]);
 
     type Item = {
-      id: string; kind: 'order' | 'message' | 'stock';
+      id: string; kind: 'order' | 'message' | 'stock' | 'waitlist';
       title: string; body: string; at: string; href: string; tone: 'brand' | 'amber' | 'danger';
     };
     const items: Item[] = [];
@@ -152,6 +158,27 @@ export class ReportsService {
         href: '/app/products',
         tone: variant.stock === 0 ? 'danger' : 'amber',
       });
+    }
+
+    if (waiting.length > 0) {
+      const titles = await this.db.product.findMany({
+        where: { shopId, id: { in: waiting.map(row => row.productId) } },
+        select: { id: true, title: true },
+      });
+      const byId = new Map(titles.map(row => [row.id, row.title]));
+      for (const row of waiting) {
+        const count = row._count._all;
+        if (!count) continue;
+        items.push({
+          id: `wait:${row.productId}`,
+          kind: 'waitlist',
+          title: `${count.toLocaleString('fa-IR')} مشتری منتظر شارژ`,
+          body: byId.get(row.productId) ?? 'محصول',
+          at: now.toISOString(),
+          href: '/app/products',
+          tone: 'amber',
+        });
+      }
     }
 
     items.sort((a, b) => (a.at < b.at ? 1 : -1));

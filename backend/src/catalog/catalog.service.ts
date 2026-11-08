@@ -133,6 +133,14 @@ export class CatalogService {
       await tx.stockMovement.create({ data: { shopId, variantId, delta, reason, actorId: userId } });
       return tx.variant.findFirstOrThrow({ where: { id: variantId, shopId } });
     });
+    // افزایش موجودی → به مشتریانی که «خبرم کن» زده بودند اطلاع می‌دهیم.
+    // عمداً await نمی‌شود: کندی تلگرام نباید ذخیره‌ی موجودی را معطل کند.
+    if (delta > 0) {
+      this.telegram.notifyRestock(shopId, variant.productId).catch((error: unknown) => {
+        console.warn(`[restock] notify failed: ${String(error)}`);
+      });
+    }
+
     // `sell` writes its own, richer event; here we only log explicit adjustments.
     if (reason !== 'sale') {
       this.audit.record({

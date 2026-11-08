@@ -63,6 +63,7 @@ model Shop {
   conversations  TelegramConversation[]
   orders         Order[]
   chatMessages   ChatMessage[]
+  stockAlerts    StockAlert[]
 }
 
 model Product {
@@ -76,6 +77,7 @@ model Product {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   variants    Variant[]
+  alerts      StockAlert[]
 
   @@unique([shopId, id])
   @@index([shopId, title])
@@ -261,10 +263,37 @@ model ChatMessage {
   direction String
   text      String
   orderId   String?  @db.Uuid
+  // پاسخ به یک پیام مشخص (مثل «ریپلای» تلگرام). متن نقل‌شده کپی می‌شود تا اگر
+  // پیام اصلی پاک شد، نقل‌قول در تاریخچه همچنان خوانا بماند.
+  replyToId String?  @db.Uuid
+  replyText String   @default("")
+  /// 'in' = پیام مشتری، 'out' = پیام فروشنده — همان کسی که پیام اصلی از او بود.
+  replyFrom String   @default("")
   createdAt DateTime @default(now())
 
   @@index([shopId, chatId, createdAt])
   @@index([shopId, createdAt])
+}
+
+// «اگر موجود شد خبرم کن».
+// چرا جدول جدا: این یک درخواست آینده‌ی مشتری است، نه وضعیت گفتگو؛ باید با
+// افزایش موجودی trigger شود و تا ابد در گفتگو نماند. بعد از اطلاع‌دادن، `notifiedAt`
+// پر می‌شود تا دوباره پیام نرود (مگر مشتری دوباره درخواست کند).
+model StockAlert {
+  id         String    @id @default(uuid()) @db.Uuid
+  shopId     String    @db.Uuid
+  shop       Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  productId  String    @db.Uuid
+  product    Product   @relation(fields: [shopId, productId], references: [shopId, id], onDelete: Cascade)
+  chatId     String
+  firstName  String    @default("")
+  /// اگر مشتری سایز/رنگ مشخصی خواسته بود، همان ذخیره می‌شود.
+  variantId  String?   @db.Uuid
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([shopId, chatId, productId])
+  @@index([shopId, productId, notifiedAt])
 }
 
 // تلگرام اگر ۲۰۰ نگیرد همان update را دوباره می‌فرستد. این جدول تضمین می‌کند

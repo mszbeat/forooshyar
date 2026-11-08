@@ -735,3 +735,86 @@ describe('telegram webhook flow', () => {
     assert.equal(ok, false);
   });
 });
+
+describe('«اگر موجود شد خبرم کن» و ریپلای', () => {
+  it('کلیک روی دکمه‌ی خبر، درخواست را ثبت می‌کند و بعد از شارژ موجودی پیام می‌رود', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    const chatId = await joinedChat(9201);
+    reset();
+
+    const conversation = await prisma.telegramConversation.findFirstOrThrow({ where: { chatId: String(chatId), shopId: seed.shopId } });
+    const shopId = conversation.shopId;
+    // گفتگو باید از حالت «انتخاب از فهرست» بیرون بیاید، وگرنه پاسخ به‌عنوان
+    // ادامه‌ی همان فهرست تفسیر می‌شود. هم‌چنین محصول هم‌نامِ اجرای قبلی پاک شود.
+    await prisma.telegramConversation.update({
+      where: { id: conversation.id },
+      data: { clarify: null, draft: null },
+    });
+    const title = 'کوله تست واچ';
+    const stale = await prisma.product.findMany({ where: { shopId, title }, select: { id: true } });
+    for (const old of stale) {
+      await prisma.stockAlert.deleteMany({ where: { productId: old.id } });
+      await prisma.stockMovement.deleteMany({ where: { productId: old.id } });
+      await prisma.variant.deleteMany({ where: { productId: old.id } });
+      await prisma.product.delete({ where: { id: old.id } });
+    }
+    const product = await prisma.product.create({
+      data: {
+        shopId, title, active: true,
+        variants: { create: [{ size: 'یک‌سایز', color: 'مشکی', price: 900000, stock: 0 }] },
+      },
+      include: { variants: true },
+    });
+
+    const ask = await telegram.handleUpdate(update(uid(), chatId, `قیمت ${title} چنده؟`) as never);
+    assert.equal(ask.status, 'handled');
+    const askText = String(sends(String(chatId))[0].body.text);
+    assert.match(askText, /تمام شده/);
+    const keyboard = JSON.stringify(sends(String(chatId))[0].body.reply_markup);
+    assert.match(keyboard, new RegExp(`watch:${product.id}`));
+
+    reset();
+    const watch = await telegram.handleUpdate({
+      update_id: Math.floor(Math.random() * 1e9),
+      callback_query: {
+        id: 'cb-watch', from: { id: Number(chatId), is_bot: false }, data: `watch:${product.id}`,
+        message: { message_id: 1, chat: { id: Number(chatId), type: 'private' } },
+      },
+    } as never);
+    assert.equal(watch.status, 'handled');
+    assert.match(String(sends(String(chatId))[0].body.text), /ثبت شد/);
+
+    // شارژ موجودی → پیام «دوباره موجود شد»
+    await prisma.variant.updateMany({ where: { productId: product.id }, data: { stock: 5 } });
+    reset();
+    const notified = await telegram.notifyRestock(shopId, product.id);
+    assert.equal(notified, 1);
+    assert.match(String(sends(String(chatId))[0].body.text), /دوباره موجود شد/);
+
+    // بار دوم نباید دوباره پیام بدهد
+    reset();
+    assert.equal(await telegram.notifyRestock(shopId, product.id), 0);
+  });
+
+  it('ریپلای مشتری روی پیام فروشنده در تاریخچه حفظ می‌شود', async (t) => {
+    if (!databaseReady) return t.skip('no db');
+    const chatId = await joinedChat(9202);
+    reset();
+    await telegram.handleUpdate({
+      update_id: Math.floor(Math.random() * 1e9),
+      message: {
+        message_id: 5, date: Math.floor(Date.now() / 1000),
+        text: 'این یکی رو می‌خوام',
+        chat: { id: chatId, type: 'private' }, from: { id: chatId, is_bot: false },
+        reply_to_message: { message_id: 4, text: 'کوله تست ۹۰۰٬۰۰۰ تومان', from: { id: 1, is_bot: true } },
+      },
+    } as never);
+    const conversation = await prisma.telegramConversation.findFirstOrThrow({ where: { chatId: String(chatId), shopId: seed.shopId } });
+    const saved = await prisma.chatMessage.findFirst({
+      where: { shopId: conversation.shopId, chatId: String(chatId), direction: 'in' },
+      orderBy: { createdAt: 'desc' },
+    });
+    assert.equal(saved?.replyFrom, 'out');
+    assert.match(String(saved?.replyText), /۹۰۰٬۰۰۰/);
+  });
+});

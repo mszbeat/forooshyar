@@ -171,6 +171,33 @@ export function discover(text: string, products: CatalogProduct[], limit = 200):
   return { kind: 'many', products: scored.slice(0, limit).map(entry => entry.product) };
 }
 
+/** توکن‌های معنادارِ پرسش (بدون قیمت/موجودی/افعال). برای «محصولی با این عنوان نیست». */
+export function productTokens(text: string): string[] {
+  return tokens(text).filter(meaningful);
+}
+
+/**
+ * چند محصول «نزدیک» برای وقتی که هیچ نامزدی پیدا نشد.
+ *
+ * کاربرد: مشتری می‌نویسد «مانتو کتان تابستونی» و در کاتالوگ «مانتو کتان» هست.
+ * به‌جای «پیدا نشد» بی‌جواب، نزدیک‌ترین‌ها را نشان می‌دهیم تا خودش انتخاب کند.
+ * آستانه عمداً پایین است — این فهرست «پیشنهاد» است، نه پاسخ قطعی.
+ */
+export function suggest(text: string, products: CatalogProduct[], limit = 3): CatalogProduct[] {
+  const query = new Set(productTokens(text));
+  if (query.size === 0) return [];
+  const scored = products
+    .map(product => {
+      const titleTokens = tokens(product.title).filter(meaningful);
+      const matched = titleTokens.filter(token => query.has(token) || [...query].some(word => token.startsWith(word) || word.startsWith(token)));
+      const overlap = matched.reduce((sum, token) => sum + token.length, 0);
+      return { product, overlap };
+    })
+    .filter(entry => entry.overlap >= 3)
+    .sort((a, b) => b.overlap - a.overlap);
+  return scored.slice(0, limit).map(entry => entry.product);
+}
+
 /**
  * کد محصول اگر در متن باشد. `#A1B2C3` یا `a1b2c3` یا `کد A1B2C3`.
  * کد از uuid ساخته می‌شود، پس تصادفاً به محصول دیگری نمی‌خورد.

@@ -14,7 +14,7 @@ import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } fr
 
 type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
 /** پیامی که این پیام پاسخش است؛ برای «پاسخ فروشنده به مشتری» لازم است. */
-type TelegramQuoted = { message_id: number; text?: string; caption?: string };
+type TelegramQuoted = { message_id: number; text?: string; caption?: string; from?: TelegramUser };
 type TelegramUser = { id: number | string; is_bot?: boolean; username?: string; first_name?: string };
 
 export type IncomingMessage = {
@@ -276,13 +276,25 @@ export class TelegramService {
 
     const products = await this.catalog(conversation.shopId);
     const forwardSource = message ? TelegramService.forwardSource(message) : '';
+    // نقل‌قول: مشتری روی یک پیام (معمولاً پیام بات/فروشنده) ریپلای زده است.
+    const quoted = message?.reply_to_message
+      ? {
+        text: (message.reply_to_message.text ?? message.reply_to_message.caption ?? '').slice(0, 300),
+        from: message.reply_to_message.from?.is_bot ? 'out' : 'in',
+      }
+      : null;
     // چند پیام نامفهوم پشت‌سرهم؟ تا ۳ بار سؤال می‌پرسیم، بعد از آن ارجاع.
     const round = TelegramService.clarifyRound(conversation.clarify);
     let reply = composeReply(text, shop as BrainShop, products, { round });
 
     // اگر موتور قاعده‌محور پیام را نفهمید، مدل زبانی (اگر وصل باشد) یک بار
     // شانس دارد. سفارش و پرداخت هرگز به مدل سپرده نمی‌شوند؛ فقط پاسخ‌دادن.
-    if (this.ai.enabled && reply.kind === 'clarify' && (reply.reason ?? '').startsWith('unclear')) {
+    // مدل زبانی وقتی کمک می‌کند که قاعده‌ها «نفهمیدم» یا «داده‌اش را ندارم» بدهند.
+    // پاسخ روشنِ قاعده‌محور و مسیر سفارش هرگز با مدل جایگزین نمی‌شود.
+    const aiWanted = this.ai.enabled
+      && reply.kind === 'clarify'
+      && /^(unclear|no_data)/.test(reply.reason ?? '');
+    if (aiWanted) {
       const history = await this.recentMessages(conversation.shopId, chatId, 8);
       const answer = await answerWithAi(this.ai, { shop: shop as BrainShop, products, history }, text);
       if (answer.ok) {
@@ -323,7 +335,7 @@ export class TelegramService {
     }
 
     // پیام مشتری برای تاریخچه‌ی گفتگو (پنل و /chat) ثبت می‌شود.
-    await this.logInbound(conversation.shopId, chatId, text);
+    await this.logInbound(conversation.shopId, chatId, text, quoted);
 
     const lines = [reply.text];
     if (forwardSource && reply.kind === 'handoff') {
@@ -384,9 +396,22 @@ export class TelegramService {
   }
 
   /** ثبت پیام مشتری در تاریخچه‌ی گفتگو؛ خطا نباید مسیر اصلی را بشکند. */
-  private async logInbound(shopId: string, chatId: string, text: string): Promise<void> {
+  /**
+   * ثبت پیام مشتری در تاریخچه.
+   *
+   * اگر مشتری روی پیام فروشنده «ریپلای» زده باشد (`reply_to_message`)، متن آن
+   * پیام هم کپی می‌شود تا در پنل، نقل‌قول بالای پیام دیده شود — همان کاری که
+   * خود تلگرام انجام می‌دهد.
+   */
+  private async logInbound(shopId: string, chatId: string, text: string, reply?: { text: string; from: string } | null): Promise<void> {
     try {
-      await this.db.chatMessage.create({ data: { shopId, chatId, direction: 'in', text: text.slice(0, 4000) } });
+      await this.db.chatMessage.create({
+        data: {
+          shopId, chatId, direction: 'in', text: text.slice(0, 4000),
+          replyText: (reply?.text ?? '').slice(0, 300),
+          replyFrom: (reply?.from ?? '').slice(0, 8),
+        },
+      });
     } catch (error) {
       this.logger.warn(`ثبت پیام مشتری ناموفق: ${error instanceof Error ? error.message : 'unknown'}`);
     }
@@ -431,6 +456,37 @@ export class TelegramService {
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
     }
     await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { lastSeenAt: new Date() } });
+
+    // «اگر موجود شد خبرم کن»
+    if (data.startsWith('watch:')) {
+      const productId = data.slice(6);
+      const product = await this.db.product.findFirst({
+        where: { shopId: conversation.shopId, id: productId, active: true },
+        select: { id: true, title: true, variants: { where: { active: true }, select: { stock: true, price: true } } },
+      });
+      if (!product) {
+        await this.send(chatId, 'این محصول دیگر در کاتالوگ نیست.');
+        return { status: 'handled', replies: 1, kind: 'watch_gone' };
+      }
+      const totalStock = product.variants.reduce((sum, variant) => sum + Math.max(variant.stock, 0), 0);
+      if (totalStock > 0) {
+        // بین کلیک و این لحظه موجود شده؛ همان‌جا خبر می‌دهیم.
+        const reply = describeProduct(product as never, 'قیمت');
+        const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons, reply.parseMode)) ? 1 : 0;
+        return { status: 'handled', replies, kind: 'watch_already_in_stock' };
+      }
+      await this.db.stockAlert.upsert({
+        where: { shopId_chatId_productId: { shopId: conversation.shopId, chatId, productId } },
+        create: { shopId: conversation.shopId, productId, chatId, firstName: conversation.firstName },
+        update: { notifiedAt: null },
+      });
+      this.audit.record({
+        action: 'telegram.stock_watch', entity: 'product', entityId: productId,
+        shopId: conversation.shopId, meta: { chatId, title: product.title },
+      });
+      const replies = (await this.send(chatId, `🔔 ثبت شد. به‌محض شارژ شدن «${product.title}» همین‌جا خبرتان می‌کنم.`)) ? 1 : 0;
+      return { status: 'handled', replies, kind: 'stock_watch' };
+    }
 
     // صفحه‌بندی فهرست محصولات: دکمه‌ی «بعدی»/«قبلی».
     // فهرست از روی همان پرسشی بازسازی می‌شود که صفحه‌ی قبلی را ساخته بود.
@@ -802,6 +858,60 @@ export class TelegramService {
   }
 
   /**
+   * اطلاع‌دادن به مشتریانی که منتظر شارژ یک محصول بودند.
+   *
+   * از `CatalogService.changeStock` صدا زده می‌شود؛ یعنی هر مسیر افزایش موجودی
+   * (شارژ دستی، اصلاح موجودی، بازگشت موجودی سفارش لغوشده) پوشش داده می‌شود.
+   * متن پیام شامل قیمت واقعی همان لحظه و دکمه‌ی «دیدن محصول» است.
+   */
+  async notifyRestock(shopId: string, productId: string): Promise<number> {
+    const alerts = await this.db.stockAlert.findMany({
+      where: { shopId, productId, notifiedAt: null },
+      take: 100,
+      select: { id: true, chatId: true },
+    });
+    if (alerts.length === 0) return 0;
+
+    const product = await this.db.product.findFirst({
+      where: { shopId, id: productId },
+      select: { id: true, title: true, variants: { where: { active: true }, select: { size: true, color: true, price: true, stock: true } } },
+    });
+    if (!product) return 0;
+
+    const available = product.variants.filter(variant => variant.stock > 0);
+    if (available.length === 0) return 0;
+
+    const cheapest = [...available].sort((a, b) => a.price - b.price)[0];
+    const specs = available
+      .slice(0, 4)
+      .map(variant => [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join(' / ') || 'بدون سایز')
+      .join('، ');
+    const text = [
+      `🎉 <b>${escapeHtml(product.title)}</b> دوباره موجود شد!`,
+      `💰 از ${cheapest.price.toLocaleString('fa-IR')} تومان`,
+      `📦 ${escapeHtml(specs)}`,
+      '',
+      'قبلاً خواسته بودید خبرتان کنم. تا تمام نشده سفارش را ثبت کنید.',
+    ].join('\n');
+
+    let sent = 0;
+    for (const alert of alerts) {
+      const ok = await this.sendWithButtons(alert.chatId, text, [[{ text: '🛍 دیدن و سفارش', data: `p:${product.id}` }]], 'HTML');
+      if (ok) {
+        sent += 1;
+        await this.db.stockAlert.update({ where: { id: alert.id }, data: { notifiedAt: new Date() } });
+      }
+    }
+    if (sent) {
+      this.audit.record({
+        action: 'telegram.restock_notified', entity: 'product', entityId: productId,
+        shopId, meta: { notified: sent, waiting: alerts.length },
+      });
+    }
+    return sent;
+  }
+
+  /**
    * ارسال پیام فروشنده به مشتری و ثبت آن در تاریخچه.
    * از پنل هم همین متد استفاده می‌شود تا رفتار یکسان باشد.
    */
@@ -811,13 +921,39 @@ export class TelegramService {
     text: string,
     actorChat?: string,
     orderId?: string,
+    reply?: { id?: string; text: string; from: 'in' | 'out' } | null,
   ): Promise<boolean> {
     const body = text.trim();
     if (!body) return false;
-    const sent = await this.send(customerChat, `💬 <b>پاسخ فروشنده</b>\n${body}`, undefined, 'HTML');
+    // نقل‌قول: بالای پیام، همان چیزی که فروشنده به آن پاسخ داده است.
+    // اگر فروشنده از داخل بات جواب می‌دهد (actorChat پر است) و ریپلای صریحی
+    // نداده، به آخرین پیام مشتری نقل‌قول می‌زنیم تا مشتری بداند پاسخ به کدام
+    // حرفش است.
+    let quotedText = (reply?.text ?? '').trim();
+    let quotedFrom = reply?.from ?? '';
+    if (!quotedText && actorChat) {
+      const lastIn = await this.db.chatMessage.findFirst({
+        where: { shopId: channel.shopId, chatId: customerChat, direction: 'in' },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, text: true },
+      });
+      if (lastIn) {
+        quotedText = lastIn.text;
+        quotedFrom = 'in';
+      }
+    }
+    const quote = quotedText
+      ? `↩️ <i>${escapeHtml(quotedText.slice(0, 140))}</i>\n`
+      : '';
+    const sent = await this.send(customerChat, `💬 <b>پاسخ فروشنده</b>\n${quote}${body}`, undefined, 'HTML');
     if (sent) {
       await this.db.chatMessage.create({
-        data: { shopId: channel.shopId, chatId: customerChat, direction: 'out', text: body, orderId: orderId ?? null },
+        data: {
+          shopId: channel.shopId, chatId: customerChat, direction: 'out', text: body, orderId: orderId ?? null,
+          replyToId: reply?.id ?? null,
+          replyText: quotedText.slice(0, 300),
+          replyFrom: quotedFrom,
+        },
       });
       this.audit.record({
         action: 'telegram.seller_reply',

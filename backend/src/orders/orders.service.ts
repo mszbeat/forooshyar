@@ -280,6 +280,13 @@ export class OrdersService {
       return { order: updated, changed: true };
     });
 
+    // لغو سفارش موجودی را برمی‌گرداند؛ اگر مشتری منتظر شارژ همان محصول بود، خبر شود.
+    if (cancelled.changed) {
+      for (const item of cancelled.order.items) {
+        if (item.variantId) void this.notifyRestockForVariant(shopId, item.variantId);
+      }
+    }
+
     if (cancelled.changed) {
       this.audit.record({
         action: 'order.cancel',
@@ -390,7 +397,7 @@ export class OrdersService {
    * همان مسیر بات را استفاده می‌کند (`deliverSellerMessage`) تا رفتار، تاریخچه و
    * audit در هر دو کانال یکسان باشد و پیام در تاریخچه‌ی گفتگو بنشیند.
    */
-  async sendMessage(shopId: string, orderId: string, text: string) {
+  async sendMessage(shopId: string, orderId: string, text: string, replyToId?: string) {
     const body = text.trim();
     if (!body) throw new BadRequestException('متن پیام خالی است.');
     if (body.length > 2000) throw new BadRequestException('متن پیام طولانی است (حداکثر ۲۰۰۰ کاراکتر).');
@@ -400,9 +407,37 @@ export class OrdersService {
     if (!order.chatId) throw new ConflictException('این سفارش به چت تلگرام مشتری وصل نیست.');
     if (!this.telegram.configured) throw new ConflictException('بات تلگرام روی سرور پیکربندی نشده است.');
 
-    const sent = await this.telegram.deliverSellerMessage({ shopId }, order.chatId, body, undefined, order.id);
+    // ریپلای: پیام مرجع باید از همان گفتگو باشد؛ وگرنه نقل‌قول بی‌معنا می‌شود.
+    let reply: { id: string; text: string; from: 'in' | 'out' } | null = null;
+    if (replyToId) {
+      const source = await this.db.chatMessage.findFirst({
+        where: { shopId, chatId: order.chatId, id: replyToId },
+        select: { id: true, text: true, direction: true },
+      });
+      if (!source) throw new NotFoundException('پیامی که می‌خواهید به آن پاسخ دهید پیدا نشد.');
+      reply = { id: source.id, text: source.text, from: source.direction === 'in' ? 'in' : 'out' };
+    }
+
+    const sent = await this.telegram.deliverSellerMessage({ shopId }, order.chatId, body, undefined, order.id, reply);
     if (!sent) throw new ConflictException('ارسال پیام ناموفق بود. ممکن است مشتری بات را بلاک کرده باشد.');
     return this.messages(shopId, orderId);
+  }
+
+  /**
+   * اگر این واریانت موجود شده باشد، به منتظرانِ محصولش خبر می‌دهد.
+   * عمداً fire-and-forget است: اعلان نباید لغو سفارش یا ثبت آن را کند/خراب کند.
+   */
+  private async notifyRestockForVariant(shopId: string, variantId: string) {
+    try {
+      const variant = await this.db.variant.findFirst({
+        where: { shopId, id: variantId },
+        select: { productId: true, stock: true },
+      });
+      if (!variant || variant.stock <= 0) return;
+      await this.telegram.notifyRestock(shopId, variant.productId);
+    } catch (error) {
+      this.logger.warn(`restock notify failed: ${String(error)}`);
+    }
   }
 
   /** تغییر وضعیت توسط فروشنده: PAID → SHIPPED → COMPLETED. */

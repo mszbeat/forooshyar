@@ -10,6 +10,8 @@ const statusSchema = z.object({
 
 const messageSchema = z.object({
   text: z.string().min(1, 'متن پیام خالی است.').max(2000, 'متن پیام طولانی است.'),
+  /** اختیاری: شناسه‌ی پیامی که این پاسخ به آن ریپلای است. */
+  replyToId: z.string().uuid('شناسه‌ی پیام معتبر نیست.').optional(),
 });
 
 /**
@@ -52,7 +54,7 @@ export class OrdersController {
   @Post(':id/message')
   sendMessage(@Req() req: { principal: Principal }, @Param('id') id: string, @Body() body: unknown) {
     const input = messageSchema.parse(body);
-    return this.orders.sendMessage(req.principal.shopId, id, input.text);
+    return this.orders.sendMessage(req.principal.shopId, id, input.text, input.replyToId);
   }
 
   @Post(':id/status')

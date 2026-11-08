@@ -49,6 +49,7 @@ export const IconTrash = make('IconTrash', <><path d="M3 6h18" /><path d="M8 6V4
 export const IconCopy = make('IconCopy', <><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" /></>);
 export const IconExternal = make('IconExternal', <><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><path d="M15 3h6v6" /><path d="M10 14 21 3" /></>);
 export const IconClock = make('IconClock', <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>);
+export const IconReply = make('IconReply', <><path d="m9 14-5-5 5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-4" /></>);
 export const IconSend = make('IconSend', <><path d="m22 2-7 20-4-9-9-4 20-7Z" /><path d="M22 2 11 13" /></>);
 export const IconRefresh = make('IconRefresh', <><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></>);
 export const IconShield = make('IconShield', <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></>);
