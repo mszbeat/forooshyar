@@ -72,8 +72,8 @@ export default function AdminOverviewPage() {
           <IconAlertCircle size={16} />
           <div style={{ display: 'grid', gap: 6 }}>
             <span>
-              این تنظیمات ذخیره شده‌اند ولی اتصالشان از پیش ساخته شده بود، پس تا ری‌استارت اثر نمی‌کنند:
-              <b> {data.restartRequired.join('، ')}</b>
+              این تنظیم ذخیره شده است ولی چون اتصالش پیش از بوت ساخته می‌شود، تا ری‌استارت اثر قطعی ندارد:
+              <b> {data.restartRequired.join('، ')}</b> — بقیه‌ی تنظیمات بدون ری‌استارت اعمال شده‌اند.
             </span>
             <div>
               <button type="button" className="btn btn-warn btn-sm" onClick={() => void restart()}>ری‌استارت سرویس</button>

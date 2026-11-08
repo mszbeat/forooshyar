@@ -42,8 +42,19 @@ async function bootstrap() {
   const config = loadConfig(process.env);
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   app.use(helmet());
-  const origins = config.CORS_ORIGINS.split(',').map(value => value.trim()).filter(Boolean);
-  app.enableCors({ origin: origins, methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'], credentials: false });
+  // مبدأهای مجاز در **هر درخواست** از env خوانده می‌شود تا تغییر `CORS_ORIGINS`
+  // در پنل ادمین بدون ری‌استارت سرویس اثر کند (قبلاً یک‌بار در بوت خوانده می‌شد).
+  app.enableCors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true); // curl/بات/تلگرام مبدأ ندارند
+      const allowed = (process.env.CORS_ORIGINS ?? config.CORS_ORIGINS)
+        .split(',').map(value => value.trim()).filter(Boolean);
+      return callback(null, allowed.length === 0 || allowed.includes(origin));
+    },
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
+    credentials: false,
+  });
   app.enableShutdownHooks();
   // توجه: بدنه‌ی درخواست در AppModule.configure() پارس می‌شود (قبل از init).
   // اینجا هیچ app.init()/express.json() دوباره‌ای نگذار: پارس بعد از init بی‌اثر

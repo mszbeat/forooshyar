@@ -32,13 +32,14 @@ export default function AdminSystemPage() {
           <div className="row" style={{ gap: 10 }}>
             <span className="stat-ico"><IconRefresh size={15} /></span>
             <div>
-              <div className="card-title" style={{ margin: 0 }}>اعمال تغییرات اتصال</div>
-              <div className="card-desc">CORS، کش و آدرس دیتابیس هنگام ساخت سرویس خوانده می‌شوند</div>
+              <div className="card-title" style={{ margin: 0 }}>اعمال بدون ری‌استارت</div>
+              <div className="card-desc">CORS و کش در لحظه‌ی هر درخواست خوانده می‌شوند؛ فقط جابه‌جایی دیتابیس ری‌استارت می‌خواهد</div>
             </div>
           </div>
           <p className="small muted" style={{ lineHeight: 1.95 }}>
-            بقیه‌ی تنظیمات (مدل، توکن، پرداخت) بلافاصله اثر می‌کنند. برای گروه بالا، سرویس باید یک‌بار
-            ری‌استارت شود تا پیکربندی تازه خوانده شود.
+            مدل زبانی، توکن بات، سکرت webhook، تنظیمات پرداخت، مبدأهای CORS و کش Redis همه بلافاصله
+            بعد از ذخیره اثر می‌کنند (کش همین‌جا دوباره وصل می‌شود). تنها استثنا آدرس دیتابیس است،
+            چون اتصال Prisma پیش از بالا آمدن سرویس ساخته می‌شود.
           </p>
           <div className="row">
             <button type="button" className="btn btn-warn btn-sm" onClick={() => void restart()} disabled={busy}>

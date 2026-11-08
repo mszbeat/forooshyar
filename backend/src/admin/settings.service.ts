@@ -6,6 +6,7 @@ import {
   type SettingDef, type SettingGroup,
 } from './settings.catalog';
 import { applyOverrides, normalizeValue } from './settings.runtime';
+import { RuntimeService } from './runtime.service';
 
 export type SettingView = {
   key: string;
@@ -33,7 +34,11 @@ export class SettingsService implements OnModuleInit {
   /** مقادیر env در لحظه‌ی بالا آمدن، برای تشخیص «نیاز به ری‌استارت». */
   private readonly bootEnv = new Map<string, string | undefined>();
 
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
+  constructor(
+    private readonly db: PrismaService,
+    private readonly audit: AuditService,
+    private readonly runtime: RuntimeService,
+  ) {}
 
   async onModuleInit() {
     for (const def of SETTINGS) this.bootEnv.set(def.key, process.env[def.key]);
@@ -103,7 +108,7 @@ export class SettingsService implements OnModuleInit {
    *  - کلیدهای `restart` بلافاصله اعمال می‌شوند ولی اثر واقعی‌شان بعد از
    *    ری‌استارت است؛ پنل هم همین را نشان می‌دهد.
    */
-  async save(input: Record<string, string>, actor: { id: string; email: string }): Promise<{ saved: string[]; skipped: string[]; restartRequired: string[] }> {
+  async save(input: Record<string, string>, actor: { id: string; email: string }): Promise<{ saved: string[]; skipped: string[]; restartRequired: string[]; appliedLive: string[] }> {
     const entries = Object.entries(input);
     if (entries.length === 0) throw new BadRequestException('هیچ تنظیمی ارسال نشد.');
 
@@ -123,7 +128,7 @@ export class SettingsService implements OnModuleInit {
     }
 
     if (errors.length) throw new BadRequestException(errors.join(' | '));
-    if (prepared.length === 0) return { saved: [], skipped: entries.map(([key]) => key), restartRequired: [] };
+    if (prepared.length === 0) return { saved: [], skipped: entries.map(([key]) => key), restartRequired: [], appliedLive: [] };
 
     await this.db.$transaction(
       prepared.map(({ def, value }) =>
@@ -136,6 +141,8 @@ export class SettingsService implements OnModuleInit {
     );
 
     applyOverrides(prepared.map(({ def, value }) => ({ key: def.key, value })));
+    // اعمال فوری: اتصال‌های وابسته (کش) همین‌جا از نو ساخته می‌شوند.
+    this.runtime.apply(prepared.map(({ def }) => def.key));
     // برنامه‌ی کلیدهایی که مقدارشان از لحظه‌ی بوت عوض شده و اتصال از پیش ساخته شده است
     for (const { def, value } of prepared) {
       if (!def.restart) continue;
@@ -149,7 +156,13 @@ export class SettingsService implements OnModuleInit {
       meta: { actor: actor.email, keys: prepared.map(entry => entry.def.key) },
     });
 
-    return { saved: prepared.map(entry => entry.def.key), skipped: [], restartRequired: this.restartRequired() };
+    const applied = this.runtime.apply(prepared.map(entry => entry.def.key));
+    return {
+      saved: prepared.map(entry => entry.def.key),
+      skipped: [],
+      restartRequired: this.restartRequired(),
+      appliedLive: applied.hot,
+    };
   }
 
   /** کلیدهای نیازمند ری‌استارت که مقدارشان با لحظه‌ی بوت فرق کرده است. */

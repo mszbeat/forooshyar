@@ -74,8 +74,20 @@ export class AdminController {
   }
 
   @Post('diagnostics/ai')
-  probeAi() {
-    return this.admin.probeAi();
+  probeAi(@Body() body: unknown) {
+    // baseUrl/model/apiKey اختیاری: آزمون مقدارهای ذخیره‌نشده‌ی فرم، بدون نوشتن در دیتابیس.
+    const parsed = z.object({
+      baseUrl: z.string().max(500).optional(),
+      model: z.string().max(200).optional(),
+      apiKey: z.string().max(500).optional(),
+    }).safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException('مقادیر آزمون نامعتبر است.');
+    const clean: { baseUrl?: string; model?: string; apiKey?: string } = {};
+    for (const [key, value] of Object.entries(parsed.data)) {
+      const text = (value ?? '').trim();
+      if (text) clean[key as 'baseUrl'] = text;
+    }
+    return this.admin.probeAi(clean);
   }
 
   @Post('diagnostics/telegram')

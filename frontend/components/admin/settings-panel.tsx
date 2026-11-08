@@ -69,9 +69,18 @@ export function SettingsPanel({
       const values = Object.fromEntries(dirty.map(key => [key, draft[key] ?? '']));
       const result = await adminApi.save(values);
       setSavedAt(new Date().toISOString());
+      const live = result.appliedLive?.length ?? 0;
+      // پیام صادقانه: چه چیزی همین حالا اثر کرد و آیا چیزی ری‌استارت می‌خواهد.
+      const needsRestart = result.restartRequired?.length ?? 0;
       toast.success(
         'ذخیره شد',
-        result.saved.length ? `${result.saved.length} تنظیم به‌روزرسانی شد.` : 'مقدار ماسک‌شده بدون تغییر ماند.',
+        !result.saved.length
+          ? 'مقدار ماسک‌شده بدون تغییر ماند.'
+          : needsRestart
+            ? `${result.saved.length} تنظیم ذخیره شد؛ ${needsRestart} مورد برای اثر قطعی ری‌استارت می‌خواهد.`
+            : live
+              ? `${result.saved.length} تنظیم ذخیره و بی‌درنگ اعمال شد (بدون ری‌استارت).`
+              : `${result.saved.length} تنظیم به‌روزرسانی شد.`,
       );
       await load();
     } catch (problem) {
@@ -134,16 +143,16 @@ export function SettingsPanel({
           {view.settings.map(setting => (
             <div key={setting.key} className={`adm-row${dirty.includes(setting.key) ? ' dirty' : ''}`}>
               <div>
+                {/* کلید تنظیم قبلاً یک خط جداگانه‌ی کامل می‌گرفت و هر ردیف را
+                    بی‌دلیل بلند می‌کرد؛ حالا همان سطر برچسب، انتهای خط می‌نشیند. */}
                 <div className="lbl">
                   {setting.label}
                   <span className={`adm-tag ${SOURCE_LABEL[setting.source].cls}`}>{SOURCE_LABEL[setting.source].text}</span>
                   {setting.restart && <span className="adm-tag t-restart">نیازمند ری‌استارت</span>}
                   {setting.optional && <span className="adm-tag">اختیاری</span>}
+                  <span className="key" title={`کلید تنظیم: ${setting.key}`}>{setting.key}</span>
                 </div>
                 {setting.hint && <div className="hint">{setting.hint}</div>}
-                <div className="hint" style={{ opacity: 0.7, fontFamily: 'var(--font-mono, monospace)', direction: 'ltr', textAlign: 'right', fontSize: 10.5 }}>
-                  {setting.key}
-                </div>
               </div>
               <div className="ctl">
                 <Control setting={setting} value={draft[setting.key] ?? ''} onChange={next => set(setting.key, next)} />

@@ -10,8 +10,7 @@ import { SettingsService } from './settings.service';
 
 export type AdminIdentity = { id: string; email: string; name: string };
 
-const DEFAULT_ADMIN_EMAIL = 'sadeghADM@forooshyar.com';
-const DEFAULT_ADMIN_PASSWORD = 's0a0d0e0g0h0';
+const DEFAULT_ADMIN_EMAIL = 'admin@forooshyar.local';
 
 /**
  * منطق پنل ادمین: ورود، نمای کلی پلتفرم، و آزمون‌های اتصال.
@@ -35,12 +34,18 @@ export class AdminService implements OnModuleInit {
   /**
    * ساخت حساب ادمین در اولین اجرا.
    *
-   * رمز از `ADMIN_PASSWORD` خوانده می‌شود؛ اگر نبود، مقدار پیش‌فرض پروژه. رمز
-   * فقط به‌صورت هش ذخیره می‌شود و لاگ هم متن رمز را نمی‌نویسد.
+   * رمز **فقط** از `ADMIN_PASSWORD` خوانده می‌شود؛ هیچ رمز پیش‌فرضی در کد نیست
+   * (رمز ثابت در مخزن یعنی هر نصب تازه با همان رمز باز می‌شود). اگر متغیر خالی
+   * باشد حساب ساخته نمی‌شود و در لاگ توضیح داده می‌شود. رمز فقط به‌صورت هش
+   * ذخیره می‌شود و لاگ هم متن رمز را نمی‌نویسد.
    */
   async onModuleInit() {
     const email = (process.env.ADMIN_EMAIL ?? DEFAULT_ADMIN_EMAIL).trim().toLowerCase();
-    const password = process.env.ADMIN_PASSWORD ?? DEFAULT_ADMIN_PASSWORD;
+    const password = (process.env.ADMIN_PASSWORD ?? '').trim();
+    if (!password) {
+      this.logger.warn('ADMIN_PASSWORD تنظیم نشده است؛ حساب ادمین ساخته نشد. برای ساخت، ADMIN_EMAIL و ADMIN_PASSWORD را بگذارید و سرویس را دوباره بالا بیاورید.');
+      return;
+    }
     try {
       const existing = await this.db.platformAdmin.findUnique({ where: { email } });
       if (existing) return;
@@ -225,9 +230,15 @@ export class AdminService implements OnModuleInit {
   }
 
   /** آزمون اتصال مدل زبانی با تنظیمات فعلی. */
-  async probeAi() {
-    const result = await this.ai.probe();
-    this.audit.record({ action: 'admin.ai_probe', entity: 'settings', meta: { ok: result.ok, model: result.model, latencyMs: result.latencyMs } });
+  async probeAi(overrides: { baseUrl?: string; model?: string; apiKey?: string } = {}) {
+    const result = await this.ai.probe(overrides);
+    this.audit.record({
+      action: 'admin.ai_probe', entity: 'settings',
+      meta: {
+        ok: result.ok, model: result.model, provider: result.provider,
+        latencyMs: result.latencyMs, draft: Object.keys(overrides).length > 0,
+      },
+    });
     return result;
   }
 

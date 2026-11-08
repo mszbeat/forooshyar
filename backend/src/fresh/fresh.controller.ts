@@ -4,8 +4,8 @@ import { AuthGuard, Principal } from '../auth/auth.guard';
 import { parse } from '../common/validation';
 import { PrismaService } from '../database/prisma.service';
 import { composeReply, type BrainShop } from '../telegram/brain';
+import { resolveReply } from '../ai/understand';
 import { AiService } from '../ai/ai.service';
-import { answerWithAi } from '../ai/answer';
 
 const input = z.object({ message: z.string().trim().min(1).max(2000) }).strict();
 
@@ -49,12 +49,14 @@ export class FreshController {
       return { kind: 'handoff', text: shop.handoffMessage.trim() || 'برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.' };
     }
     const reply = composeReply(message, shop as BrainShop, products);
-    const aiWanted = this.ai.enabled && reply.kind === 'clarify' && /^(unclear|no_data)/.test(reply.reason ?? '');
-    if (aiWanted) {
-      const answer = await answerWithAi(this.ai, { shop: shop as BrainShop, products }, message);
-      if (answer.ok) return { kind: 'answer', reason: 'ai_answer', text: answer.text, source: 'ai' };
-      return { kind: reply.kind, reason: reply.reason, text: reply.text, source: 'rules', aiSkipped: answer.reason };
-    }
-    return { kind: reply.kind, reason: reply.reason, text: reply.text, source: 'rules' };
+    const understood = await resolveReply({ ai: this.ai, shop: shop as BrainShop, products, text: message, rule: reply });
+    return {
+      kind: understood.kind,
+      reason: understood.reason,
+      text: understood.text,
+      buttons: understood.buttons ?? [],
+      source: understood.source,
+      ai: understood.ai ?? null,
+    };
   }
 }

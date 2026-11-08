@@ -61,7 +61,12 @@ export class AiService {
    * یک نوبت گفتگو با مدل. هر خطا `null` برمی‌گرداند تا مسیر قاعده‌محور ادامه پیدا کند.
    * سه خطای پشت‌سرهم → مدار ۲ دقیقه باز می‌شود و بات دیگر منتظر مدل نمی‌ماند.
    */
-  async complete(system: string, user: string, signal?: AbortSignal): Promise<string | null> {
+  async complete(
+    system: string,
+    user: string,
+    signal?: AbortSignal,
+    options?: { temperature?: number; maxTokens?: number },
+  ): Promise<string | null> {
     if (!this.enabled) return null;
     if (Date.now() < this.failures.blockedUntil) return null;
 
@@ -76,8 +81,8 @@ export class AiService {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
         body: JSON.stringify({
           model: this.model,
-          temperature: Number(process.env.AI_TEMPERATURE ?? 0.3),
-          max_tokens: Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 400),
+          temperature: options?.temperature ?? Number(process.env.AI_TEMPERATURE ?? 0.3),
+          max_tokens: options?.maxTokens ?? Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 400),
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },
@@ -120,15 +125,20 @@ export class AiService {
    * ادامه پیدا کند) و برای عیب‌یابی بی‌فایده است. اینجا خطای واقعی ارائه‌دهنده،
    * کد وضعیت و زمان پاسخ برگردانده می‌شود و قطع‌کننده‌ی مدار دست نمی‌خورد.
    */
-  async probe(): Promise<{ ok: boolean; latencyMs: number; model: string; provider: string; sample?: string; error?: string }> {
-    const model = this.model;
-    const provider = this.provider;
-    if (!this.apiKey) return { ok: false, latencyMs: 0, model, provider, error: 'کلید API تنظیم نشده است.' };
+  async probe(overrides: { baseUrl?: string; model?: string; apiKey?: string } = {}): Promise<{
+    ok: boolean; latencyMs: number; model: string; provider: string; sample?: string; error?: string; status?: number;
+  }> {
+    // مقدارهای پیش‌نویس پنل (ذخیره‌نشده) هم آزمون می‌شوند تا ادمین مجبور نباشد
+    // اول ذخیره کند و بعد بفهمد مدل یا کلید اشتباه است.
+    const model = (overrides.model ?? this.model).trim();
+    const provider = (overrides.baseUrl ?? this.provider).trim();
+    const apiKey = (overrides.apiKey ?? this.apiKey).trim();
+    if (!apiKey) return { ok: false, latencyMs: 0, model, provider, error: 'کلید API تنظیم نشده است.' };
     const started = Date.now();
     try {
       const response = await fetch(`${provider.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
           model,
           temperature: 0,
@@ -143,7 +153,7 @@ export class AiService {
       const latencyMs = Date.now() - started;
       const raw = await response.text();
       if (!response.ok) {
-        return { ok: false, latencyMs, model, provider, error: `HTTP ${response.status}: ${raw.slice(0, 300)}` };
+        return { ok: false, latencyMs, model, provider, status: response.status, error: `HTTP ${response.status}: ${raw.slice(0, 300)}` };
       }
       const data = JSON.parse(raw) as { choices?: { message?: { content?: string } }[] };
       const sample = data.choices?.[0]?.message?.content?.trim() ?? '';

@@ -4,6 +4,7 @@ import { AdminAuthController, AdminController } from './admin.controller';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { SettingsService } from './settings.service';
+import { RuntimeService } from './runtime.service';
 
 /**
  * پنل ادمین پلتفرم.
@@ -14,7 +15,7 @@ import { SettingsService } from './settings.service';
 @Module({
   imports: [AiModule],
   controllers: [AdminAuthController, AdminController],
-  providers: [AdminService, SettingsService, AdminGuard],
+  providers: [AdminService, SettingsService, RuntimeService, AdminGuard],
   exports: [SettingsService, AdminService],
 })
 export class AdminModule {}

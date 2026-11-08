@@ -48,6 +48,15 @@ const STOPWORDS = new Set([
   'بفرستید', 'بفرستین', 'می', 'شما', 'شماها', 'الان', 'الآن', 'بعد', 'قبل',
   // عدد و واحد پول: «۶۴۰ هزار تومان» قیمت است، نه نام محصول
   'هزار', 'میلیون', 'میلیارد', 'تخفیف', 'ارزان', 'گران', 'ارزانتر', 'گران‌تر',
+  // ضمایر و حروف اضافه‌ی گفتاری: «کفش‌هاتون رو بدونم» سه توکن اضافه داشت که
+  // پوشش پرسش را از ۱ به ۰٫۲۸ می‌رساند و همان باعث می‌شد بات بگوید «پیدا نشد».
+  'هاتون', 'هامون', 'هاشون', 'تون', 'اتون', 'مون', 'شون', 'رو', 'هم', 'همش',
+  'بدونم', 'بدونیم', 'بدونید', 'بدونه', 'بگید', 'بگین', 'بگم', 'بفرمایید',
+  'میشه', 'می‌شه', 'میشد', 'می‌شد', 'میتونم', 'می‌تونم', 'میتونید', 'می‌تونید',
+  'خوام', 'خواستم', 'میخام', 'می‌خام', 'بخوام', 'بخوای', 'میخواین', 'می‌خواین',
+  // افعال گفتاری درباره‌ی موجود بودن کالا («آوردید؟»، «دارین؟»، «رسیده؟»)
+  'آوردی', 'آوردید', 'آوردین', 'آوردن', 'آورده', 'میارید', 'میارین', 'میارن',
+  'اومده', 'اومدن', 'رسیده', 'رسید', 'جدید', 'جدیدا', 'جدیداً', 'چطوره', 'چطورن',
 ]);
 
 /** کد کوتاه و خوانای محصول؛ جای uuid در پیام‌های تلگرام. */
@@ -184,18 +193,63 @@ export function productTokens(text: string): string[] {
  * آستانه عمداً پایین است — این فهرست «پیشنهاد» است، نه پاسخ قطعی.
  */
 export function suggest(text: string, products: CatalogProduct[], limit = 3): CatalogProduct[] {
-  const query = new Set(productTokens(text));
-  if (query.size === 0) return [];
+  const query = productTokens(text);
+  if (query.length === 0) return [];
+
   const scored = products
     .map(product => {
       const titleTokens = tokens(product.title).filter(meaningful);
-      const matched = titleTokens.filter(token => query.has(token) || [...query].some(word => token.startsWith(word) || word.startsWith(token)));
-      const overlap = matched.reduce((sum, token) => sum + token.length, 0);
-      return { product, overlap };
+      let overlap = 0;
+      let best = 0;
+      for (const token of titleTokens) {
+        // فقط شباهت واقعی: تساوی، یا یکی زیرمجموعه‌ی دیگری با دست‌کم ۴ حرف،
+        // یا یک غلط تایپی در واژه‌های ۵ حرفی به بالا. قبلاً هر اشتراک پیشوندی
+        // با ۳ حرف کافی بود و «کفش» محصول «روسری» را پیشنهاد می‌داد.
+        const similarity = query.reduce((max, word) => Math.max(max, wordSimilarity(word, token)), 0);
+        if (similarity >= 0.6) {
+          overlap += token.length * similarity;
+          best = Math.max(best, similarity);
+        }
+      }
+      return { product, overlap, best };
     })
-    .filter(entry => entry.overlap >= 3)
+    // هم پوشش وزنی و هم دست‌کم یک واژه‌ی واقعاً مشابه لازم است؛ یک واژه‌ی
+    // سه‌حرفی مشترک دیگر کافی نیست که محصولی پیشنهاد شود.
+    .filter(entry => entry.overlap >= 3 && entry.best >= 0.6)
     .sort((a, b) => b.overlap - a.overlap);
   return scored.slice(0, limit).map(entry => entry.product);
+}
+
+/** فاصله‌ی لِوِنشتاین برای تشخیص غلط تایپی (فقط روی واژه‌های کوتاه). */
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  let previous = Array.from({ length: cols }, (_, index) => index);
+  for (let row = 1; row < rows; row += 1) {
+    const current = [row];
+    for (let col = 1; col < cols; col += 1) {
+      const cost = a[row - 1] === b[col - 1] ? 0 : 1;
+      current[col] = Math.min(previous[col] + 1, current[col - 1] + 1, previous[col - 1] + cost);
+    }
+    previous = current;
+  }
+  return previous[cols - 1];
+}
+
+/**
+ * شباهت دو واژه در بازه‌ی ۰ تا ۱.
+ *
+ *  - تساوی → ۱
+ *  - یکی زیرمجموعه‌ی دیگری با دست‌کم ۴ حرف مشترک («کفش» / «کفشی») → ۰٫۸
+ *  - یک غلط تایپی در واژه‌های ۵ حرفی به بالا → ۰٫۷
+ *  بقیه صفر. دلیل: پیشنهاد یک محصول نامرتبط بدتر از ندادن پیشنهاد است.
+ */
+function wordSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return 0.8;
+  if (a.length >= 5 && b.length >= 5 && editDistance(a, b) <= 1) return 0.7;
+  return 0;
 }
 
 /**
