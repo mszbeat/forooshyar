@@ -76,7 +76,7 @@ export class AiService {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
         body: JSON.stringify({
           model: this.model,
-          temperature: 0.3,
+          temperature: Number(process.env.AI_TEMPERATURE ?? 0.3),
           max_tokens: Number(process.env.AI_MAX_OUTPUT_TOKENS ?? 400),
           messages: [
             { role: 'system', content: system },
@@ -110,6 +110,46 @@ export class AiService {
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  /**
+   * آزمون اتصال برای پنل ادمین.
+   *
+   * چرا جدا از `complete`: آن یکی هر خطا را `null` می‌کند (تا مسیر قاعده‌محور
+   * ادامه پیدا کند) و برای عیب‌یابی بی‌فایده است. اینجا خطای واقعی ارائه‌دهنده،
+   * کد وضعیت و زمان پاسخ برگردانده می‌شود و قطع‌کننده‌ی مدار دست نمی‌خورد.
+   */
+  async probe(): Promise<{ ok: boolean; latencyMs: number; model: string; provider: string; sample?: string; error?: string }> {
+    const model = this.model;
+    const provider = this.provider;
+    if (!this.apiKey) return { ok: false, latencyMs: 0, model, provider, error: 'کلید API تنظیم نشده است.' };
+    const started = Date.now();
+    try {
+      const response = await fetch(`${provider.replace(/\/+$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: 32,
+          messages: [
+            { role: 'system', content: 'پاسخ را فقط با یک جمله‌ی کوتاه فارسی بده.' },
+            { role: 'user', content: 'بگو: اتصال برقرار است.' },
+          ],
+        }),
+        signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS ?? 12000)),
+      });
+      const latencyMs = Date.now() - started;
+      const raw = await response.text();
+      if (!response.ok) {
+        return { ok: false, latencyMs, model, provider, error: `HTTP ${response.status}: ${raw.slice(0, 300)}` };
+      }
+      const data = JSON.parse(raw) as { choices?: { message?: { content?: string } }[] };
+      const sample = data.choices?.[0]?.message?.content?.trim() ?? '';
+      return { ok: Boolean(sample), latencyMs, model, provider, sample, ...(sample ? {} : { error: 'پاسخ خالی برگشت.' }) };
+    } catch (error) {
+      return { ok: false, latencyMs: Date.now() - started, model, provider, error: error instanceof Error ? error.message : 'خطای نامشخص' };
     }
   }
 
