@@ -75,7 +75,19 @@ export type HandleResult =
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger('Telegram');
-  private readonly client = new TelegramClient(readTelegramConfig());
+  /**
+   * کلاینت با اولین استفاده ساخته می‌شود و اگر توکن/آدرس عوض شود خودش را
+   * دوباره می‌سازد. لازم است چون پنل ادمین می‌تواند توکن بات را بدون ری‌استارت
+   * سرویس تغییر دهد و یک کلاینت ساخته‌شده با توکن قدیمی تا ابد کار نمی‌کرد.
+   */
+  private cached?: { client: TelegramClient; token: string; baseUrl: string };
+  private get client(): TelegramClient {
+    const config = readTelegramConfig();
+    if (!this.cached || this.cached.token !== config.token || this.cached.baseUrl !== config.baseUrl) {
+      this.cached = { client: new TelegramClient(config), token: config.token, baseUrl: config.baseUrl };
+    }
+    return this.cached.client;
+  }
 
   constructor(
     private readonly db: PrismaService,

@@ -248,6 +248,17 @@ export default function LoginPage() {
               <IconArrowLeft size={14} style={{ transform: 'scaleX(-1)' }} />
               بازگشت به صفحه اصلی
             </Link>
+
+            {/* ورود مدیر سامانه عمداً از اینجا هم قابل دسترسی است: آدرس /admin
+                را کسی حدس نمی‌زند و پشتیبانی هم باید راه ورود داشته باشد. */}
+            <Link
+              href="/admin/login"
+              className="authx-back"
+              style={{ color: 'var(--ink-3)', fontSize: 12 }}
+            >
+              <IconShield size={13} />
+              ورود مدیر سامانه
+            </Link>
           </div>
         </div>
       </div>

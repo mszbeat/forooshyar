@@ -304,3 +304,33 @@ model TelegramUpdate {
 
   @@index([receivedAt])
 }
+
+// ---------------------------------------------------------------------------
+// ادمین پلتفرم
+// ---------------------------------------------------------------------------
+
+/// حساب ادمین سامانه — کاملاً جدا از حساب فروشنده (`User`).
+/// ادمین فروشگاه ندارد؛ به همین دلیل AuthGuard فروشنده هرگز توکن او را قبول
+/// نمی‌کند و برعکس. رمز با scrypt ذخیره می‌شود، هرگز به‌صورت متن.
+model PlatformAdmin {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  name         String    @default("")
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+/// تنظیمات سطح پلتفرم که از پنل ادمین ویرایش می‌شوند.
+///
+/// `secret` یعنی مقدار رمزآلود است و در خواندن ماسک می‌شود؛ مقدار خام فقط
+/// یک‌بار (هنگام ذخیره) در پاسخ برنمی‌گردد.
+model AppSetting {
+  key       String   @id
+  value     String   @default("")
+  secret    Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+  updatedBy String?  @db.Uuid
+}
