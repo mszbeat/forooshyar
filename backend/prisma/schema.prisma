@@ -157,8 +157,12 @@ model Channel {
   /// یکتا است: هر حساب اینستاگرام فقط یک فروشگاه دارد و پیام‌هایش نباید بین
   /// دو فروشگاه پخش شود.
   instagramAccountId String?   @unique
-  /// نام کاربری پیج، فقط برای نمایش در پنل (از webhook/OAuth می‌آید).
+  /// نام کاربری پیج، از `/service/accounts` باکس‌ای‌پی.
   instagramUsername  String?
+  /// عکس پروفایل پیج، فقط برای نمایش در پنل.
+  instagramProfilePhoto String?
+  /// تاریخ انقضای دسترسی پیج؛ بعد از آن فروشنده باید دوباره لاگین کند.
+  instagramExpiresAt DateTime?
   instagramLinkedAt  DateTime?
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())

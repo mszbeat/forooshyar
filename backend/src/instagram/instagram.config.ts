@@ -1,35 +1,35 @@
 /**
  * پیکربندی اینستاگرام (BoxAPI).
  *
- * چرا همه‌چیز از env: توکن دسترسی BoxAPI اجازه‌ی ارسال پیام از **پیج خود
- * فروشنده** را می‌دهد. اگر روزی در باندل فرانت‌اند بیاید، هر بازدیدکننده‌ای
- * می‌تواند از طرف فروشنده پیام بفرستد. مستندات BoxAPI هم صریح گفته‌اند این
- * مقدار فقط باید در بک‌اند باشد. پس هیچ‌جای پروژه مقدار خام توکن را به کلاینت
- * نمی‌فرستیم؛ حتی به پنل خود فروشنده (فقط «ست شده / ست نشده» می‌رود).
+ * نکته‌ی معماری — چه چیزی «پلتفرمی» است و چه چیزی «هر فروشگاه»:
  *
- * نام کلیدها با پیشوند `INSTAGRAM_` است، تا با کلیدهای عمومی BoxAPI که ممکن
- * است بعداً برای کانال دیگری هم استفاده شوند قاطی نشود.
+ *   پلتفرمی (env): کلید API، سکرت webhook، آدرس پایه و **لینک ورود اختصاصی**
+ *   حساب باکس‌ای‌پی. طبق مستندات BoxAPI، همه‌ی پیج‌هایی که از طریق همین لینک
+ *   وارد می‌شوند در `GET /service/accounts` فهرست می‌شوند. یعنی یک حساب
+ *   باکس‌ای‌پی برای کل پلتفرم کافی است.
+ *
+ *   هر فروشگاه (دیتابیس): `account_id` پیج خودش. این مقدار **نمی‌تواند** در env
+ *   باشد، چون هر فروشگاه پیج خودش را دارد؛ فروشنده از پنل وصل می‌کند و روی
+ *   `Channel.instagramAccountId` ذخیره می‌شود. (نسخه‌ی اول این اشتباه را داشت.)
+ *
+ * توکن اجازه‌ی ارسال پیام از پیج فروشنده را می‌دهد؛ پس فقط سمت سرور می‌ماند و
+ * هیچ endpointی آن را — حتی ماسک‌شده — به کلاینت نمی‌فرستد.
  */
 
 export type InstagramConfig = {
-  /** ریشه‌ی API؛ پیش‌فرض همان آدرسی است که داشبورد BoxAPI می‌دهد. */
+  /** ریشه‌ی API؛ پیش‌فرض همان آدرسی که داشبورد BoxAPI می‌دهد. */
   baseUrl: string;
   /** توکن دسترسی (`X-Api-Key`). */
   apiKey: string;
   /** سکرت webhook؛ اگر خالی باشد امضا بررسی نمی‌شود (فقط برای توسعه‌ی محلی). */
   webhookSecret: string;
-  /** UUID پیج اینستاگرام که پیام‌ها از طرف آن می‌رود. */
-  accountId: string;
-  /** لینک اتصال حساب که BoxAPI در داشبورد می‌دهد (فقط برای نمایش در پنل). */
-  loginUrl: string;
   /**
-   * اگر چندانتیتی نباشیم (یک فروشگاه، یک پیج — حالت پلن رایگان)، پیام‌های
-   * حسابی که در `Channel` ثبت نشده به همین کد فروشگاه وصل می‌شوند.
+   * لینک ورود اختصاصی حساب باکس‌ای‌پی (`instagram_oauth_url`).
+   * همه‌ی فروشگاه‌ها همین لینک را باز می‌کنند و هر کدام با حساب خودش وارد
+   * می‌شود؛ بعد از آن پیج در `/service/accounts` ظاهر می‌شود.
    */
-  shopCode: string;
+  loginUrl: string;
   timeoutMs: number;
-  /** لینک صفحه‌ی اینستاگرام فروشنده؛ در دکمه‌های «مشاهده در سایت» استفاده می‌شود. */
-  profileUrl: string;
 };
 
 const DEFAULT_BASE = 'https://api.sendbox.chat/api/v1';
@@ -40,11 +40,8 @@ export function readInstagramConfig(env: NodeJS.ProcessEnv = process.env): Insta
     baseUrl: (env.INSTAGRAM_BASE_URL ?? DEFAULT_BASE).trim().replace(/\/+$/, ''),
     apiKey: (env.INSTAGRAM_API_KEY ?? '').trim(),
     webhookSecret: (env.INSTAGRAM_WEBHOOK_SECRET ?? '').trim(),
-    accountId: (env.INSTAGRAM_ACCOUNT_ID ?? '').trim(),
     loginUrl: (env.INSTAGRAM_LOGIN_URL ?? '').trim(),
-    shopCode: (env.INSTAGRAM_SHOP_CODE ?? '').trim(),
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 10000,
-    profileUrl: (env.INSTAGRAM_PROFILE_URL ?? '').trim(),
   };
 }
 
@@ -55,9 +52,13 @@ export function webhookUrl(config: InstagramConfig, env: NodeJS.ProcessEnv = pro
 }
 
 /**
- * آیا اتصال کامل است؟ `accountId` هم لازم است چون بدون آن هیچ اکشنی از
- * BoxAPI پذیرفته نمی‌شود و بهتر است پنل «ناقص» نشان دهد نه «فعال».
+ * آیا سرویس آماده است؟ فقط کلید API لازم است؛ پیج را فروشنده وصل می‌کند.
  */
 export function instagramConfigured(config: InstagramConfig): boolean {
-  return config.apiKey.length > 0 && config.accountId.length > 0;
+  return config.apiKey.length > 0;
+}
+
+/** آیا دکمه‌ی «اتصال پیج» قابل نمایش است (لینک ورود تنظیم شده). */
+export function instagramConnectable(config: InstagramConfig): boolean {
+  return config.apiKey.length > 0 && config.loginUrl.length > 0;
 }
