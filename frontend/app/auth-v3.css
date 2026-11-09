@@ -155,3 +155,21 @@
 .authx-visual .dl-hero .dl-hero-track { border-color: color-mix(in srgb, var(--bg) 30%, transparent); }
 .authx-visual .dl-hero .dl-hero-knob { background: var(--bg); }
 .authx-visual .dl-hero .dl-hero-knob::after { background: var(--bg); }
+
+/* واژه‌ی تأکید در تیتر پلاته.
+   نسخه‌ی قبلی زیر واژه یک نوار ۷ پیکسلی بنفش می‌گذاشت که روی زمینه‌ی جوهری
+   شبیه خط سرگردان دیده می‌شد. اینجا شده خط مویی زعفرانی، هم‌خانواده‌ی زیرخطِ
+   صفحه‌ی اصلی — یک حرکت، یک زبان. */
+.authx-copy h2 em {
+  font-style: normal;
+  color: color-mix(in srgb, var(--brand-400) 82%, var(--bg));
+}
+.authx-copy h2 em::after {
+  content: '';
+  position: absolute;
+  inset-inline: -3px;
+  bottom: -0.14em;
+  height: 1.5px;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--brand-400) 78%, transparent);
+}
