@@ -1497,7 +1497,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   height: clamp(520px, calc(100dvh - 292px), 780px);
   overflow: hidden;
 }
-.conv-list { display: flex; flex-direction: column; border-inline-end: 1px solid var(--line); min-width: 0; }
+.conv-list { display: flex; flex-direction: column; border-inline-end: 1px solid var(--line); min-width: 0; min-height: 0; }
 .conv-list-head {
   display: grid; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line);
   background: var(--surface-2);
@@ -1525,7 +1525,9 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .conv-empty { padding: 26px 18px; text-align: center; color: var(--ink-3); display: grid; gap: 8px; justify-items: center; }
 .conv-empty p { font-size: 12px; line-height: 1.9; margin: 0; }
 
-.conv-thread { display: flex; flex-direction: column; min-width: 0; background: var(--surface); }
+/* ستون گفتگو باید قدِ ثابتِ shell را پر کند، وگرنه با min-height خودش جمع
+   می‌شود و پیام‌ها ته کادر می‌چسبند. */
+.conv-thread { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
 .conv-thread-empty { margin: auto; display: grid; gap: 6px; justify-items: center; text-align: center; padding: 40px; }
 .conv-thread-empty strong { font-size: var(--fs-sm); font-weight: 600; }
 .conv-thread-empty p { font-size: 12px; color: var(--ink-3); margin: 0; max-width: 34ch; line-height: 1.9; }
@@ -1547,7 +1549,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   display: flex; flex-direction: column; gap: 9px;
   background: color-mix(in srgb, var(--surface-2) 62%, var(--surface));
 }
-.conv-msgs > :first-child { margin-top: auto; }
+.conv-msgs > .msg:first-child { margin-top: auto; }
+.conv-msgs > .conv-empty { margin-top: auto; }
 .conv-loading { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 20px; margin-top: auto; }
 .msg { display: flex; }
 .msg-in { justify-content: flex-start; }
