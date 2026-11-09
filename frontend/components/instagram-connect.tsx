@@ -33,7 +33,7 @@ export function InstagramConnect() {
   const [status, setStatus] = useState<InstagramStatus | null>(null);
   const [accounts, setAccounts] = useState<InstagramAccount[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<'connect' | 'accounts' | 'link' | 'unlink' | 'test' | null>(null);
+  const [busy, setBusy] = useState<'connect' | 'accounts' | 'link' | 'unlink' | 'test' | 'recent' | null>(null);
   const [error, setError] = useState('');
   const [recipient, setRecipient] = useState('');
   const [testNote, setTestNote] = useState('');
@@ -180,6 +180,16 @@ export function InstagramConnect() {
       await load();
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : 'اتصال پیج انجام نشد.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** دوباره‌خواندن گفتگوهای اینستاگرام، با حالت انتظار و پیام روشن. */
+  async function refreshRecent() {
+    setBusy('recent');
+    try {
+      await loadRecent();
     } finally {
       setBusy(null);
     }
@@ -455,10 +465,40 @@ export function InstagramConnect() {
                 شناسه‌ی «رشته» است و همیشه با شناسه‌ی گیرنده یکی نیست؛ شناسه‌ی درست
                 همان است که فهرست بالا نشان می‌دهد.
               </p>
-              {recent.length > 0 && (
-                <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
-                  <span className="small muted">یک‌کلیکی به گفتگوهای همین پیج:</span>
-                  {recent.slice(0, 4).map(item => (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+                <div className="row-between" style={{ gap: 8 }}>
+                  <span className="small muted">دایرکت تازه‌ای دارید؟</span>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => void refreshRecent()}
+                  >
+                    {busy === 'recent' ? <Spinner size={13} /> : <IconRefresh size={13} />}
+                    به‌روزرسانی فهرست
+                  </button>
+                </div>
+                {recent.length === 0 ? (
+                  <div
+                    className="small muted"
+                    style={{
+                      lineHeight: 2,
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--line)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                    }}
+                  >
+                    هنوز هیچ دایرکتی از این پیج به فروشگاه نرسیده، پس فهرستی هم برای انتخاب نیست.
+                    برای اینکه گفتگو بسازید: از یک اکانت اینستاگرامِ <b>دیگر</b> (نه همین پیج) به
+                    <span className="mono" dir="ltr"> @{account?.username || 'پیج'} </span>
+                    یک دایرکت بفرستید؛ چند ثانیه بعد در «گفتگوها» و در همین فهرست ظاهر می‌شود.
+                    <br />
+                    دایرکت از خودِ پیج به خودش گفتگو نمی‌سازد، و اگر چند ثانیه بعد هم چیزی نیامد
+                    یعنی webhook به سرور نمی‌رسد (آدرس بالا باید در داشبورد BoxAPI ثبت شده باشد).
+                  </div>
+                ) : (
+                  recent.slice(0, 4).map(item => (
                     <button
                       key={item.chatId}
                       className="btn btn-outline btn-sm"
@@ -474,9 +514,9 @@ export function InstagramConnect() {
                         …{item.igsid.slice(-6)}
                       </span>
                     </button>
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
               <div style={{ display: 'grid', gap: 8 }}>
                 <input
                   className="input mono"
