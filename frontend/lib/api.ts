@@ -366,6 +366,9 @@ export const api = {
       body: { accountId },
     }),
   instagramUnlink: () => request<{ ok: boolean; error?: string }>('/instagram/link', { method: 'DELETE' }),
+  /** آخرین رویدادهای webhook همین پیج (برای عیب‌یابی «دایرکت آمد یا نه»). */
+  instagramEvents: () =>
+    request<{ ok: boolean; items: { eventType: string; at: string; summary: string }[] }>('/instagram/events'),
   /** ارسال پیام آزمایشی به یک IGSID (شناسه‌ی گیرنده در دایرکت). */
   instagramTest: (recipientId: string) =>
     request<{ ok: boolean; message?: string; error?: string }>('/instagram/test', {

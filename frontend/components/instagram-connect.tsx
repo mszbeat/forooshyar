@@ -49,6 +49,8 @@ export function InstagramConnect() {
    * کاربر حدس بزند، همان مقدارِ ثبت‌شده را با یک کلیک می‌فرستیم.
    */
   const [recent, setRecent] = useState<{ chatId: string; name: string; igsid: string }[]>([]);
+  /** رویدادهای خام webhook؛ فقط وقتی گفتگویی نیست تا علت پیدا شود. */
+  const [events, setEvents] = useState<{ eventType: string; at: string; summary: string }[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +66,12 @@ export function InstagramConnect() {
   useEffect(() => { void load(); }, [load]);
 
   const loadRecent = useCallback(async () => {
+    try {
+      const board = await api.instagramEvents();
+      setEvents(board.items ?? []);
+    } catch {
+      setEvents([]);
+    }
     try {
       const list = await api.conversations();
       setRecent(
@@ -496,6 +504,20 @@ export function InstagramConnect() {
                     <br />
                     دایرکت از خودِ پیج به خودش گفتگو نمی‌سازد، و اگر چند ثانیه بعد هم چیزی نیامد
                     یعنی webhook به سرور نمی‌رسد (آدرس بالا باید در داشبورد BoxAPI ثبت شده باشد).
+                    {events.length > 0 && (
+                      <div style={{ marginTop: 10, borderTop: '1px dashed var(--line)', paddingTop: 8 }}>
+                        <div style={{ marginBottom: 4 }}>آخرین رویدادهایی که از BoxAPI رسیده:</div>
+                        {events.slice(0, 3).map((item, index) => (
+                          <div key={`${item.at}-${index}`} className="row" style={{ gap: 6, alignItems: 'baseline' }}>
+                            <span className="mono" dir="ltr" style={{ fontSize: 12 }}>{item.eventType}</span>
+                            <span style={{ fontSize: 12 }}>· {item.summary}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {events.length === 0 && (
+                      <div style={{ marginTop: 8 }}>هنوز هیچ رویدادی از BoxAPI به سرور نرسیده.</div>
+                    )}
                   </div>
                 ) : (
                   recent.slice(0, 4).map(item => (
