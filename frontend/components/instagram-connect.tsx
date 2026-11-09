@@ -1,11 +1,21 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, type InstagramAccount, type InstagramStatus } from '@/lib/api';
 import { SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import {
   IconAlertCircle, IconCheck, IconCheckCircle, IconCopy, IconInstagram, IconRefresh, IconSend,
 } from '@/components/icons';
+
+/** پیامی که تا رسیدن لینک، داخل پنجره‌ی انتظار دیده می‌شود (انگلیسیِ بی‌ربط نباشد). */
+const WAITING_PAGE = `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8">
+<title>اتصال پیج اینستاگرام</title></head>
+<body style="margin:0;display:grid;place-items:center;min-height:100vh;background:#f7f7fb;color:#2b2b3c;font:400 15px/1.9 Vazirmatn,Tahoma,system-ui,sans-serif">
+<div style="text-align:center;max-width:340px;padding:24px">
+<div style="width:38px;height:38px;margin:0 auto 16px;border:3px solid #ddd7f7;border-top-color:#6d4aff;border-radius:50%;animation:spin 900ms linear infinite"></div>
+<p style="margin:0 0 6px;font-weight:600">در حال باز کردن صفحه‌ی ورود اینستاگرام</p>
+<p style="margin:0;color:#6b6b80;font-size:13px">اگر بیشتر از چند ثانیه طول کشید، این پنجره را ببندید و دوباره از پنل امتحان کنید.</p>
+</div><style>@keyframes spin{to{transform:rotate(360deg)}}</style></body></html>`;
 
 /**
  * اتصال پیج اینستاگرامِ **همین فروشگاه** (BoxAPI).
@@ -27,6 +37,8 @@ export function InstagramConnect() {
   const [error, setError] = useState('');
   const [recipient, setRecipient] = useState('');
   const [testNote, setTestNote] = useState('');
+  /** پنجره‌ی اتصال باز است و هنوز برنگشته‌ایم. */
+  const pendingConnect = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -44,13 +56,30 @@ export function InstagramConnect() {
   /**
    * باز کردن صفحه‌ی اتصال حساب.
    *
-   * لینک از سرور و با احراز هویت گرفته می‌شود (داخلش توکن ورود است، پس در
-   * پاسخ `status` نیست). پنجره از قبل باز می‌شود تا پاپ‌آپ‌بلاکر مرورگر آن را
-   * نبندد؛ بعد آدرس تزریق می‌شود.
+   * دو نکته که هر دو در عمل به «صفحه‌ی سفید» می‌رسیدند:
+   * ۱. `noopener` در پارامترهای window.open باعث می‌شود مرورگر پنجره را با
+   *    opener تهی بسازد و مقدار بازگشتی `null` باشد؛ آن‌وقت کد نمی‌تواند در همان
+   *    پنجره آدرس بگذارد و پنجره‌ی خالیِ about:blank باز می‌ماند. پس پنجره را
+   *    کنترل‌شده باز می‌کنیم و بعد خودمان `opener` را تهی می‌کنیم.
+   * ۲. بین کلیک و رسیدن لینک از سرور فاصله است؛ اگر پنجره سفید بمانَد کاربر
+   *    فکر می‌کند خراب است، پس داخلش یک پیام انتظار می‌نویسیم.
+   *
+   * مرورگر باید پنجره را در همان لحظه‌ی کلیک باز کند (پاپ‌آپ‌بلاکر)، برای همین
+   * اول پنجره و بعد درخواست به سرور.
    */
   async function openConnectLink() {
-    const popup = window.open('', '_blank', 'noopener,width=520,height=720');
+    const popup = window.open('about:blank', '_blank', 'popup=yes,width=560,height=760');
+    if (popup) {
+      try {
+        popup.opener = null;
+        popup.document.write(WAITING_PAGE);
+        popup.document.close();
+      } catch {
+        /* دسترسی به پنجره ممکن نشد؛ پایین‌تر با پنجره‌ی تازه امتحان می‌کنیم. */
+      }
+    }
     setBusy('connect');
+    setError('');
     try {
       const result = await api.instagramConnectUrl();
       if (!result.ok || !result.url) {
@@ -58,10 +87,16 @@ export function InstagramConnect() {
         setError(result.error ?? 'لینک ورود در دسترس نیست.');
         return;
       }
-      if (popup) popup.location.href = result.url;
-      else window.open(result.url, '_blank', 'noopener');
+      pendingConnect.current = true;
+      if (popup && !popup.closed) {
+        popup.location.replace(result.url);
+      } else if (!window.open(result.url, '_blank')) {
+        setError('مرورگر پنجره‌ی جدید را بست. اجازه‌ی باز شدن پنجره را برای این سایت فعال کنید.');
+        pendingConnect.current = false;
+      }
     } catch (problem) {
       popup?.close();
+      pendingConnect.current = false;
       setError(problem instanceof ApiError ? problem.message : 'لینک ورود در دسترس نیست.');
     } finally {
       setBusy(null);
@@ -69,7 +104,7 @@ export function InstagramConnect() {
   }
 
   /** فهرست پیج‌ها را از BoxAPI می‌گیرد؛ نتیجه‌اش ربطی به «وصل‌شدن» ندارد. */
-  async function refreshAccounts() {
+  const refreshAccounts = useCallback(async () => {
     setBusy('accounts');
     setError('');
     setTestNote('');
@@ -86,7 +121,19 @@ export function InstagramConnect() {
     } finally {
       setBusy(null);
     }
-  }
+  }, [toast]);
+
+  // وقتی فروشنده از تب اینستاگرام برمی‌گردد، فهرست پیج‌ها را خودمان می‌خوانیم؛
+  // لازم نیست یادش بیفتد دکمه‌ی «بررسی کن» را بزند.
+  useEffect(() => {
+    function onReturn() {
+      if (!pendingConnect.current) return;
+      pendingConnect.current = false;
+      void refreshAccounts();
+    }
+    window.addEventListener('focus', onReturn);
+    return () => window.removeEventListener('focus', onReturn);
+  }, [refreshAccounts]);
 
   async function link(account: InstagramAccount) {
     setBusy('link');
