@@ -7,7 +7,7 @@ import { AiService } from '../ai/ai.service';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
 import { TelegramService } from '../telegram/telegram.service';
-import { discover, type CatalogProduct } from '../catalog/discovery';
+import { discover, productCodeOf, type CatalogProduct } from '../catalog/discovery';
 import {
   answerIntent,
   clarifyProducts,
@@ -591,6 +591,67 @@ export class InstagramService {
     return row;
   }
 
+  /** ذخیره‌ی فهرستی که همین حالا فرستادیم، تا «۱» و «۲» به همان محصول‌ها بخورد. */
+  private async rememberList(conversationId: string, reply: BotReply): Promise<void> {
+    const picks = productPicks(reply.buttons);
+    if (picks.length === 0) return;
+    await this.db.telegramConversation.update({
+      where: { id: conversationId },
+      data: { clarify: { round: 0, listQuery: reply.listQuery ?? 'محصولات فروشگاه', picks } },
+    });
+  }
+
+  /**
+   * انتخاب محصول با شماره‌ی فهرست («۱»/`1`) یا کد محصول («667DF5»).
+   *
+   * مبنا، فهرستی است که همین حالا برای مشتری فرستاده‌ایم (`clarify.listQuery`)
+   * تا شماره با همان ترتیبی که دیده یکی باشد؛ اگر حالتی نبود، کد محصول در کل
+   * کاتالوگ جست‌وجو می‌شود (کد، مستقل از فهرست، یکتاست).
+   */
+  private async pickByOrdinalOrCode(conversation: Conversation, rawText: string): Promise<InstagramHandleResult | null> {
+    const text = rawText.trim();
+    if (!text || text.length > 24) return null;
+    const products = await this.catalog(conversation.shopId);
+    if (products.length === 0) return null;
+
+    const state = (conversation.clarify ?? {}) as { picks?: string[] };
+    const picks = Array.isArray(state.picks) ? state.picks : [];
+
+    // شماره‌ی گزینه: ارقام فارسی/عربی هم پذیرفته می‌شوند.
+    const digits = text.replace(/[۰-۹]/gu, char => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char)))
+      .replace(/[٠-٩]/gu, char => String('٠١٢٣٤٥٦٧٨٩'.indexOf(char)))
+      .replace(/[.،)]+$/u, '');
+    let product: CatalogProduct | undefined;
+    if (/^\d{1,2}$/u.test(digits)) {
+      // شماره فقط وقتی معنا دارد که همین حالا فهرستی فرستاده باشیم؛ وگرنه «۱»ِ
+      // تنها نباید به‌صورت تصادفی یک محصول را باز کند.
+      const index = Number.parseInt(digits, 10);
+      if (index < 1) return null;
+      if (picks.length > 0) {
+        // دقیق‌ترین حالت: همان ترتیبی که مشتری در پیام دیده.
+        const id = picks[index - 1];
+        product = id ? products.find(item => item.id === id) : undefined;
+      }
+      // بدون فهرست ذخیره‌شده، شماره را حدس نمی‌زنیم؛ ممکن است آخرین پیام بات
+      // «پیدا نشد» بوده باشد و انتخاب تصادفی، بدترین پاسخ است.
+      if (!product) return null;
+    } else if (/^[a-z0-9]{4,8}$/iu.test(text)) {
+      const wanted = text.toUpperCase();
+      product = products.find(item => productCodeOf(item) === wanted || item.code?.toUpperCase() === wanted);
+    }
+    if (!product) return null;
+
+    const reply = describeProduct(product, 'قیمت');
+    await this.logInbound(conversation, rawText);
+    const sent = await this.send(conversation, reply.text, reply.buttons);
+    if (sent) await this.logOutbound(conversation, toPlainText(reply.text), 'bot');
+    this.audit.record({
+      action: 'instagram.product_pick', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId,
+      meta: { via: /^\d/u.test(digits) ? 'number' : 'code', productId: product.id, title: product.title },
+    });
+    return { status: 'handled', replies: sent ? 1 : 0, kind: 'product_pick' };
+  }
+
   /**
    * همان مسیر مشتری در تلگرام: سفارش نیمه‌کاره → تأیید تحویل → مغز قاعده‌محور →
    * مدل زبانی (با سقف زمانی) → دستیار فروشنده.
@@ -608,6 +669,14 @@ export class InstagramService {
       if (escape) await this.clearDraft(conversation.id);
       else return this.continueOrder(conversation, draft, { text: rawText });
     }
+
+    // ۱.۵) انتخاب با شماره یا کد محصول.
+    //      چرا لازم است: پاسخ سریع/دکمه‌ی اینستاگرام فقط در **اپ موبایل** دیده
+    //      می‌شود و در نسخه‌ی وب/دسکتاپ اینستاگرام رندر نمی‌شود (محدودیت خود
+    //      متا). پس مشتری وب‌کار فقط متن می‌بیند؛ اگر تایپ «۱» یا «667DF5» کار
+    //      نکند، راهی برای انتخاب و ثبت سفارش ندارد.
+    const picked = await this.pickByOrdinalOrCode(conversation, rawText);
+    if (picked) return picked;
 
     // ۲) «تحویل گرفتم» قبل از هر قاعده‌ای؛ وگرنه به «ارسال و تحویل» می‌چسبد.
     if (isDeliveryConfirmation(rawText)) {
@@ -643,6 +712,11 @@ export class InstagramService {
           text: understood.text,
           buttons: understood.buttons,
           parseMode: understood.parseMode ?? reply.parseMode,
+          // `listQuery` باید از پاسخ قاعده‌محور بماند: حالت «فهرست فرستاده‌شده» را
+          // نگه می‌دارد و انتخاب با شماره/صفحه‌ی بعدی به آن وابسته است. از دست
+          // رفتنش یعنی مشتری بعد از فهرست نمی‌تواند «۱» بفرستد.
+          listQuery: reply.listQuery,
+          pageInfo: reply.pageInfo,
         };
         this.audit.record({
           action: understood.source === 'ai_match' ? 'instagram.ai_match'
@@ -654,11 +728,16 @@ export class InstagramService {
     }
 
     const unclear = reply.kind === 'clarify' && (reply.reason ?? '').startsWith('unclear');
+    // `picks` = همان محصول‌هایی که در همین پیام فهرست شدند، به همان ترتیب.
+    // شماره‌ی مشتری («۱»، «۲»، …) با این فهرست تطبیق داده می‌شود، نه با حدس.
+    const picks = productPicks(reply.buttons);
     const clarifyState = unclear
       ? { round: round + 1, last: rawText.slice(0, 200) }
-      : reply.listQuery
-        ? { round: 0, listQuery: reply.listQuery }
-        : null;
+      : picks.length > 0
+        ? { round: 0, listQuery: reply.listQuery ?? 'محصولات فروشگاه', picks }
+        : reply.listQuery
+          ? { round: 0, listQuery: reply.listQuery }
+          : null;
     await this.db.telegramConversation.update({
       where: { id: conversation.id },
       data: { clarify: clarifyState ?? Prisma.DbNull },
@@ -673,11 +752,17 @@ export class InstagramService {
       return { status: 'handled', replies: sent ? 1 : 0, kind: 'catalog' };
     }
 
+    // فهرست محصول با دکمه/پاسخ سریع می‌آید، ولی در نسخه‌ی وب اینستاگرام دکمه‌ها
+    // دیده نمی‌شوند؛ یک جمله‌ی کوتاه راه دوم را نشان می‌دهد.
+    const text = picks.length > 1
+      ? `${reply.text}\n\n💬 در نسخه‌ی وب اینستاگرام دکمه‌ها دیده نمی‌شوند؛ شماره (مثلاً ۱) یا کد محصول را بفرستید.`
+      : reply.text;
+
     await this.logInbound(conversation, rawText);
-    const sent = await this.send(conversation, reply.text, reply.buttons);
+    const sent = await this.send(conversation, text, reply.buttons);
     // در تاریخچه همان چیزی ثبت می‌شود که مشتری **دید** — یعنی متن بدون تگ.
     // اگر HTML مغز بات را ذخیره کنیم، پنل تگ‌های <b>/<code> را عیناً نشان می‌داد.
-    if (sent) await this.logOutbound(conversation, toPlainText(reply.text), 'bot');
+    if (sent) await this.logOutbound(conversation, toPlainText(text), 'bot');
 
     if (reply.kind === 'handoff') {
       const transcript = await this.recentTranscript(conversation, 6);
@@ -722,7 +807,12 @@ export class InstagramService {
       const reply: BotReply = products.length
         ? clarifyProducts(products, 'کاتالوگ فروشگاه', 0)
         : { kind: 'answer', text: 'فهرست محصولات هنوز خالی است؛ فروشنده به‌زودی اضافه می‌کند.' };
-      const sent = await this.send(conversation, reply.text, reply.buttons);
+      await this.rememberList(conversation.id, reply);
+      const text = products.length
+        ? `${reply.text}\n\n💬 در نسخه‌ی وب دکمه‌ها دیده نمی‌شوند؛ شماره (مثلاً ۱) یا کد محصول را بفرستید.`
+        : reply.text;
+      const sent = await this.send(conversation, text, reply.buttons);
+      if (sent) await this.logOutbound(conversation, toPlainText(text), 'bot');
       return { status: 'handled', replies: sent ? 1 : 0, kind: 'catalog' };
     }
     if (name === 'orders') {
@@ -781,6 +871,7 @@ export class InstagramService {
           ? [discovery.product]
           : products;
       const reply = clarifyProducts(list, query || 'کاتالوگ فروشگاه', page);
+      await this.rememberList(conversation.id, reply);
       const sent = await this.send(conversation, reply.text, reply.buttons);
       return { status: 'handled', replies: sent ? 1 : 0, kind: 'list_page' };
     }
@@ -1184,6 +1275,16 @@ function summarizeEvent(raw: string): string {
     return `${messages.length} پیام${echoes ? ` (${echoes} اکو)` : ''} · فرستنده ${senders || '—'}`;
   }
   return `بدون پیام · کلیدها: ${keys || '—'}`;
+}
+
+/** شناسه‌ی محصول‌هایی که در دکمه‌های یک پاسخ فهرست شده‌اند، به همان ترتیب. */
+function productPicks(rows?: BotButton[][]): string[] {
+  return (rows ?? [])
+    .flat()
+    .map(button => button.data ?? '')
+    .filter(data => data.startsWith('p:'))
+    .map(data => data.slice(2))
+    .filter(Boolean);
 }
 
 /** JSON امن برای ذخیره؛ حلقه‌ی مرجع یا BigInt نباید ثبت رویداد را بشکند. */

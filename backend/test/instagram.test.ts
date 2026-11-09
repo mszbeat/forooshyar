@@ -225,20 +225,24 @@ describe('تبدیل قالب برای دایرکت', () => {
     assert.equal(toPlainText('خط یک<br>خط دو'), 'خط یک\nخط دو');
   });
 
-  it('تا سه دکمه → دکمه‌ی واقعی، بیشتر → پاسخ سریع', () => {
+  it('همه‌ی دکمه‌ها به پاسخ سریع تبدیل می‌شوند (buttons در اینستاگرام پشتیبانی نمی‌شود)', () => {
     const two = toInstagramActions([[{ text: 'اول', data: 'p:1' }], [{ text: 'دوم', url: 'https://x.test' }]]);
-    assert.equal(two.buttons?.length, 2);
-    assert.equal(two.buttons?.[1].type, 'web_url');
-    assert.equal(two.quickReplies, undefined);
+    assert.equal(two.buttons, undefined);
+    assert.equal(two.quickReplies?.length, 2);
+    assert.equal(two.quickReplies?.[0].payload, 'p:1');
+    // دکمه‌ی لینک‌دار: payload برای سرویس + لینک در متن پیام.
+    assert.equal(two.quickReplies?.[1].payload, 'url:https://x.test');
+    assert.deepEqual(two.links, ['https://x.test']);
+  });
 
-    const many = toInstagramActions(Array.from({ length: 6 }, (_, index) => [{ text: `گزینه ${index}`, data: `p:${index}` }]));
-    assert.equal(many.buttons, undefined);
-    assert.equal(many.quickReplies?.length, 6);
+  it('پاسخ سریع از سقف ۱۳ عدد رد نمی‌شود', () => {
+    const many = toInstagramActions(Array.from({ length: 20 }, (_, index) => [{ text: `گزینه ${index}`, data: `p:${index}` }]));
+    assert.equal(many.quickReplies?.length, 13);
   });
 
   it('عنوان دکمه از ۲۰ کاراکتر رد نمی‌شود', () => {
     const actions = toInstagramActions([[{ text: '۱ مانتو کتان تابستانه بلند و کشیده', data: 'p:1' }]]);
-    assert.ok((actions.buttons?.[0].title.length ?? 0) <= 20);
+    assert.ok((actions.quickReplies?.[0].title.length ?? 0) <= 20);
   });
 
   it('متن بلند روی مرز خط شکسته می‌شود', () => {
@@ -458,5 +462,55 @@ describe('شکل‌های مختلف بدنه‌ی webhook', () => {
     } as never);
     assert.equal(result.status, 'handled');
     assert.ok(captured.some(item => item.action === 'send_message' && item.body.recipient_id === senderId));
+  });
+});
+
+describe('انتخاب محصول بدون دکمه (نسخه‌ی وب اینستاگرام)', () => {
+  it('پس از فهرست، تایپ «۱» محصول اول همان فهرست را باز می‌کند', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    const senderId = `1786${Date.now() % 1_000_000}`;
+    reset();
+    // دستور /products فهرست کامل را می‌فرستد و همان فهرست ذخیره می‌شود.
+    const list = await service.handleWebhook(event({ text: '/products', senderId }));
+    assert.equal(list.status, 'handled');
+    const listMessage = String(captured.filter(item => item.action === 'send_message').at(-1)?.body.message ?? '');
+    assert.ok(listMessage.includes('شماره'), 'راهنمای انتخاب با شماره در متن نیست');
+    const firstPick = (captured.filter(item => item.action === 'send_message').at(-1)?.body.quick_replies as { payload?: string }[] | undefined)
+      ?.map(item => item.payload ?? '').find(payload => payload.startsWith('p:'));
+    assert.ok(firstPick, 'پاسخ سریع محصول در پیام فهرست نیست');
+
+    reset();
+    const pick = await service.handleWebhook(event({ text: '۱', senderId }));
+    assert.equal(pick.status, 'handled');
+    assert.equal((pick as { kind?: string }).kind, 'product_pick');
+    const sent = captured.find(item => item.action === 'send_message');
+    assert.ok(sent, 'پیام انتخاب محصول ارسال نشد');
+    // دکمه‌ی ثبت سفارش باید همراه پیام باشد (پاسخ سریع، نه buttons).
+    assert.equal(sent.body.buttons, undefined);
+    assert.ok(Array.isArray(sent.body.quick_replies));
+  });
+
+  it('کد محصول هم انتخاب را انجام می‌دهد', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    const code = seed.productId.replace(/-/g, '').slice(0, 6).toUpperCase();
+    reset();
+    const result = await service.handleWebhook(event({ text: code }));
+    assert.equal(result.status, 'handled');
+    assert.equal((result as { kind?: string }).kind, 'product_pick');
+    assert.equal(captured.length, 1);
+  });
+
+  it('«۱» بدون فهرست قبلی محصول باز نمی‌کند', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    reset();
+    const result = await service.handleWebhook(event({ text: '۱' }));
+    assert.notEqual((result as { kind?: string }).kind, 'product_pick');
+  });
+
+  it('شماره‌ی بی‌ربط (صفر) محصول انتخاب نمی‌کند', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    reset();
+    const result = await service.handleWebhook(event({ text: '۰' }));
+    assert.notEqual((result as { kind?: string }).kind, 'product_pick');
   });
 });
