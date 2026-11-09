@@ -186,6 +186,14 @@ export class AdminService implements OnModuleInit {
 
     const ai = this.ai.status();
     const telegramConfig = readTelegramConfig();
+    // مقدار را همین‌جا await می‌کنیم؛ اگر Promise را داخل آبجکت پاسخ بگذاریم،
+    // JSON آن را `{}` می‌سازد و پنل فهرست کلیدهای نیازمند ری‌استارت را از دست
+    // می‌دهد (باگی که بعد از بخش‌بندی کردن overview پیش آمد).
+    const restartRequired = await this.guard(
+      'settings.restartRequired', problems,
+      async () => this.settings.restartRequired(),
+      [] as string[],
+    );
 
     return {
       counts: { shops, users, products, variants, orders, messages, conversations, waiting },
@@ -210,7 +218,7 @@ export class AdminService implements OnModuleInit {
         memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
         env: process.env.NODE_ENV ?? 'development',
       },
-      restartRequired: this.guard('settings.restartRequired', problems, async () => this.settings.restartRequired(), [] as string[]),
+      restartRequired,
       problems,
       recentShops: recentShops.map(shop => ({
         id: shop.id,
