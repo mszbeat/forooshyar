@@ -39,6 +39,16 @@ export function InstagramConnect() {
   const [testNote, setTestNote] = useState('');
   /** پنجره‌ی اتصال باز است و هنوز برنگشته‌ایم. */
   const pendingConnect = useRef(false);
+  /**
+   * گفتگوهای اینستاگرامِ همین فروشگاه.
+   *
+   * چرا لازم است: کاربر برای «ارسال آزمایشی» باید شناسه‌ی گیرنده (IGSID) را
+   * بداند. عددی که در آدرس `instagram.com/direct/t/…` می‌بیند شناسه‌ی
+   * «رشته» است و همیشه همان IGSID نیست؛ تنها مرجع مطمئن، `sender.id` وب‌هوک
+   * است که همان `chatId` گفتگوها (`ig:<IGSID>`) را می‌سازد. پس به‌جای اینکه
+   * کاربر حدس بزند، همان مقدارِ ثبت‌شده را با یک کلیک می‌فرستیم.
+   */
+  const [recent, setRecent] = useState<{ chatId: string; name: string; igsid: string }[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -52,6 +62,27 @@ export function InstagramConnect() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const loadRecent = useCallback(async () => {
+    try {
+      const list = await api.conversations();
+      setRecent(
+        list.items
+          .filter(item => item.chatId.startsWith('ig:'))
+          .map(item => ({
+            chatId: item.chatId,
+            name: item.name || item.username || 'مشتری',
+            igsid: item.chatId.slice(3),
+          })),
+      );
+    } catch {
+      setRecent([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (status?.accountLinked) void loadRecent();
+  }, [status?.accountLinked, loadRecent]);
 
   /**
    * باز کردن صفحه‌ی اتصال حساب.
@@ -181,11 +212,13 @@ export function InstagramConnect() {
     }
   }
 
-  async function sendTest() {
+  async function sendTest(target?: string) {
+    const to = (target ?? recipient).trim();
+    if (target) setRecipient(target);
     setBusy('test');
     setTestNote('');
     try {
-      const result = await api.instagramTest(recipient.trim());
+      const result = await api.instagramTest(to);
       if (result.ok) {
         setTestNote('✅ پیام آزمایشی رفت؛ اگر در دایرکت نیامد، گفتگو را در اینستاگرام ببندید و باز کنید.');
         toast.success('ارسال شد', 'پیام آزمایشی به آن شناسه رفت.');
@@ -417,8 +450,33 @@ export function InstagramConnect() {
             <div>
               <div className="kv-k">آزمایش اتصال</div>
               <p className="small muted" style={{ margin: '4px 0 10px', lineHeight: 1.9 }}>
-                شناسه‌ی گیرنده (IGSID) را از گفتگوهای همین پیج بردارید؛ پیام آزمایشی همان‌جا می‌رسد.
+                اگر مشتری‌ای به پیج دایرکت داده، از فهرست بالا بفرستید. عددِ آدرس
+                <span className="mono" dir="ltr"> direct/t/… </span>
+                شناسه‌ی «رشته» است و همیشه با شناسه‌ی گیرنده یکی نیست؛ شناسه‌ی درست
+                همان است که فهرست بالا نشان می‌دهد.
               </p>
+              {recent.length > 0 && (
+                <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+                  <span className="small muted">یک‌کلیکی به گفتگوهای همین پیج:</span>
+                  {recent.slice(0, 4).map(item => (
+                    <button
+                      key={item.chatId}
+                      className="btn btn-outline btn-sm"
+                      type="button"
+                      style={{ justifyContent: 'space-between', gap: 10 }}
+                      disabled={busy !== null}
+                      onClick={() => void sendTest(item.igsid)}
+                    >
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        آزمایش به {item.name}
+                      </span>
+                      <span className="mono small muted" dir="ltr" style={{ flex: '0 0 auto' }}>
+                        …{item.igsid.slice(-6)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <div style={{ display: 'grid', gap: 8 }}>
                 <input
                   className="input mono"
