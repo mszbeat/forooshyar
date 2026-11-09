@@ -55,6 +55,11 @@ function title(text: string): string {
 }
 
 export type InstagramActions = {
+  /**
+   * دکمه‌های «قالب» اینستاگرام. عمداً همیشه خالی است: آرایه‌ی `buttons` در
+   * پیام متنی، مفهوم مسنجر است و اینستاگرام آن را رندر نمی‌کند (حتی در اپ).
+   * دکمه در اینستاگرام فقط داخل `generic_template` معنا دارد.
+   */
   buttons?: InstagramButton[];
   quickReplies?: InstagramQuickReply[];
   /**
@@ -65,39 +70,31 @@ export type InstagramActions = {
 };
 
 /**
- * نگاشت دکمه‌های مغز بات به دکمه/پاسخ سریع اینستاگرام.
+ * نگاشت دکمه‌های مغز بات به «پاسخ سریع» اینستاگرام.
  *
- * قاعده: تا ۳ دکمه، دکمه‌ی واقعی (لینک‌دار هم پشتیبانی می‌شود). بیشتر از ۳،
- * پاسخ سریع — که در اینستاگرام تا ۱۳ عدد مجاز است و تجربه‌اش هم برای فهرست
- * محصولات بهتر است (کادر تایپ را نمی‌بندد).
+ * چرا فقط پاسخ سریع: در اینستاگرام آرایه‌ی `buttons` روی پیام متنی پشتیبانی
+ * نمی‌شود و بی‌صدا دور ریخته می‌شود؛ پاسخ سریع تا ۱۳ عدد مجاز است و در اپ
+ * موبایل به‌صورت چیپ زیر پیام می‌آید. در نسخه‌ی وب/دسکتاپ هیچ‌کدام دیده
+ * نمی‌شوند (محدودیت خود متا)، برای همین سرویس در متن پیام هم شماره و کد
+ * محصول را می‌نویسد و ورودی عددی را می‌پذیرد.
+ *
+ * دکمه‌ی لینک‌دار: به‌جای `web_url`، یک پاسخ سریع با payload `url:` و آدرس
+ * پیوست‌شده به متن — هیچ کلاینتی لینک را از دست نمی‌دهد.
  */
 export function toInstagramActions(rows?: BotButton[][]): InstagramActions {
   const flat = (rows ?? []).flat().filter(button => button.text?.trim());
   if (flat.length === 0) return { links: [] };
 
-  if (flat.length <= INSTAGRAM_BUTTON_LIMIT) {
-    const buttons = flat.map((button): InstagramButton => (
-      button.url
-        ? { type: 'web_url', title: title(button.text), url: button.url }
-        : { type: 'postback', title: title(button.text), payload: (button.data ?? '').slice(0, 1000) }
-    ));
-    return { buttons, links: [] };
-  }
-
   const links: string[] = [];
   const quickReplies: InstagramQuickReply[] = [];
   for (const button of flat) {
-    if (button.url) {
-      links.push(button.url);
-      // برای لینک، یک پاسخ سریع متنی هم می‌گذاریم تا شماره‌ی گزینه‌ها یکی بماند؛
-      //payload همان آدرس است و در سرویس به‌عنوان «باز کردن لینک» خوانده می‌شود.
-      if (quickReplies.length < INSTAGRAM_QUICK_REPLY_LIMIT) {
-        quickReplies.push({ content_type: 'text', title: title(button.text), payload: `url:${button.url}` });
-      }
-      continue;
-    }
-    if (quickReplies.length >= INSTAGRAM_QUICK_REPLY_LIMIT) break;
-    quickReplies.push({ content_type: 'text', title: title(button.text), payload: (button.data ?? '').slice(0, 1000) });
+    if (button.url) links.push(button.url);
+    if (quickReplies.length >= INSTAGRAM_QUICK_REPLY_LIMIT) continue;
+    quickReplies.push({
+      content_type: 'text',
+      title: title(button.text),
+      payload: (button.url ? `url:${button.url}` : (button.data ?? '')).slice(0, 1000),
+    });
   }
   return { quickReplies, links: links.slice(0, 2) };
 }
