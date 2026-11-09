@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
 import { NotificationBell } from '@/components/notifications';
+import { ThemeToggle } from '@/components/theme';
 import {
   IconBox, IconChat, IconDashboard, IconLogo, IconLogout, IconMenu, IconWallet,
   IconSettings, IconSparkles, IconStore, IconUpload, IconUsers, IconX,
@@ -125,6 +126,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
               <IconSparkles size={15} />
               تست پاسخ
             </Link>
+            <ThemeToggle className="hide-sm" />
             <NotificationBell />
             <span className="topbar-divider hide-sm" aria-hidden="true" />
             <button

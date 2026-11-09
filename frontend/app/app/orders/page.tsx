@@ -188,7 +188,7 @@ export default function OrdersPage() {
       />
 
       <div className="card mt-4">
-        <div className="grid g-4">
+        <div className="grid g-5 kpi-orders">
           <StatCard
             icon={<IconClock size={15} />}
             label="در انتظار پرداخت"
@@ -217,6 +217,24 @@ export default function OrdersPage() {
             unit="سفارش"
             foot={<span className="small muted">از ابتدا تا امروز</span>}
           />
+          {/*
+            لغوشده‌ها: قبلاً هیچ‌جا شمرده نمی‌شدند؛ فروشنده فقط با فیلتر کردن
+            می‌فهمید چند سفارش لغو شده. حالا هم مجموع و هم ۲۴ ساعت گذشته این‌جاست.
+          */}
+          <StatCard
+            icon={<IconX size={15} />}
+            label="لغوشده"
+            value={faNum(summary?.cancelled ?? counts.CANCELLED)}
+            unit="سفارش"
+            tone={(summary?.cancelledLast24h ?? 0) > 0 ? 'amber' : undefined}
+            foot={
+              <span className="small muted">
+                {(summary?.cancelledLast24h ?? 0) > 0
+                  ? `${faNum(summary?.cancelledLast24h ?? 0)} مورد در ۲۴ ساعت گذشته`
+                  : 'در ۲۴ ساعت گذشته لغوی ثبت نشده'}
+              </span>
+            }
+          />
         </div>
       </div>
 
@@ -231,6 +249,7 @@ export default function OrdersPage() {
             { value: 'PAID', label: `آماده ارسال (${faNum(counts.PAID)})` },
             { value: 'SHIPPED', label: `ارسال‌شده (${faNum(counts.SHIPPED)})` },
             { value: 'COMPLETED', label: `تحویل‌شده (${faNum(counts.COMPLETED)})` },
+            { value: 'CANCELLED', label: `لغوشده (${faNum(counts.CANCELLED)})` },
           ]}
         />
       </div>

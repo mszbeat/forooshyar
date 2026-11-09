@@ -128,6 +128,8 @@ export type ChatMessage = {
 };
 export type OrdersSummary = {
   awaitingPayment: number; paidLast24h: number; revenueLast24h: number;
+  /** سفارش‌های لغوشده: مجموع و ۲۴ ساعت گذشته. */
+  cancelled?: number; cancelledLast24h?: number;
   recent: { id: string; code: string; total: number; status: OrderStatus; customerName: string; createdAt: string }[];
 };
 export type TelegramOwnerCode = { ownerCode: string | null; ownerLink: string | null; command?: string; reason?: string };

@@ -100,12 +100,127 @@
   --topbar-h: 68px;
   --container: 1240px;
   --container-text: 1024px;
+  /* سقف عرض محتوا در هر دو پنل. کانتینرهایی که از این عدد پهن‌تر بودند تا همین
+     حد جمع می‌شوند و در صفحه وسط‌چین می‌مانند؛ کانتینرهای باریک‌تر دست‌نخورده
+     می‌مانند. ۸۰۰px عرضی است که هنوز ردیف‌های لیست و فرم‌ها را خوانا نگه می‌دارد. */
+  --content-max: 800px;
+  /* فاصله‌ی محتوا از لبه‌ی منو (سمت inline-start در RTL = سمت راست، جایی که
+     نوار کنار می‌نشیند) و از لبه‌ی مقابل. هر دو پنل از همین دو مقدار استفاده
+     می‌کنند تا فاصله‌ها در کل سایت یکدست باشد. */
+  --gutter-menu: 42px;
+  --gutter-edge: 26px;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* بافت کاغذ */
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
 }
+
+/* ---------------------------------------------------------------------------
+   پوستهٔ تاریک — «نیلی شبانه»
+   همهٔ رنگ‌ها از توکن‌ها می‌آیند؛ این بلوک فقط مقادیر را عوض می‌کند و هیچ
+   کامپوننتی لازم نیست تغییر کند. سه قاعدهٔ طراحی:
+   ۱) پس‌زمینه نیلی-بنفش عمیق، سطوح با یک پله روشن‌تر — نه سیاه مطلق.
+   ۲) برند روشن‌تر می‌شود (روی تیره، نیلی تیره خوانا نیست).
+   ۳) سایه‌ها به «درخشش لبه» تبدیل می‌شوند؛ سایهٔ سیاه روی تیره دیده نمی‌شود.
+   --------------------------------------------------------------------------- */
+[data-theme='dark'] {
+  --bg: #12101a;
+  --bg-deep: #0d0b14;
+  --surface: #1b1826;
+  --surface-2: #201c2d;
+  --surface-3: #262133;
+  --line: #302a40;
+  --line-strong: #403850;
+
+  --ink: #f4f1fa;
+  --ink-2: #c6c0d6;
+  --ink-3: #9d95b0;
+  --ink-4: #6f6884;
+
+  --brand-50: #241d3f;
+  --brand-100: #2e2452;
+  --brand-200: #3b2e6b;
+  --brand-400: #8f7bf5;
+  --brand: #7b62f0;
+  --brand-600: #8f7bf5;
+  --brand-700: #b3a4fb;
+  --brand-ink: #14101f;
+
+  --amber: #e6a94c;
+  --amber-soft: #322616;
+  --amber-line: #4d3a1c;
+  --saffron: #f0b355;
+  --danger: #f0867a;
+  --danger-soft: #35201e;
+  --danger-line: #4d2c28;
+  --ok: #4fd0a4;
+  --ok-soft: #14302a;
+  --ok-line: #235145;
+  --info: #7fa9ea;
+  --info-soft: #1b2438;
+
+  --night: #14111f;
+  --night-2: #1b1728;
+  --night-ink: #f4f1fa;
+  --night-ink-2: rgba(244, 241, 250, 0.66);
+  --night-line: rgba(255, 255, 255, 0.1);
+
+  --sh-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, 0.45), 0 8px 20px -16px rgba(0, 0, 0, 0.9);
+  --sh-md: 0 20px 44px -26px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.5);
+  --sh-lg: 0 34px 74px -34px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.5);
+  --sh-brand: 0 14px 30px -16px rgba(123, 98, 240, 0.75);
+  --ring: 0 0 0 3px rgba(143, 123, 245, 0.3);
+
+  --grain-opacity: 0.05;
+  color-scheme: dark;
+}
+
+/* بافت کاغذ در تیره به «غبار نور» تبدیل می‌شود، نه لکهٔ سیاه. */
+[data-theme='dark'] body::before {
+  mix-blend-mode: screen;
+  opacity: var(--grain-opacity);
+}
+
+[data-theme='dark'] body { background: var(--bg); }
+
+/* جاهایی که رنگ سفید به‌صورت مستقیم نوشته شده بود. */
+[data-theme='dark'] .input:focus,
+[data-theme='dark'] .textarea:focus,
+[data-theme='dark'] .select:focus { background: var(--surface-2); }
+
+[data-theme='dark'] .btn-primary {
+  --btn-bg: linear-gradient(180deg, #8f7bf5, #6b51e8);
+  --btn-fg: #14101f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), var(--sh-brand);
+}
+[data-theme='dark'] .btn-primary:hover { --btn-bg: linear-gradient(180deg, #9d8bf7, #7b62f0); }
+[data-theme='dark'] .btn-soft { --btn-bg: var(--brand-100); --btn-fg: var(--brand-700); --btn-bd: var(--brand-200); }
+[data-theme='dark'] .btn-soft:hover { --btn-bg: var(--brand-200); }
+[data-theme='dark'] .btn-outline { --btn-bg: var(--surface-2); }
+[data-theme='dark'] .btn-danger:hover { --btn-bg: var(--danger-line); }
+[data-theme='dark'] .btn-on-dark { --btn-bg: var(--ink); --btn-fg: #14101f; }
+
+[data-theme='dark'] .select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239d95b0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+[data-theme='dark'] .input-reveal:hover { background: var(--surface-3); }
+[data-theme='dark'] .input-reveal[aria-pressed='true'] { background: var(--brand-100); }
+
+[data-theme='dark'] .notif-panel {
+  box-shadow: 0 26px 54px -26px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .badge { border-color: transparent; }
+[data-theme='dark'] ::selection { background: var(--brand-200); color: var(--ink); }
+
+/* دکمهٔ تغییر تم */
+.theme-toggle { color: var(--ink-3); }
+.theme-toggle:hover { color: var(--ink); }
+[data-theme='dark'] .theme-toggle { color: var(--amber); }
+[data-theme='dark'] .adm-theme-toggle { border: 1px solid var(--night-line); }
 
 /* 2. Reset ------------------------------------------------------------------ */
 *,
@@ -251,7 +366,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   position: sticky; top: 0; z-index: 30;
   display: flex; align-items: center; gap: var(--sp-4);
   padding: 0 var(--sp-6);
-  background: rgba(250, 247, 242, 0.82);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
   backdrop-filter: blur(16px) saturate(160%);
   border-bottom: 1px solid var(--line);
 }
@@ -301,7 +416,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   color: #fff;
   font-size: 10px; font-weight: 700; line-height: 17px;
   text-align: center;
-  border: 2px solid var(--paper);
+  border: 2px solid var(--bg);
   font-variant-numeric: tabular-nums;
 }
 .notif-panel {
@@ -433,7 +548,16 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .dash-actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-self: flex-start; }
 
 
-.page { padding: var(--sp-8) var(--sp-6) var(--sp-12); max-width: var(--container); width: 100%; margin: 0 auto; }
+.page {
+  /* padding-inline: start = سمت منو (راست در RTL). فاصله‌ی بیشتر از منو همان
+     «معیار»ی است که در همه‌ی بخش‌های سایت رعایت می‌شود. */
+  padding-block: var(--sp-8) var(--sp-12);
+  padding-inline: var(--gutter-menu) var(--gutter-edge);
+  max-width: calc(var(--content-max) + var(--gutter-menu) + var(--gutter-edge));
+  width: 100%; margin: 0 auto;
+}
+/* محتوای صفحه یک ستون ۸۰۰ پیکسلیِ وسط‌چین است. */
+.page > * { width: 100%; max-width: var(--content-max); margin-inline: auto; }
 .page-tight { padding: var(--sp-6); }
 
 .stack { display: flex; flex-direction: column; gap: var(--sp-5); }
@@ -444,6 +568,11 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .g-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.g-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+/* پنج کارت آماری در عرض متوسط به بالا باید کنار هم بمانند؛ زیر ۱۱۰۰ پیکسل
+   به دو ردیف می‌شکنند تا عددها فشرده و ناخوانا نشوند. */
+@media (max-width: 1180px) { .g-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .g-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .g-auto { grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
 .split { display: grid; gap: var(--sp-5); grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; }
 .split-wide { display: grid; gap: var(--sp-5); grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); align-items: start; }
@@ -543,7 +672,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .input:focus, .textarea:focus, .select:focus {
   outline: none; border-color: var(--brand-400);
   box-shadow: var(--ring);
-  background: #fff;
+  background: var(--surface);
 }
 .input[aria-invalid='true'] { border-color: var(--danger-line); }
 .select {
@@ -620,6 +749,26 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .stat-value small { font-size: 12px; font-weight: 500; color: var(--ink-3); margin-inline-start: 6px; letter-spacing: 0; }
 .stat-foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--fs-xs); color: var(--ink-3); }
 .stat-foot .ico { width: 13px; height: 13px; opacity: 0.7; }
+/*
+ * پنج کارت آماری در یک ردیف: عدد ۳۰ پیکسلی در ستون‌های ۱۶۰ پیکسلی سرریز
+ * می‌کرد و از کارت همسایه بیرون می‌زد. در این شبکه عدد کمی کوچک‌تر و
+ * فاصله‌ها جمع‌تر است تا هر پنج کارت کامل و خوانا بمانند.
+ */
+.kpi-orders .stat { padding: var(--sp-5) var(--sp-4); }
+.kpi-orders .stat-value { font-size: 22px; margin-top: 10px; overflow-wrap: anywhere; }
+.kpi-orders .stat-value small { font-size: 11px; margin-inline-start: 4px; }
+.kpi-orders .stat-foot { font-size: 11px; line-height: 1.65; }
+@media (max-width: 1180px) { .kpi-orders .stat-value { font-size: 26px; } }
+/* در موبایل هر کارت یک ستون می‌شود: عدد زیر برچسب، تمام‌عرض می‌ماند تا
+   «۳٬۳۲۰٬۰۰۰ تومان» عمودی نشکند. */
+@media (max-width: 760px) {
+  .kpi-orders .stat {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'top' 'value' 'foot';
+    row-gap: 2px;
+  }
+  .kpi-orders .stat-value { font-size: 20px; text-align: start; }
+}
 .trend-up { color: var(--ok); font-weight: 700; }
 .trend-down { color: var(--danger); font-weight: 700; }
 
@@ -924,7 +1073,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   border: 0; background: none; cursor: pointer; color: var(--ink-3);
   display: grid; place-items: center; padding: 3px; border-radius: 6px;
 }
-.composer-reply button:hover { background: #fff; color: var(--ink); }
+.composer-reply button:hover { background: var(--surface); color: var(--ink); }
 /* پیام بات در پنل: همان HTML تلگرام، بدون تگ دیده‌شدن */
 .rt { white-space: pre-wrap; line-height: 1.95; }
 .rt b { font-weight: 700; }
@@ -1116,13 +1265,19 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-main { min-width: 0; display: flex; flex-direction: column; }
 .adm-top {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px;
-  padding: 14px 26px; background: rgba(250, 247, 242, 0.86); backdrop-filter: blur(12px);
+  padding: 14px 26px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
 .adm-top h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.015em; }
 .adm-top .crumbs { font-size: 11px; color: var(--ink-4); font-family: var(--font-mono, ui-monospace, monospace); letter-spacing: 0.08em; }
 .adm-top .sp { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.adm-body { padding: 24px 26px 48px; display: grid; gap: 18px; }
+.adm-body {
+  padding-block: 24px 48px;
+  padding-inline: var(--gutter-menu) var(--gutter-edge);
+  display: grid; gap: 18px;
+}
+/* همان قاعده‌ی پنل فروشنده: هر بلوکِ سرصفحه‌ای حداکثر ۸۰۰ پیکسل و وسط‌چین. */
+.adm-body > * { width: 100%; max-width: var(--content-max); margin-inline: auto; }
 
 .adm-pipe {
   display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 999px;
@@ -1314,7 +1469,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   .adm-nav-item { white-space: nowrap; padding: 7px 11px; font-size: 12.5px; }
   .adm-nav-item .sp { display: none; }
   .adm-top { padding: 12px 16px; }
-  .adm-body { padding: 16px 14px 40px; }
+  .adm-body { padding-block: 16px 40px; padding-inline: 14px; }
   .adm-row { grid-template-columns: 1fr; gap: 9px; padding: 13px 14px; }
   .adm-login { grid-template-columns: 1fr; }
   .adm-login-side { display: none; }
@@ -1358,7 +1513,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .ai-page-split {
   display: grid;
   /* ستون فرم کشسان، ستون آزمون باریک و ثابت — مثل یک نوار وضعیت کنار فرم. */
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 372px);
+  grid-template-columns: minmax(0, 1fr) minmax(258px, 300px);
   align-items: start;
   gap: 14px;
 }
@@ -1368,8 +1523,9 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
  * ستون آزمون چسبان است: فرم تنظیمات بلند است و کارت آزمون کوتاه؛ با sticky
  * کارت آزمون در دید می‌ماند و ستون کوتاه‌تر «فضای خالی» به نظر نمی‌رسد.
  */
-.ai-page-col-probe { position: sticky; top: 14px; }
-@media (max-width: 1180px) { .ai-page-col-probe { position: static; } }
+/* کارت آزمون به هدر نمی‌چسبد (۸۰px فاصله) و هنگام اسکرول فرم، در دید می‌ماند. */
+.ai-page-col-probe { position: sticky; top: 80px; }
+@media (max-width: 1180px) { .ai-page-col-probe { position: static; top: auto; } }
 .ai-page-result { grid-column: 1 / -1; min-width: 0; }
 @media (max-width: 1180px) {
   .ai-page-split { grid-template-columns: minmax(0, 1fr); }
@@ -1391,7 +1547,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
  * فارسی در عرض زیاد ردیابی چشم را از دست می‌دهد. سقف عرض، همان حس «پنل
  * کنترلِ جمع‌وجور» را می‌سازد.
  */
-.ai-route { display: grid; gap: 12px; max-width: 620px; }
+.ai-route { display: grid; gap: 12px; max-width: 713px; }
 /* مبدأ فهرست مدل: زنده یا پیشنهادی. تفکیک بصری آرام، بدون شلوغی. */
 .ai-src { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ai-src-tag {
@@ -1601,6 +1757,9 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   height: clamp(520px, calc(100dvh - 292px), 780px);
   overflow: hidden;
 }
+/* حالت بی‌گفتگو: کادر بلندِ پیام‌رسان تبدیل به دو بلوک کوتاه می‌شود. */
+.conv-shell.is-idle { height: auto; }
+.conv-shell.is-idle .conv-thread { min-height: 240px; }
 .conv-list { display: flex; flex-direction: column; border-inline-end: 1px solid var(--line); min-width: 0; min-height: 0; }
 .conv-list-head {
   display: grid; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line);
@@ -1778,7 +1937,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 /* پنل ادمین: همه‌ی تب‌ها */
 /* align-items: start — کارتِ کوتاه به قدِ همسایه‌ی بلند کشیده نمی‌شود، پس
    فضای خالیِ بی‌دلیل داخل کارت‌ها (مثل «آزمون یک آدرس دیگر») حذف می‌شود. */
-.adm-body { padding: 20px 22px 40px; display: grid; gap: 14px; align-items: start; }
+.adm-body { padding-block: 20px 40px; padding-inline: var(--gutter-menu) var(--gutter-edge); display: grid; gap: 14px; align-items: start; }
 .adm-table { table-layout: auto; }
 .adm-table th { padding: 8px 10px; }
 .adm-table td { padding: 8px 10px; }
