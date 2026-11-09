@@ -153,6 +153,13 @@ model Channel {
   ownerChat     String?
   ownerLinkedAt DateTime?
   botUsername   String    @default("")
+  /// پیج اینستاگرامی که دایرکت‌هایش به این فروشگاه می‌رود (UUID از BoxAPI).
+  /// یکتا است: هر حساب اینستاگرام فقط یک فروشگاه دارد و پیام‌هایش نباید بین
+  /// دو فروشگاه پخش شود.
+  instagramAccountId String?   @unique
+  /// نام کاربری پیج، فقط برای نمایش در پنل (از webhook/OAuth می‌آید).
+  instagramUsername  String?
+  instagramLinkedAt  DateTime?
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -277,6 +284,9 @@ model ChatMessage {
 
   @@index([shopId, chatId, createdAt])
   @@index([shopId, createdAt])
+  /// برای فیلتر «پاسخ‌های بات/فروشنده» در پنل؛ در migration چت‌اauthor ساخته شد
+  /// ولی در schema جا افتاده بود (drift) و همین‌جا کامل شد.
+  @@index([shopId, author])
 }
 
 // «اگر موجود شد خبرم کن».
@@ -298,6 +308,17 @@ model StockAlert {
 
   @@unique([shopId, chatId, productId])
   @@index([shopId, productId, notifiedAt])
+}
+
+// هر رویداد webhook اینستاگرام (BoxAPI) فقط یک‌بار پردازش می‌شود.
+// BoxAPI اگر ۲۰۰ نگیرد تا ۳ بار در ۶۰ ثانیه دوباره می‌فرستد؛ بدون این جدول
+// مشتری جواب تکراری می‌گرفت و سفارش دوبار ثبت می‌شد.
+model InstagramEvent {
+  eventId    String   @id
+  eventType  String   @default("")
+  receivedAt DateTime @default(now())
+
+  @@index([receivedAt])
 }
 
 // تلگرام اگر ۲۰۰ نگیرد همان update را دوباره می‌فرستد. این جدول تضمین می‌کند

@@ -7,6 +7,7 @@ import {
   api, ApiError, type ConversationSummary, type ConversationThread, type ThreadMessage,
 } from '@/lib/api';
 import { useRealtime } from '@/lib/realtime';
+import { RichText } from '@/components/richtext';
 import { faNum, relativeTime, toman } from '@/lib/format';
 import { EmptyState, PageHeader, SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import { IconChat, IconSearch, IconSend, IconStore } from '@/components/icons';
@@ -195,6 +196,9 @@ export default function ConversationsPage() {
                   </span>
                   <span className="conv-snippet">{item.lastMessage?.text ?? 'بدون پیام'}</span>
                   <span className="conv-tags">
+                    {/* کانال مشتری: دایرکت اینستاگرام یا چت تلگرام — همان‌جا که
+                        مشتری نوشته، پاسخ هم از همان کانال می‌رود. */}
+                    {item.channel === 'instagram' && <span className="badge b-gray">اینستاگرام</span>}
                     {item.orders > 0 && <span className="badge b-gray">{faNum(item.orders)} سفارش</span>}
                     {item.spent > 0 && <span className="badge b-green">خریدار</span>}
                     {item.pending && <span className="badge b-amber"><span className="dot" />بی‌پاسخ</span>}
@@ -224,6 +228,7 @@ export default function ConversationsPage() {
                 <div className="conv-thread-id">
                   <strong>{thread?.conversation.name ?? 'گفتگو'}</strong>
                   <span className="small muted">
+                    {thread?.conversation.channel === 'instagram' ? 'دایرکت اینستاگرام · ' : 'تلگرام · '}
                     {thread?.conversation.username ? `@${thread.conversation.username} · ` : ''}
                     {thread ? `${faNum(thread.messages.length)} پیام` : 'در حال بارگذاری…'}
                   </span>
@@ -260,7 +265,12 @@ export default function ConversationsPage() {
                             {author === 'seller' ? 'فروشنده' : 'پاسخ خودکار'}
                           </span>
                         )}
-                        <p>{message.text}</p>
+                        {/* پیام بات با تگ‌های تلگرام ذخیره می‌شود؛ اگر خام نشان
+                            داده شود کاربر `<b>` و `<code>` می‌بیند (همان باگی که
+                            در «آزمایش پاسخ» هم رفع شد). RichText فقط تگ‌های مجاز
+                            را به عناصر React تبدیل می‌کند و متن خام را دست‌نخورده
+                            می‌گذارد، پس HTML تزریقی اجرا نمی‌شود. */}
+                        {mine ? <RichText text={message.text} /> : <p>{message.text}</p>}
                         <span className="msg-meta">
                           {relativeTime(message.at)}
                           {message.replyText && <em> · پاسخ به «{message.replyText.slice(0, 28)}…»</em>}
@@ -279,7 +289,9 @@ export default function ConversationsPage() {
                 <textarea
                   className="textarea conv-input"
                   rows={2}
-                  placeholder="پاسخ خود را بنویسید… (با همان بات تلگرام برای مشتری می‌رود)"
+                  placeholder={thread?.conversation.channel === 'instagram'
+                    ? 'پاسخ خود را بنویسید… (به دایرکت اینستاگرام مشتری می‌رود)'
+                    : 'پاسخ خود را بنویسید… (با همان بات تلگرام برای مشتری می‌رود)'}
                   value={draft}
                   maxLength={2000}
                   onChange={event => setDraft(event.target.value)}

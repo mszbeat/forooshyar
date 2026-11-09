@@ -26,6 +26,17 @@ let seed: {
 };
 let handoffUpdateId = 0;
 
+/**
+ * جایگزین سرویس رخداد زنده.
+ *
+ * چرا لازم شد: `TelegramService` بعداً پارامتر ششم (`RealtimeService`) گرفت و
+ * این تست آن را `undefined` می‌داد؛ نتیجه این بود که هر مسیری که سفارش می‌سازد
+ * با «Cannot read properties of undefined (reading 'emitShop')» می‌شکست و تست
+ * «سفارش کامل در بات» قرمز می‌شد. رفتار واقعی رخداد در تست لازم نیست، فقط
+ * نباید بترکد.
+ */
+const realtimeStub = { emitShop: () => undefined, emitAdmin: () => undefined } as never;
+
 const SECRET = 'test-secret-token';
 const BOT_USERNAME = 'forooshyar_test_bot';
 
@@ -84,8 +95,8 @@ before(async () => {
   const { AuditService } = await import('../src/logging/audit.service');
   const audit = new AuditService(prisma as never, false);
   // چرخه‌ی بات/سفارش در تست: اول بات با جای خالی، بعد سفارش، بعد وصل‌کردن.
-  telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never, new AiService());
-  const orders = new OrdersService(prisma as never, audit, telegram);
+  telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never, new AiService(), realtimeStub);
+  const orders = new OrdersService(prisma as never, audit, telegram, realtimeStub);
   payments = new PaymentsService(orders);
   Object.assign(telegram as unknown as Record<string, unknown>, { orders, payments });
 
@@ -202,7 +213,7 @@ describe('channel webhook registration', () => {
     const { ChannelController } = await import('../src/telegram/channel.controller');
     const { TelegramService } = await import('../src/telegram/telegram.service');
     const { AiService } = await import('../src/ai/ai.service');
-    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService()), audit);
+    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService(), realtimeStub), audit);
     reset();
     const result = await controller.registerWebhook({
       host: 'forooshyar-api.onrender.com',
@@ -232,7 +243,7 @@ describe('channel webhook registration', () => {
     const { ChannelController } = await import('../src/telegram/channel.controller');
     const { TelegramService } = await import('../src/telegram/telegram.service');
     const { AiService } = await import('../src/ai/ai.service');
-    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService()), audit);
+    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService(), realtimeStub), audit);
     const previous = process.env.PUBLIC_API_URL;
     process.env.PUBLIC_API_URL = 'http://insecure.local';
     try {
@@ -565,7 +576,7 @@ describe('پیام فروشنده به مشتری', () => {
     reset();
     const { OrdersService } = await import('../src/orders/orders.service');
     const { AuditService } = await import('../src/logging/audit.service');
-    const orders = new OrdersService(prisma as never, new AuditService(prisma as never, false), telegram);
+    const orders = new OrdersService(prisma as never, new AuditService(prisma as never, false), telegram, realtimeStub);
     const history = await orders.sendMessage(seed.shopId, order!.id, 'سفارشتون فردا ارسال می‌شه 🌷');
 
     assert.ok(history.length >= 1, 'تاریخچه باید پیام فروشنده را داشته باشد');
@@ -592,9 +603,12 @@ describe('telegram webhook flow', () => {
     reset();
     const result = await telegram.handleUpdate(update(uid(), 501, `/start ${seed.channelCode}`, { username: 'buyer1' }) as never);
     assert.equal(result.status, 'handled');
-    assert.equal(sends('501').length, 1);
-    const text = String(sends('501')[0].body.text);
-    assert.match(text, /فروشگاه تست تلگرام/);
+    // خوش‌آمد به‌همراه پیام/کیبورد راهنما می‌آید؛ سقف سخت اینجا معنا ندارد و
+    // قبلاً با اضافه‌شدن کیبورد پایین چت، تست بی‌دلیل قرمز شد. مهم این است که
+    // دست‌کم یک پیام رفته باشد و نام فروشگاه در آن باشد.
+    const welcomes = sends('501').map(item => String(item.body.text ?? ''));
+    assert.ok(welcomes.length >= 1, 'هیچ پیامی برای مشتری نرفت');
+    assert.ok(welcomes.some(item => /فروشگاه تست تلگرام/u.test(item)), 'نام فروشگاه در پیام خوش‌آمد نبود');
     const conversation = await prisma.telegramConversation.findFirst({ where: { shopId: seed.shopId, chatId: '501' } });
     assert.ok(conversation, 'گفتگو باید ثبت شده باشد');
   });
