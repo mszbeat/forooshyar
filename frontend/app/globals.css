@@ -769,6 +769,29 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   }
   .kpi-orders .stat-value { font-size: 20px; text-align: start; }
 }
+
+/*
+ * روی گوشی (زیر ۵۶۰ پیکسل) پنج کارت در دو ستون یعنی هر کارت ~۱۶۰ پیکسل:
+ * برچسب «فروش ۲۴ ساعت گذشته» سه خط می‌شد و عدد «۳٬۱۰۰٬۰۰۰ تومان» می‌شکست.
+ * به‌جای کارت، همان اعداد را یک فهرست تک‌ستونی می‌چینیم: برچسب و توضیح سمت
+ * راست، عدد سمت چپ. هم خوانا‌تر است، هم کوتاه‌تر.
+ */
+@media (max-width: 560px) {
+  .kpi-orders { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .kpi-orders .stat {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'top value' 'foot value';
+    align-items: center;
+    column-gap: 12px;
+    padding: 11px 14px;
+    border-inline-start: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .kpi-orders .stat:last-child { border-bottom: 0; }
+  .kpi-orders .stat-value { font-size: 18px; text-align: end; margin: 0; white-space: nowrap; }
+  .kpi-orders .stat-foot { margin-top: 1px; font-size: 10.5px; color: var(--ink-4); }
+  .kpi-orders .stat-top { gap: 6px; }
+}
 .trend-up { color: var(--ok); font-weight: 700; }
 .trend-down { color: var(--danger); font-weight: 700; }
 
