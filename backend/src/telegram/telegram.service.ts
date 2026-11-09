@@ -629,7 +629,9 @@ export class TelegramService {
       'اگر دوست داشتید، نظرتان درباره‌ی خرید را همین‌جا بنویسید تا بقیه هم ببینند.',
     ].join('\n');
     const sent = await this.send(chatId, message, undefined, 'HTML');
-    await this.logOutbound(conversation.shopId, chatId, message, 'bot');
+    // فقط پیام واقعاً ارسال‌شده در تاریخچه ثبت می‌شود؛ همان قاعده‌ای که در پاسخ
+    // فروشنده هم رعایت شده تا پنل هیچ‌وقت پیامی را که مشتری ندیده نشان ندهد.
+    if (sent) await this.logOutbound(conversation.shopId, chatId, message, 'bot');
     this.audit.record({
       action: 'telegram.delivery_confirmed', entity: 'order', entityId: order.id,
       shopId: conversation.shopId, meta: { code: order.code, chatId },
