@@ -158,9 +158,11 @@
 .hero-title .mark::after {
   content: '';
   position: absolute;
-  inset-inline: -2px;
-  bottom: 0.06em;
-  height: 1px;
+  inset-inline: -3px;
+  /* قبلاً روی 0.06em بود و خط از داخل حروف می‌گذشت (شبیه خط‌خوردگی)؛
+     کمی زیر خط کرسی می‌نشیند تا «زیرخط» خوانده شود. */
+  bottom: -0.04em;
+  height: 1.5px;
   background: var(--brand);
   transform: scaleX(0);
   transform-origin: right;

@@ -871,3 +871,10 @@ html[data-phase='night'], html[data-theme='dark'] { --plate: #12151b; --plate-2:
   .stat { padding: 16px; }
   .card-body, .card-head, .card-foot { padding-inline: 16px; }
 }
+
+/* چک‌لیست راه‌اندازی: برچسب بلند دو خط می‌شود و مربع وضعیت وسط دو خط
+   می‌افتاد، طوری که یک ردیف خالی به نظر می‌رسید. حالا هر دو از بالا هم‌تراز
+   می‌شوند و مربع روی خط اول می‌نشیند. */
+.setup-step { align-items: flex-start; }
+.setup-step > span:first-child { margin-top: 1.5px; }
+.setup-step > span:last-child { line-height: 1.7; }
