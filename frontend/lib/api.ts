@@ -207,6 +207,55 @@ export async function request<T>(path: string, { body, auth = true, headers = {}
   return payload as T;
 }
 
+// ------------------------------------------------------ گفتگوها و مشتریان
+export type ConversationSummary = {
+  id: string;
+  chatId: string;
+  name: string;
+  username: string;
+  messageCount: number;
+  lastMessage: { id: string; text: string; direction: string; at: string } | null;
+  pending: boolean;
+  orders: number;
+  spent: number;
+  lastSeenAt: string;
+  createdAt: string;
+};
+export type Conversations = {
+  items: ConversationSummary[];
+  counts: { all: number; pending: number; open: number };
+};
+export type ThreadMessage = {
+  id: string;
+  direction: 'in' | 'out';
+  text: string;
+  at: string;
+  replyText?: string;
+  replyFrom?: string;
+  orderId?: string | null;
+};
+export type ConversationThread = {
+  conversation: { id: string; chatId: string; name: string; username: string; lastSeenAt: string; createdAt: string };
+  messages: ThreadMessage[];
+  orders: { id: string; code: string; status: OrderStatus; total: number; createdAt: string }[];
+};
+export type CustomerRow = {
+  chatId: string;
+  name: string;
+  username: string;
+  messageCount: number;
+  orders: number;
+  paidOrders: number;
+  value: number;
+  lastActivityAt: string;
+  firstSeenAt: string;
+  segments: { buyer: boolean; repeat: boolean; quiet: boolean };
+};
+export type Customers = {
+  items: CustomerRow[];
+  counts: { all: number; buyers: number; repeat: number; value: number };
+};
+
 export const api = {
   login: (email: string, password: string) =>
     request<AuthResult>('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
@@ -273,6 +322,15 @@ export const api = {
   orderMessages: (id: string) => request<ChatMessage[]>(`/orders/${id}/messages`),
   sendOrderMessage: (id: string, text: string, replyToId?: string) =>
     request<ChatMessage[]>(`/orders/${id}/message`, { method: 'POST', body: { text, ...(replyToId ? { replyToId } : {}) } }),
+
+  // -------------------------------------------------- گفتگوها و مشتریان
+  conversations: () => request<Conversations>('/chat/conversations'),
+  conversation: (chatId: string) => request<ConversationThread>(`/chat/conversations/${encodeURIComponent(chatId)}`),
+  replyConversation: (chatId: string, text: string) =>
+    request<{ ok: boolean; message?: ThreadMessage; error?: string }>(
+      `/chat/conversations/${encodeURIComponent(chatId)}/reply`, { method: 'POST', body: { text } },
+    ),
+  customers: () => request<Customers>('/chat/customers'),
 
   summary: () => request<Summary>('/reports/summary'),
   attention: () => request<AttentionItem[]>('/reports/attention'),

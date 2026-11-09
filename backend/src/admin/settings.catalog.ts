@@ -144,6 +144,10 @@ export const SETTINGS: SettingDef[] = [
   { key: 'AI_TEMPERATURE', group: 'ai', label: 'خلاقیت (temperature)', kind: 'number', fallback: '0.3', min: 0, max: 2, hint: 'برای فروش، پایین (۰٫۲ تا ۰٫۴) بهتر است.' },
   { key: 'AI_MAX_OUTPUT_TOKENS', group: 'ai', label: 'سقف توکن پاسخ', kind: 'number', fallback: '400', min: 64, max: 4096 },
   { key: 'AI_TIMEOUT_MS', group: 'ai', label: 'سقف زمان انتظار (میلی‌ثانیه)', kind: 'number', fallback: '12000', min: 1000, max: 60000 },
+  {
+    key: 'AI_POLISH', group: 'ai', label: 'بازنویسی لحن پاسخ‌ها با مدل', kind: 'bool', fallback: 'true',
+    hint: 'پاسخ‌های آماده (قیمت، موجودی، ارسال…) با لحن فروشگاه بازنویسی می‌شوند؛ عدد و کد محصول با نگهبان قفل است. خاموش یعنی همان متن خشک قبلی.',
+  },
 
   // -------------------------------------------------------------------- تلگرام
   {

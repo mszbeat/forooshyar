@@ -126,7 +126,8 @@ export class ReportsService {
         title: awaiting ? `سفارش ${order.code} منتظر پرداخت است` : `پرداخت سفارش ${order.code} انجام شد`,
         body: `${order.customerName || 'مشتری'} · ${order.total.toLocaleString('fa-IR')} تومان`,
         at: order.createdAt.toISOString(),
-        href: '/app/orders',
+        // پیوند مستقیم به همان سفارش؛ پنل آن را هایلایت و اسکرول می‌کند.
+        href: `/app/orders?order=${order.id}`,
         tone: awaiting ? 'amber' : 'brand',
       });
     }
@@ -143,7 +144,8 @@ export class ReportsService {
         title: 'پیام بی‌پاسخ مشتری',
         body: message.text.slice(0, 90),
         at: message.createdAt.toISOString(),
-        href: '/app/orders',
+        // گفتگوی همان مشتری، اسکرول‌شده روی همان پیام.
+        href: `/app/conversations?chat=${encodeURIComponent(message.chatId)}&msg=${message.id}`,
         tone: 'brand',
       });
     }
@@ -155,7 +157,7 @@ export class ReportsService {
         title: variant.stock === 0 ? 'موجودی تمام شد' : `فقط ${variant.stock.toLocaleString('fa-IR')} عدد مانده`,
         body: [variant.product.title, variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join(' · '),
         at: variant.stockUpdatedAt.toISOString(),
-        href: '/app/products',
+        href: `/app/products?product=${variant.product.id}`,
         tone: variant.stock === 0 ? 'danger' : 'amber',
       });
     }
@@ -175,7 +177,7 @@ export class ReportsService {
           title: `${count.toLocaleString('fa-IR')} مشتری منتظر شارژ`,
           body: byId.get(row.productId) ?? 'محصول',
           at: now.toISOString(),
-          href: '/app/products',
+          href: `/app/products?product=${row.productId}`,
           tone: 'amber',
         });
       }

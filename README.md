@@ -23,6 +23,10 @@ Orders taken inside the bot — disambiguation by buttons, forwarded-post detect
 step-by-step checkout, payment link, and the panel page — are in
 [`docs/ORDERS.md`](docs/ORDERS.md).
 
+Customer conversations and the customer book — the Telegram chat seen from inside
+the panel, with seller replies sent through the same bot and deep links from
+notifications — are in [`docs/CONVERSATIONS.md`](docs/CONVERSATIONS.md).
+
 Platform-wide settings — AI model + key, bot token, payment gateway, database URL and
 system flags — live in a separate **admin panel** at `/admin` (`docs/ADMIN.md`). It uses its
 own account table and token namespace, so an admin session never grants shop data and a

@@ -57,6 +57,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [open, setOpen] = useState<Order | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   // گفتگو با مشتری: تاریخچه + کادر پاسخ
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reply, setReply] = useState('');
@@ -64,6 +65,7 @@ export default function OrdersPage() {
   // ریپلای: پیامی که فروشنده روی آن «پاسخ» زده است.
   const [quoting, setQuoting] = useState<ChatMessage | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [rowFlash, setRowFlash] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -80,6 +82,30 @@ export default function OrdersPage() {
   }, [toast]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // پیوند عمیق از اعلان: `?order=<id>` همان سفارش را باز می‌کند.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('order');
+    if (!id) return;
+    setRowFlash(id);
+    setOpenId(id);
+    window.setTimeout(() => {
+      document.getElementById(`order-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 150);
+  }, []);
+
+  useEffect(() => {
+    if (!rowFlash) return;
+    const timer = window.setTimeout(() => setRowFlash(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [rowFlash]);
+
+  // وقتی فهرست آمد، اگر سفارشی از پیوند خواسته شده بود بازش کن.
+  useEffect(() => {
+    if (!openId || orders.length === 0) return;
+    const match = orders.find(order => order.id === openId);
+    if (match) { setOpen(match); setOpenId(null); }
+  }, [openId, orders]);
 
   // با باز شدن جزئیات، گفتگو هم می‌آید؛ اگر سفارش چت ندارد لازم نیست.
   useEffect(() => {
@@ -216,13 +242,17 @@ export default function OrdersPage() {
               const status = STATUS[order.status];
               const busy = busyId === order.id;
               return (
-                <article className="row-item" key={order.id}>
+                <article
+                  className={`row-item ${rowFlash === order.id ? 'row-flash' : ''}`}
+                  key={order.id}
+                  id={`order-${order.id}`}
+                >
                   <div className="row-item-in">
-                    <span className="avatar avatar-brand" style={{ width: 34, height: 34 }}>
-                      <IconMoney size={16} />
+                    <span className="avatar avatar-brand" style={{ width: 32, height: 32 }}>
+                      <IconMoney size={15} />
                     </span>
 
-                    <div style={{ minWidth: 0, flex: '1 1 240px' }}>
+                    <div style={{ minWidth: 0, flex: '0 1 auto', maxWidth: 260 }}>
                       <div className="row" style={{ gap: 8 }}>
                         <strong style={{ fontSize: 'var(--fs-md)', fontWeight: 500 }} className="mono">{order.code}</strong>
                         <span className={`badge ${status.tone}`}><span className="dot" />{status.label}</span>
@@ -232,7 +262,7 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    <div style={{ minWidth: 0, flex: '1 1 180px' }}>
+                    <div style={{ minWidth: 0, flex: '0 1 auto', maxWidth: 300 }}>
                       <div className="small" style={{ lineHeight: 1.9 }}>
                         {(order.items ?? []).slice(0, 2).map(item => (
                           <div key={item.id} className="truncate">
@@ -243,9 +273,11 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    <div style={{ textAlign: 'center', minWidth: 110 }}>
-                      <div className="num" style={{ fontWeight: 300, fontSize: 18 }}>{faNum(order.total)}</div>
-                      <div className="small muted">تومان</div>
+                    <div className="row-spacer" />
+
+                    <div className="row-stat" style={{ minWidth: 96 }}>
+                      <span className="row-stat-num" style={{ fontSize: 18 }}>{faNum(order.total)}</span>
+                      <span className="small muted">تومان</span>
                     </div>
 
                     <div className="row" style={{ gap: 6 }}>
