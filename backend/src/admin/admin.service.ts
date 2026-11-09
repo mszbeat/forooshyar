@@ -98,33 +98,90 @@ export class AdminService implements OnModuleInit {
     return { ok: true };
   }
 
+  /**
+   * خلاصه‌ی خطای یک کوئری، برای نمایش در پنل.
+   * پیام Prisma برای خطای مهاجرت (`P2022` = ستون وجود ندارد) با پیام عمومی
+   * «خطای غیرمنتظره» قابل تشخیص نیست؛ پس کد خطا و اولین خط پیام نگه داشته
+   * می‌شود تا ادمین بداند باید مهاجرت را اجرا کند، نه اینکه دنبال باگ بگردد.
+   */
+  private static describe(error: unknown): string {
+    const err = error as { code?: string; message?: string } | null;
+    const first = (err?.message ?? 'خطای نامشخص').split('\n').filter(Boolean).slice(-1)[0] ?? 'خطای نامشخص';
+    return err?.code ? `${err.code}: ${first}`.slice(0, 300) : first.slice(0, 300);
+  }
+
+  /**
+   * هر بخش از نمای کلی جدا اجرا می‌شود.
+   *
+   * قبلاً یک `Promise.all` بود: اگر یکی از پرس‌وجوها روی دیتابیس مقصد خطا
+   * می‌داد (مثلاً ستونی که مهاجرتش اجرا نشده)، کل صفحه به «خطای غیرمنتظره‌ای در
+   * سرور رخ داد» تبدیل می‌شد و هیچ سرنخی هم باقی نمی‌ماند. حالا هر بخش مستقل
+   * است: بقیه‌ی نمای کلی می‌آید، بخش خطادار با دلیلش در `problems` گزارش
+   * می‌شود و در لاگ سرور با استک ثبت می‌شود.
+   */
+  private async guard<T>(
+    scope: string,
+    problems: { scope: string; message: string }[],
+    run: () => Promise<T>,
+    fallback: T,
+  ): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      const message = AdminService.describe(error);
+      problems.push({ scope, message });
+      this.logger.error(`overview:${scope} failed → ${message}\n${(error as Error)?.stack ?? ''}`);
+      return fallback;
+    }
+  }
+
   /** یک نگاه کلی: حجم داده، وضعیت سرویس‌ها، و آخرین رویدادهای گردش. */
   async overview() {
+    const problems: { scope: string; message: string }[] = [];
     const [
       shops, users, products, variants, orders, messages, conversations, waiting,
       ordersByStatus, recentAudit, recentShops, db,
     ] = await Promise.all([
-      this.db.shop.count(),
-      this.db.user.count(),
-      this.db.product.count(),
-      this.db.variant.count(),
-      this.db.order.count(),
-      this.db.chatMessage.count(),
-      this.db.telegramConversation.count(),
-      this.db.stockAlert.count({ where: { notifiedAt: null } }),
-      this.db.order.groupBy({ by: ['status'], _count: { _all: true } }),
-      this.db.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 12 }),
-      this.db.shop.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-        select: {
-          id: true, name: true, createdAt: true,
-          owner: { select: { email: true } },
-          _count: { select: { products: true, orders: true } },
-          channel: { select: { active: true, botUsername: true, ownerChat: true } },
-        },
-      }),
-      this.databaseInfo().catch(() => null),
+      this.guard('counts.shops', problems, () => this.db.shop.count(), 0),
+      this.guard('counts.users', problems, () => this.db.user.count(), 0),
+      this.guard('counts.products', problems, () => this.db.product.count(), 0),
+      this.guard('counts.variants', problems, () => this.db.variant.count(), 0),
+      this.guard('counts.orders', problems, () => this.db.order.count(), 0),
+      this.guard('counts.messages', problems, () => this.db.chatMessage.count(), 0),
+      this.guard('counts.conversations', problems, () => this.db.telegramConversation.count(), 0),
+      this.guard('counts.waiting', problems, () => this.db.stockAlert.count({ where: { notifiedAt: null } }), 0),
+      this.guard(
+        'orders.byStatus', problems,
+        () => this.db.order.groupBy({ by: ['status'], _count: { _all: true } }),
+        [] as { status: string; _count: { _all: number } }[],
+      ),
+      this.guard(
+        'audit.recent', problems,
+        () => this.db.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 12 }),
+        [] as Awaited<ReturnType<typeof this.db.auditLog.findMany>>,
+      ),
+      this.guard(
+        'shops.recent', problems,
+        () => this.db.shop.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 6,
+          select: {
+            id: true, name: true, createdAt: true,
+            owner: { select: { email: true } },
+            _count: { select: { products: true, orders: true } },
+            channel: { select: { active: true, botUsername: true, ownerChat: true } },
+          },
+        }),
+        [] as Awaited<ReturnType<typeof this.db.shop.findMany<{
+          select: {
+            id: true; name: true; createdAt: true;
+            owner: { select: { email: true } };
+            _count: { select: { products: true; orders: true } };
+            channel: { select: { active: true; botUsername: true; ownerChat: true } };
+          };
+        }>>>,
+      ),
+      this.guard('services.database', problems, () => this.databaseInfo(), null),
     ]);
 
     const ai = this.ai.status();
@@ -153,7 +210,8 @@ export class AdminService implements OnModuleInit {
         memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
         env: process.env.NODE_ENV ?? 'development',
       },
-      restartRequired: this.settings.restartRequired(),
+      restartRequired: this.guard('settings.restartRequired', problems, async () => this.settings.restartRequired(), [] as string[]),
+      problems,
       recentShops: recentShops.map(shop => ({
         id: shop.id,
         name: shop.name,

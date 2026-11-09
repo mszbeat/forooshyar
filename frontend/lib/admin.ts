@@ -137,6 +137,11 @@ export type Overview = {
   };
   runtime: { uptimeSec: number; node: string; memoryMb: number; env: string };
   restartRequired: string[];
+  /**
+   * بخش‌هایی از این پاسخ که روی سرور خطا داده‌اند. نمای کلی حالا بخش‌به‌بخش
+   * اجرا می‌شود؛ اگر یک پرس‌وجو بشکند بقیه می‌آید و دلیلش همین‌جا گزارش می‌شود.
+   */
+  problems?: { scope: string; message: string }[];
   recentShops: {
     id: string; name: string; owner: string; createdAt: string;
     products: number; orders: number; bot: string | null; ownerLinked: boolean;

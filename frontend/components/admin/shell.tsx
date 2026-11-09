@@ -8,8 +8,8 @@ import { adminApi, adminToken, AdminError, type AdminIdentity, type Overview } f
 import { Spinner } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
 import {
-  IconAlertCircle, IconBolt, IconDashboard, IconLogout, IconSettings, IconShield,
-  IconSparkles, IconStore, IconWallet,
+  IconAlertCircle, IconBolt, IconDashboard, IconLogout, IconMenu, IconSettings, IconShield,
+  IconSparkles, IconStore, IconWallet, IconX,
 } from '@/components/icons';
 
 const NAV = [
@@ -46,6 +46,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminIdentity | null>(null);
+  // منوی موبایل: در عرض کم، نوار کنار جمع می‌شود و از همین دکمه باز/بسته می‌شود.
+  const [navOpen, setNavOpen] = useState(false);
   const [state, setState] = useState<'loading' | 'ready' | 'out'>('loading');
   const { overview } = usePlatformStatus();
 
@@ -76,7 +78,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const db = overview?.services.database;
 
   return (
-    <div className="adm-shell">
+    <div className={`adm-shell${navOpen ? ' nav-open' : ''}`}>
+      {/* در موبایل، لایه‌ی تاریک پشت منو؛ با لمس بیرون بسته می‌شود. */}
+      <button
+        type="button" className="adm-scrim" aria-label="بستن منو"
+        onClick={() => setNavOpen(false)} tabIndex={navOpen ? 0 : -1}
+      />
       <aside className="adm-side">
         <div className="adm-brand">
           <span className="glyph"><IconShield size={19} /></span>
@@ -84,6 +91,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <div className="nm">فروش‌یار</div>
             <div className="rl">ADMIN</div>
           </div>
+          <button
+            type="button" className="adm-nav-toggle btn btn-ghost btn-icon btn-sm"
+            aria-label={navOpen ? 'بستن منو' : 'باز کردن منو'} aria-expanded={navOpen}
+            onClick={() => setNavOpen(open => !open)}
+          >
+            {navOpen ? <IconX size={17} /> : <IconMenu size={17} />}
+          </button>
         </div>
 
         <nav className="adm-nav">
@@ -92,7 +106,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href} className={`adm-nav-item${active ? ' active' : ''}`}>
+              <Link key={item.href} href={item.href} className={`adm-nav-item${active ? ' active' : ''}`} onClick={() => setNavOpen(false)}>
                 <Icon size={16} />
                 <span>{item.label}</span>
                 <span className="sp">{item.note}</span>
@@ -100,11 +114,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
             );
           })}
           <div className="adm-nav-lab">دسترسی سریع</div>
-          <Link href="/app" className="adm-nav-item">
+          <Link href="/app" className="adm-nav-item" onClick={() => setNavOpen(false)}>
             <IconStore size={16} />
             <span>پنل فروشنده</span>
           </Link>
-          <Link href="/" className="adm-nav-item">
+          <Link href="/" className="adm-nav-item" onClick={() => setNavOpen(false)}>
             <IconDashboard size={16} />
             <span>سایت اصلی</span>
           </Link>
