@@ -425,7 +425,15 @@ export class InstagramService {
     const eventId = (payload.event_id ?? '').trim();
     if (eventId) {
       try {
-        await this.db.instagramEvent.create({ data: { eventId: eventId.slice(0, 200), eventType: (payload.event_type ?? '').slice(0, 60) } });
+        const record = { eventId: eventId.slice(0, 200), eventType: (payload.event_type ?? '').slice(0, 60) };
+        try {
+          await this.db.instagramEvent.create({ data: { ...record, payload: safeJson(payload).slice(0, 4000) } });
+        } catch (error) {
+          // ستون `payload` تازه اضافه شده؛ اگر مهاجرت هنوز روی این محیط اجرا نشده
+          // باشد نباید پیام مشتری از دست برود. یک‌بار بدون بدنه تلاش می‌کنیم.
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw error;
+          await this.db.instagramEvent.create({ data: record });
+        }
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return { status: 'duplicate' };
         this.logger.error(`ثبت رویداد ${eventId} ناموفق: ${error instanceof Error ? error.message : 'unknown'}`);
@@ -441,8 +449,16 @@ export class InstagramService {
     }
 
     const type = (payload.event_type ?? '').trim();
-    if (type === 'messaging' || type === 'messaging_postbacks') {
-      const items = asArray<InstagramMessaging>(extract(payload.data, 'messaging'));
+    // رویدادهای دایرکت همیشه با `event_type: messaging` نمی‌آیند؛ BoxAPI برای
+    // پیام‌ها `action.send_message` و شکل‌های تودرتوی دیگری هم می‌فرستد. اگر فقط
+    // به نام نوع تکیه کنیم، پیام مشتری بی‌صدا دور ریخته می‌شود (دقیقاً همان
+    // «دایرکت دادم ولی چیزی نیامد»). پس اول بر اساس نوع می‌خوانیم و اگر پیامی
+    // پیدا نشد، بدنه را عمیق می‌گردیم.
+    const direct = type === 'messaging' || type === 'messaging_postbacks'
+      ? asArray<InstagramMessaging>(extract(payload.data, 'messaging'))
+      : [];
+    const items = direct.length > 0 ? direct : collectMessages(payload);
+    if (items.length > 0) {
       let replies = 0;
       let handled = 0;
       let lastKind: string | undefined;
@@ -477,6 +493,37 @@ export class InstagramService {
     // بدون درخواست صریح فروشنده، اسپم محسوب می‌شود.
     this.audit.record({ action: 'instagram.event_ignored', entity: 'webhook', shopId, meta: { eventType: type || 'unknown' } });
     return { status: 'ignored', reason: 'unsupported_event' };
+  }
+
+  /**
+   * آخرین رویدادهای webhookِ همین فروشگاه، خلاصه‌شده برای عیب‌یابی.
+   *
+   * فیلتر با `contains` روی بدنه‌ی خام انجام می‌شود چون جدول رویدادها عمومی است
+   * و ستون حساب ندارد؛ وگرنه رویداد فروشگاه دیگر هم دیده می‌شد.
+   */
+  async recentEvents(shopId: string) {
+    const channel = await this.db.channel.findUnique({
+      where: { shopId },
+      select: { instagramAccountId: true },
+    });
+    const accountId = channel?.instagramAccountId ?? '';
+    if (!accountId) return { ok: true as const, items: [] as { eventType: string; at: string; summary: string }[] };
+
+    const rows = await this.db.instagramEvent.findMany({
+      where: { payload: { contains: accountId } },
+      orderBy: { receivedAt: 'desc' },
+      take: 10,
+      select: { eventType: true, receivedAt: true, payload: true },
+    });
+
+    return {
+      ok: true as const,
+      items: rows.map(row => ({
+        eventType: row.eventType || '—',
+        at: row.receivedAt.toISOString(),
+        summary: summarizeEvent(row.payload ?? ''),
+      })),
+    };
   }
 
   /**
@@ -1115,6 +1162,124 @@ export class InstagramService {
 }
 
 // ------------------------------------------------------------------ کمکی‌ها
+/**
+ * خلاصه‌ی یک بدنه‌ی webhook برای نمایش در پنل: نوع کلیدها، شمار پیام‌های
+ * شناسایی‌شده و شناسه‌ی (ماسک‌شده‌ی) فرستنده. متن پیام مشتری عمداً نمی‌آید.
+ */
+function summarizeEvent(raw: string): string {
+  if (!raw) return '';
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return 'بدنه خوانده نشد';
+  }
+  const messages = collectMessages(parsed);
+  const keys = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? Object.keys(parsed as Record<string, unknown>).slice(0, 6).join(', ')
+    : Array.isArray(parsed) ? 'آرایه' : typeof parsed;
+  if (messages.length > 0) {
+    const senders = messages.map(m => mask(String(m.sender?.id ?? ''))).filter(Boolean).slice(0, 2).join(' / ');
+    const echoes = messages.filter(m => m.message?.is_echo).length;
+    return `${messages.length} پیام${echoes ? ` (${echoes} اکو)` : ''} · فرستنده ${senders || '—'}`;
+  }
+  return `بدون پیام · کلیدها: ${keys || '—'}`;
+}
+
+/** JSON امن برای ذخیره؛ حلقه‌ی مرجع یا BigInt نباید ثبت رویداد را بشکند. */
+function safeJson(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * همه‌ی پیام‌های درون یک بدنه‌ی webhook، با هر شکلی که آمده باشد.
+ *
+ * چرا این‌قدر باز است: مستندات BoxAPI یک شکل (`data.messaging[]`) می‌دهد، ولی
+ * بدنه‌ی واقعی برای هر رویداد متفاوت است (تودرتو در `data.entry[]`، یا سطح
+ * بالا، یا پیام واحد با کلیدهای `sender`/`message`). اتکا به یک شکل یعنی «پیام
+ * مشتری رسید ولی سایت چیزی نشان نداد». این تابع تا چند سطح می‌گردد و هر شیئی
+ * که هم فرستنده و هم متن/پیام دارد را نرمال می‌کند.
+ */
+export function collectMessages(payload: unknown): InstagramMessaging[] {
+  const found: InstagramMessaging[] = [];
+  const seen = new Set<unknown>();
+
+  const visit = (node: unknown, depth: number) => {
+    if (found.length >= 20 || depth > 6 || !node || typeof node !== 'object') return;
+    if (seen.has(node)) return;
+    seen.add(node);
+
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, depth + 1);
+      return;
+    }
+
+    const record = node as Record<string, unknown>;
+    const normalized = normalizeMessage(record);
+    if (normalized) {
+      found.push(normalized);
+      return;
+    }
+    for (const value of Object.values(record)) visit(value, depth + 1);
+  };
+
+  visit(payload, 0);
+  return found;
+}
+
+/** یک شیء نامشخص را به قالب `InstagramMessaging` تبدیل می‌کند؛ اگر پیام نبود `null`. */
+function normalizeMessage(record: Record<string, unknown>): InstagramMessaging | null {
+  const senderRaw = record.sender ?? record.from;
+  const senderId = typeof senderRaw === 'string'
+    ? senderRaw
+    : (senderRaw as { id?: string } | undefined)?.id;
+  const messageRaw = record.message ?? (typeof record.text === 'string' ? record : undefined);
+  if (!senderId || !messageRaw || typeof messageRaw !== 'object') return null;
+
+  const message = messageRaw as Record<string, unknown>;
+  const text = typeof message.text === 'string'
+    ? message.text
+    : typeof message.content === 'string'
+      ? message.content
+      : '';
+  const attachments = Array.isArray(message.attachments) ? message.attachments : undefined;
+  // پیام بدون متن و بدون پیوست چیزی برای پاسخ دادن ندارد؛ رویدادهایی مثل
+  // «دیده شد» یا «تایپ می‌کند» اینجا رد می‌شوند.
+  if (!text && !attachments?.length) return null;
+
+  const recipientRaw = record.recipient ?? record.to;
+  const mid = message.mid ?? message.id ?? record.mid ?? record.message_id ?? record.id;
+
+  return {
+    sender: {
+      id: String(senderId),
+      name: typeof senderRaw === 'object' ? (senderRaw as { name?: string }).name : undefined,
+      username: typeof senderRaw === 'object' ? (senderRaw as { username?: string }).username : undefined,
+    },
+    recipient: recipientRaw
+      ? {
+        id: typeof recipientRaw === 'string'
+          ? recipientRaw
+          : String((recipientRaw as { id?: string }).id ?? ''),
+      }
+      : undefined,
+    timestamp: typeof record.timestamp === 'number' ? record.timestamp : undefined,
+    message: {
+      mid: typeof mid === 'string' ? mid : undefined,
+      text,
+      is_echo: Boolean(message.is_echo ?? record.is_echo),
+      quick_reply: message.quick_reply as { payload?: string } | undefined,
+      attachments,
+    },
+    postback: record.postback as InstagramMessaging['postback'],
+    reaction: record.reaction as InstagramMessaging['reaction'],
+  };
+}
+
 function extract(data: unknown, key: string): unknown {
   if (!data || typeof data !== 'object') return undefined;
   return (data as Record<string, unknown>)[key];

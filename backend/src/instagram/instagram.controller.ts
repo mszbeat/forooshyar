@@ -41,6 +41,18 @@ export class InstagramController {
     return this.instagram.accounts(req.principal.shopId);
   }
 
+  /**
+   * آخرین رویدادهای webhookِ همین پیج (برای عیب‌یابی).
+   *
+   * چرا لازم است: وقتی مشتری دایرکت می‌دهد و چیزی در سایت نمی‌آید، فروشنده و
+   * پشتیبانی باید بدانند رویداد اصلاً رسیده یا نه و با چه نوعی. بدنه‌ی خام
+   * اینجا خلاصه می‌شود (کلیدها و شمار پیام‌ها)، نه کامل؛ متن پیام مشتری لازم نیست.
+   */
+  @Get('events')
+  events(@Req() req: { principal: Principal }) {
+    return this.instagram.recentEvents(req.principal.shopId);
+  }
+
   @Post('link')
   async link(@Req() req: { principal: Principal }, @Body() body: unknown) {
     const parsed = z.object({

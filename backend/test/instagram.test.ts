@@ -413,3 +413,50 @@ describe('جریان پیام اینستاگرام', () => {
     assert.equal(capturedSend!.body.recipient_id, chatId.slice(3));
   });
 });
+
+describe('شکل‌های مختلف بدنه‌ی webhook', () => {
+  const { collectMessages } = require('../src/instagram/instagram.service') as typeof import('../src/instagram/instagram.service');
+
+  it('بدنه‌ی استاندارد مستندات را می‌خواند', () => {
+    const items = collectMessages({ data: { messaging: [{ sender: { id: '1' }, message: { text: 'سلام' } }] } });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].sender?.id, '1');
+    assert.equal(items[0].message?.text, 'سلام');
+  });
+
+  it('پیام تودرتو در data.entry[] را هم پیدا می‌کند', () => {
+    const payload = {
+      data: { entry: [{ id: 'x', messaging: [{ sender: { id: '2' }, message: { text: 'قیمت؟' } }] }] },
+    };
+    const items = collectMessages(payload);
+    assert.equal(items.length, 1);
+    assert.equal(items[0].sender?.id, '2');
+  });
+
+  it('پیام سطح‌بالا با کلیدهای from/to را هم می‌خواند', () => {
+    const items = collectMessages({ from: { id: '3' }, to: { id: '9' }, text: 'سلام' });
+    assert.equal(items.length, 1);
+    assert.equal(items[0].sender?.id, '3');
+    assert.equal(items[0].recipient?.id, '9');
+    assert.equal(items[0].message?.text, 'سلام');
+  });
+
+  it('رویداد بدون متن (دیده‌شدن/تایپ) پیام حساب نمی‌شود', () => {
+    assert.equal(collectMessages({ sender: { id: '4' }, message: { is_echo: false } }).length, 0);
+    assert.equal(collectMessages({ read: { mid: 'x' }, sender: { id: '5' } }).length, 0);
+  });
+
+  it('رویداد action.send_message با بدنه‌ی تودرتو در جریان واقعی پردازش می‌شود', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    reset();
+    const senderId = `1785${Date.now() % 1_000_000}`;
+    const result = await service.handleWebhook({
+      event_id: `evt_shape_${Date.now()}`,
+      event_type: 'action.send_message',
+      account_id: ACCOUNT_ID,
+      data: { message: { sender: { id: senderId, name: 'نگار' }, recipient: { id: ACCOUNT_ID }, text: 'سلام، موجوده؟' } },
+    } as never);
+    assert.equal(result.status, 'handled');
+    assert.ok(captured.some(item => item.action === 'send_message' && item.body.recipient_id === senderId));
+  });
+});

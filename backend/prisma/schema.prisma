@@ -321,6 +321,10 @@ model InstagramEvent {
   eventId    String   @id
   eventType  String   @default("")
   receivedAt DateTime @default(now())
+  /// بدنه‌ی خام رویداد (بریده‌شده). برای عیب‌یابی «چرا دایرکت نیامد» لازم است:
+  /// BoxAPI شکل‌های متفاوتی می‌فرستد و بدون دیدن بدنه نمی‌شود فهمید کدام کلید
+  /// پیام را دارد. هیچ توکنی در بدنه نیست.
+  payload    String?
 
   @@index([receivedAt])
 }
