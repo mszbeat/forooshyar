@@ -118,6 +118,8 @@ export type Order = {
 };
 export type ChatMessage = {
   id: string; chatId: string; direction: 'in' | 'out'; text: string;
+  /** نویسنده: 'customer' | 'bot' | 'seller' */
+  author?: 'customer' | 'bot' | 'seller' | string;
   orderId: string | null; createdAt: string;
   /** اگر این پیام ریپلای باشد: متن نقل‌شده و نویسنده‌ی پیام اصلی. */
   replyToId?: string | null;
@@ -214,7 +216,7 @@ export type ConversationSummary = {
   name: string;
   username: string;
   messageCount: number;
-  lastMessage: { id: string; text: string; direction: string; at: string } | null;
+  lastMessage: { id: string; text: string; direction: string; author?: string; at: string } | null;
   pending: boolean;
   orders: number;
   spent: number;
@@ -228,6 +230,8 @@ export type Conversations = {
 export type ThreadMessage = {
   id: string;
   direction: 'in' | 'out';
+  /** نویسنده: مشتری، بات یا فروشنده — پنل با همین حباب و برچسب را می‌چیند. */
+  author?: 'customer' | 'bot' | 'seller' | string;
   text: string;
   at: string;
   replyText?: string;

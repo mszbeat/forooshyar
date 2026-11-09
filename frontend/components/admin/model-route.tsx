@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { adminApi, AdminError, type AiProvider } from '@/lib/admin';
+import { adminApi, AdminError, type AiModel, type AiProvider } from '@/lib/admin';
 import { Spinner } from '@/components/ui';
-import { IconAlertCircle, IconCheck, IconChevronDown, IconSearch, IconSparkles, IconX } from '@/components/icons';
+import { IconAlertCircle, IconCheck, IconChevronDown, IconRefresh, IconSearch, IconSparkles, IconX } from '@/components/icons';
 import { splitProviderError } from './probe';
 
 export type ModelRouteProps = {
@@ -55,6 +55,55 @@ export function ModelRoute({ providers, draft, set }: ModelRouteProps) {
   const [failure, setFailure] = useState<ProbeFailure | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
+  /**
+   * فهرست زنده‌ی مدل‌ها.
+   *
+   * چرا از سرور: فهرست کاتالوگ سمت سرور ثابت است و با آمدن/بازنشسته‌شدن مدل‌ها
+   * کهنه می‌شود؛ کاربر گزارش کرد «فهرست به‌روز نیست». سرور `GET {baseUrl}/models`
+   * را با همان کلید صدا می‌زند (کلید هرگز به مرورگر نمی‌آید) و نتیجه را ۱۰ دقیقه
+   * کش می‌کند. اگر ارائه‌دهنده جواب نداد، همان کاتالوگ نمایش داده می‌شود.
+   */
+  const [live, setLive] = useState<{
+    provider: string; models: AiModel[]; at: string; live: boolean; error?: string;
+  } | null>(null);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const providerId = active?.id ?? '';
+  const effBaseUrl = (baseUrl || active?.baseUrl || '').trim();
+
+  useEffect(() => {
+    if (!providerId) return;
+    // درگاه دستی تا وقتی آدرسش کامل نشده، درخواست فرستادن بی‌معناست.
+    if (active?.custom && !/^https?:\/\//i.test(effBaseUrl)) {
+      setLive(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setLoadingModels(true);
+      const key = (draft.AI_API_KEY ?? '').trim();
+      adminApi.aiModels({
+        provider: providerId,
+        baseUrl: effBaseUrl || undefined,
+        // کلید ماسک‌شده یعنی «ذخیره‌شده»؛ فرستادنش خطای احراز می‌دهد.
+        apiKey: key && !key.includes('•') ? key : undefined,
+        refresh: reloadKey > 0,
+      })
+        .then(result => {
+          if (cancelled) return;
+          setLive({ provider: result.provider, models: result.models, at: result.fetchedAt, live: result.live, error: result.error });
+        })
+        .catch((problem: unknown) => {
+          if (cancelled) return;
+          setLive({ provider: providerId, models: active?.models ?? [], at: new Date().toISOString(), live: false,
+            error: problem instanceof AdminError ? problem.message : 'فهرست مدل‌ها دریافت نشد.' });
+        })
+        .finally(() => { if (!cancelled) setLoadingModels(false); });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [providerId, effBaseUrl, reloadKey, active?.custom, active?.models, draft.AI_API_KEY]);
+
   // کلیک بیرون یا Escape، فهرست میزبان‌ها را می‌بندد.
   useEffect(() => {
     if (!open) return;
@@ -79,7 +128,8 @@ export function ModelRoute({ providers, draft, set }: ModelRouteProps) {
     return () => { clearTimeout(timer); document.removeEventListener('keydown', onKey); };
   }, [failure]);
 
-  const models = active?.models ?? [];
+  // زنده اگر مال همین میزبان باشد؛ وگرنه کاتالوگ.
+  const models = live && live.provider === providerId ? live.models : (active?.models ?? []);
   const needle = query.trim().toLowerCase();
   const visible = models.filter(item => {
     if (freeOnly && !item.free) return false;
@@ -93,6 +143,8 @@ export function ModelRoute({ providers, draft, set }: ModelRouteProps) {
     setOpen(false);
     setQuery('');
     setSuccess(null);
+    setLive(null);
+    setReloadKey(0);
     if (provider.custom) {
       // میزبان دستی: آدرس پاک می‌شود تا ادمین خودش بنویسد (اگر از قبل خالی نیست،
       // همان مقدار قبلی می‌ماند؛ عوض‌کردن ناگهانی آدرس گمراه‌کننده است).
@@ -212,8 +264,25 @@ export function ModelRoute({ providers, draft, set }: ModelRouteProps) {
       <div className="ai-pick">
         <div className="row-between" style={{ gap: 8 }}>
           <span className="ai-field-lab">مدل</span>
-          <span className="small muted num">{visible.length.toLocaleString('fa-IR')} مدل</span>
+          <div className="ai-src">
+            <span className={`ai-src-tag ${live?.live ? 'live' : 'fallback'}`} title={live?.error ?? 'فهرست از خود ارائه‌دهنده خوانده شد'}>
+              <i />
+              {loadingModels ? 'در حال خواندن فهرست…' : live?.live ? 'زنده از ارائه‌دهنده' : 'فهرست پیشنهادی'}
+            </span>
+            <span className="small muted num">{visible.length.toLocaleString('fa-IR')} مدل</span>
+            <button
+              type="button"
+              className="ai-src-refresh"
+              onClick={() => setReloadKey(key => key + 1)}
+              disabled={loadingModels}
+              title="خواندن دوباره‌ی فهرست از ارائه‌دهنده"
+              aria-label="به‌روزرسانی فهرست مدل‌ها"
+            >
+              {loadingModels ? <Spinner size={11} /> : <IconRefresh size={12} />}
+            </button>
+          </div>
         </div>
+        {live?.error && <div className="ai-src-warn">{live.error}</div>}
 
         <div className="ai-pick-bar">
           <div className="ai-search">

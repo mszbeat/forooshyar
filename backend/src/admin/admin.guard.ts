@@ -17,8 +17,16 @@ export class AdminGuard implements CanActivate {
   constructor(private readonly jwt: JwtService, private readonly db: PrismaService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<{ headers: { authorization?: string }; admin?: AdminIdentity }>();
-    const match = /^Bearer (\S+)$/.exec(request.headers.authorization ?? '');
+    const request = context.switchToHttp().getRequest<{
+      headers: { authorization?: string };
+      query?: Record<string, unknown>;
+      admin?: AdminIdentity;
+    }>();
+    // جریان زنده (`/admin/events`) با EventSource باز می‌شود و مرورگر در آن
+    // نمی‌تواند هدر بفرستد؛ پس توکن از query هم پذیرفته می‌شود. اعتبار همان
+    // JWT ادمین است و بررسی می‌شود، پس این راه هیچ در بازتری نمی‌گذارد.
+    const fromQuery = typeof request.query?.token === 'string' ? request.query.token : '';
+    const match = /^Bearer (\S+)$/.exec(request.headers.authorization ?? '') ?? (fromQuery ? [fromQuery, fromQuery] : null);
     if (!match) throw new UnauthorizedException();
     try {
       const payload = await this.jwt.verifyAsync(match[1], { algorithms: ['HS256'] });

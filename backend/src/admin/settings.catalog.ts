@@ -145,6 +145,10 @@ export const SETTINGS: SettingDef[] = [
   { key: 'AI_MAX_OUTPUT_TOKENS', group: 'ai', label: 'سقف توکن پاسخ', kind: 'number', fallback: '400', min: 64, max: 4096 },
   { key: 'AI_TIMEOUT_MS', group: 'ai', label: 'سقف زمان انتظار (میلی‌ثانیه)', kind: 'number', fallback: '12000', min: 1000, max: 60000 },
   {
+    key: 'AI_REPLY_BUDGET_MS', group: 'ai', label: 'بودجه‌ی زمانی پاسخ زنده (میلی‌ثانیه)', kind: 'number', fallback: '4000', min: 500, max: 20000,
+    hint: 'هرچه مدل بیشتر از این طول بکشد، پاسخ آماده‌ی قاعده‌محور فوراً می‌رود و مدل کنار گذاشته می‌شود. عدد کوچک‌تر یعنی پاسخ سریع‌تر، ولی فرصت کمتر برای لحن مدل.',
+  },
+  {
     key: 'AI_POLISH', group: 'ai', label: 'بازنویسی لحن پاسخ‌ها با مدل', kind: 'bool', fallback: 'true',
     hint: 'پاسخ‌های آماده (قیمت، موجودی، ارسال…) با لحن فروشگاه بازنویسی می‌شوند؛ عدد و کد محصول با نگهبان قفل است. خاموش یعنی همان متن خشک قبلی.',
   },

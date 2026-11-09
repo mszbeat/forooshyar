@@ -259,8 +259,12 @@ model ChatMessage {
   shopId    String   @db.Uuid
   shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   chatId    String
-  // 'in' = پیام مشتری، 'out' = پیام فروشنده
+  // 'in' = پیام مشتری، 'out' = پیام سمت فروشگاه (بات یا فروشنده)
   direction String
+  /// نویسنده: 'customer' | 'bot' | 'seller'.
+  /// چرا جدا از direction: پنل باید پاسخ خودکار بات را از پاسخ دستی فروشنده
+  /// تفکیک کند (برچسب «فروشنده» فقط روی دومی می‌آید).
+  author    String   @default("customer")
   text      String
   orderId   String?  @db.Uuid
   // پاسخ به یک پیام مشخص (مثل «ریپلای» تلگرام). متن نقل‌شده کپی می‌شود تا اگر

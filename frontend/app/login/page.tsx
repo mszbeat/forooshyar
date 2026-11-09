@@ -8,7 +8,7 @@ import './../auth.css';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { Field, Spinner, useToast } from '@/components/ui';
-import { IconAlertCircle, IconArrowLeft, IconCheck, IconLogo, IconShield } from '@/components/icons';
+import { IconAlertCircle, IconArrowLeft, IconCheck, IconEye, IconLogo, IconShield } from '@/components/icons';
 
 /**
  * ورود و ثبت‌نام در یک صفحه.
@@ -27,6 +27,8 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [remember, setRemember] = useState(false);
   const [values, setValues] = useState({ shopName: '', email: '', password: '' });
+  // نمایش/پنهان‌سازی رمز؛ همان الگوی صفحهٔ ادمین تا رفتار کل سایت یکسان باشد.
+  const [reveal, setReveal] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
 
   // لینک‌های بیرونی (?mode=register) و ایمیل به‌خاطر‌سپرده‌شده.
@@ -205,12 +207,21 @@ export default function LoginPage() {
                 label="رمز عبور" required htmlFor="password"
                 hint={isRegister ? 'حداقل ۱۰ کاراکتر؛ ترکیب حرف و رقم امن‌تر است.' : undefined}
               >
-                <input
-                  id="password" className="input input-ltr" name="password" type="password" required
-                  minLength={10} maxLength={128} placeholder="••••••••••"
-                  value={values.password} onChange={set('password')}
-                  autoComplete={isRegister ? 'new-password' : 'current-password'} dir="ltr"
-                />
+                <div className="input-wrap">
+                  <input
+                    id="password" className="input input-ltr" name="password" type={reveal ? 'text' : 'password'} required
+                    minLength={10} maxLength={128} placeholder="••••••••••"
+                    value={values.password} onChange={set('password')}
+                    autoComplete={isRegister ? 'new-password' : 'current-password'} dir="ltr"
+                  />
+                  <button
+                    type="button" className="input-reveal" onClick={() => setReveal(value => !value)}
+                    aria-label={reveal ? 'پنهان‌کردن رمز' : 'نمایش رمز'}
+                    aria-pressed={reveal} title={reveal ? 'پنهان‌کردن رمز' : 'نمایش رمز'}
+                  >
+                    <IconEye size={17} />
+                  </button>
+                </div>
               </Field>
 
               <div className="authx-row">

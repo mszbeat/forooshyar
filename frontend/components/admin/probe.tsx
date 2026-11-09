@@ -59,8 +59,46 @@ export function splitProviderError(raw: string): { headline: string; detail: str
  * آزمون‌ها همیشه سمت سرور اجرا می‌شوند (کلاینت مرورگر به تلگرام یا مدل دسترسی
  * ندارد و نباید کلید را ببیند)؛ اینجا فقط نتیجه نمایش داده می‌شود.
  */
+/**
+ * نتیجه‌ی آزمون، به‌صورت یک بلوک مستقل.
+ *
+ * چرا از کارت جدا شد: نتیجه‌ی یک آزمون طولانی است (چند خط + متن خام درگاه).
+ * وقتی داخل کارت رندر می‌شد، کارتِ همان ستون کشیده می‌شد و کارت همسایه هم با
+ * آن جابه‌جا می‌شد؛ کاربر دقیقاً همین را گزارش کرد. حالا نتیجه در ردیفِ
+ * تمام‌عرضِ پایین می‌نشیند و کارت‌های بالا دست‌نخورده می‌مانند.
+ */
+export function ProbeResultPanel({ result, title }: { result: ProbeResult; title?: string }) {
+  return (
+    <div className={`adm-note probe-result ${result.tone === 'ok' ? 'ok' : 'bad'}`}>
+      {result.tone === 'ok' ? <IconCheck size={16} /> : <IconAlertCircle size={16} />}
+      <div style={{ display: 'grid', gap: 5, minWidth: 0, width: '100%' }}>
+        {title && <div className="probe-result-title">{title}</div>}
+        {result.lines.length > 0 && (
+          <div className="probe-result-grid">
+            {result.lines.map(line => (
+              <div key={line.label} className="probe-result-cell">
+                <span className="k">{line.label}</span>
+                <b className="v num ltr">{line.value}</b>
+              </div>
+            ))}
+          </div>
+        )}
+        {result.error && (
+          <div style={{ display: 'grid', gap: 5, minWidth: 0 }}>
+            <div style={{ display: 'flex', gap: 7, alignItems: 'baseline', flexWrap: 'wrap' }}>
+              {result.statusText && <span className="adm-tag t-restart num">{result.statusText}</span>}
+              <span style={{ overflowWrap: 'anywhere', fontWeight: 600 }}>{result.error}</span>
+            </div>
+            {result.detail && <div className="probe-detail">{result.detail}</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ServiceCard({
-  title, subtitle, icon, status, statusTone, meta, onProbe, probeLabel = 'تست اتصال', footer,
+  title, subtitle, icon, status, statusTone, meta, onProbe, probeLabel = 'تست اتصال', footer, onResult,
 }: {
   title: string;
   subtitle: string;
@@ -71,6 +109,11 @@ export function ServiceCard({
   onProbe?: () => Promise<ProbeResult>;
   probeLabel?: string;
   footer?: ReactNode;
+  /**
+   * اگر بدهید، نتیجه در کارت رندر نمی‌شود و به والد سپرده می‌شود تا در ردیف
+   * تمام‌عرض خودش بنشیند (صفحه‌ی مدل هوش مصنوعی).
+   */
+  onResult?: (result: ProbeResult | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ProbeResult | null>(null);
@@ -79,11 +122,16 @@ export function ServiceCard({
     if (!onProbe || busy) return;
     setBusy(true);
     setResult(null);
+    onResult?.(null);
     try {
-      setResult(await onProbe());
+      const next = await onProbe();
+      setResult(next);
+      onResult?.(next);
     } catch (problem) {
       const split = splitProviderError(problem instanceof Error ? problem.message : '');
-      setResult({ tone: 'bad', lines: [], error: split.headline, detail: split.detail, statusText: split.code });
+      const failed: ProbeResult = { tone: 'bad', lines: [], error: split.headline, detail: split.detail, statusText: split.code };
+      setResult(failed);
+      onResult?.(failed);
     } finally {
       setBusy(false);
     }
@@ -120,28 +168,7 @@ export function ServiceCard({
       )}
       {!onProbe && footer}
 
-      {result && (
-        <div className={`adm-note ${result.tone === 'ok' ? 'ok' : 'bad'}`}>
-          {result.tone === 'ok' ? <IconCheck size={16} /> : <IconAlertCircle size={16} />}
-          <div style={{ display: 'grid', gap: 5, minWidth: 0 }}>
-            {result.lines.map(line => (
-              <div key={line.label} className="row-between" style={{ gap: 10 }}>
-                <span>{line.label}</span>
-                <b className="num ltr" style={{ overflowWrap: 'anywhere', maxWidth: '62%', textAlign: 'end' }}>{line.value}</b>
-              </div>
-            ))}
-            {result.error && (
-              <div style={{ display: 'grid', gap: 5 }}>
-                <div style={{ display: 'flex', gap: 7, alignItems: 'baseline' }}>
-                  {result.statusText && <span className="adm-tag t-restart num">{result.statusText}</span>}
-                  <span style={{ overflowWrap: 'anywhere', fontWeight: 600 }}>{result.error}</span>
-                </div>
-                {result.detail && <div className="probe-detail">{result.detail}</div>}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {result && !onResult && <ProbeResultPanel result={result} />}
     </section>
   );
 }

@@ -208,15 +208,25 @@ export function SettingsPanel({
 
 function Control({ setting, value, onChange }: { setting: SettingView; value: string; onChange: (next: string) => void }) {
   if (setting.kind === 'bool') {
+    // چیدمان ثابت: سوییچ + جایگاهِ هم‌عرضِ متن وضعیت.
+    //
+    // چرا این‌طور: قبلاً برچسب سوییچ خودش «روشن/خاموش» را داشت و یک متن وضعیت
+    // هم کنارش بود؛ طول متن، عرضِ محتوا را عوض می‌کرد و سوییچ‌ها با هر تغییر
+    // یک‌دو پیکسل می‌لرزیدند (باگ گزارش‌شده). حالا ستون‌ها ثابت‌اند و تنها
+    // چیزی که عوض می‌شود رنگ و کلمه است، نه چیدمان.
+    const on = value === 'true';
     return (
-      <div className="row" style={{ gap: 10 }}>
+      <div className="ctl-switch">
         <Switch
-          checked={value === 'true'}
+          checked={on}
           onChange={next => onChange(next ? 'true' : 'false')}
-          label={`${setting.label} ${value === 'true' ? 'روشن' : 'خاموش'}`}
+          label={setting.label}
           id={`sw-${setting.key}`}
+          hideLabel
         />
-        <span className="small muted">{value === 'true' ? 'روشن' : 'خاموش'}</span>
+        <span className={`ctl-switch-state ${on ? 'on' : 'off'}`} aria-live="polite">
+          {on ? 'روشن' : 'خاموش'}
+        </span>
       </div>
     );
   }

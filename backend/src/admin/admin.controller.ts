@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Put, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Put, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import type { AdminIdentity } from './admin.service';
 import { AdminGuard } from './admin.guard';
@@ -88,6 +88,27 @@ export class AdminController {
       if (text) clean[key as 'baseUrl'] = text;
     }
     return this.admin.probeAi(clean);
+  }
+
+  /**
+   * فهرست زندهٔ مدل‌های یک درگاه.
+   * `baseUrl`/`apiKey` اختیاری‌اند تا فرمِ ذخیره‌نشده هم فهرست درست را ببیند.
+   */
+  @Get('ai/models')
+  aiModels(@Query() query: Record<string, unknown>) {
+    const parsed = z.object({
+      provider: z.string().max(60).optional(),
+      baseUrl: z.string().max(500).optional(),
+      apiKey: z.string().max(500).optional(),
+      refresh: z.string().max(6).optional(),
+    }).safeParse(query ?? {});
+    if (!parsed.success) throw new BadRequestException('پرس‌وجوی فهرست مدل‌ها نامعتبر است.');
+    return this.admin.aiModels({
+      provider: (parsed.data.provider ?? 'openrouter').trim(),
+      baseUrl: parsed.data.baseUrl?.trim() || undefined,
+      apiKey: parsed.data.apiKey?.trim() || undefined,
+      refresh: parsed.data.refresh === '1',
+    });
   }
 
   @Post('diagnostics/telegram')
