@@ -754,8 +754,12 @@ export class InstagramService {
 
     // فهرست محصول با دکمه/پاسخ سریع می‌آید، ولی در نسخه‌ی وب اینستاگرام دکمه‌ها
     // دیده نمی‌شوند؛ یک جمله‌ی کوتاه راه دوم را نشان می‌دهد.
+    // راهنمای مشتری: اول پیشنهاد اپ، بعد راه‌حل جایگزین. دکمه در نسخه‌ی وب
+    // اینستاگرام رندر نمی‌شود، پس اگر مشتری وب‌کار است باید بداند بهترین تجربه
+    // در اپ است — و اگر همین حالا نمی‌تواند اپ را باز کند، شماره/کد کار می‌کند.
     const text = picks.length > 1
-      ? `${reply.text}\n\n💬 در نسخه‌ی وب اینستاگرام دکمه‌ها دیده نمی‌شوند؛ شماره (مثلاً ۱) یا کد محصول را بفرستید.`
+      ? `${reply.text}\n\n📱 برای انتخاب با دکمه، این گفتگو را در اپ اینستاگرام باز کنید.`
+        + '\nاگر با نسخه‌ی وب هستید، شماره (مثلاً ۱) یا کد محصول را بفرستید.'
       : reply.text;
 
     await this.logInbound(conversation, rawText);
@@ -809,7 +813,8 @@ export class InstagramService {
         : { kind: 'answer', text: 'فهرست محصولات هنوز خالی است؛ فروشنده به‌زودی اضافه می‌کند.' };
       await this.rememberList(conversation.id, reply);
       const text = products.length
-        ? `${reply.text}\n\n💬 در نسخه‌ی وب دکمه‌ها دیده نمی‌شوند؛ شماره (مثلاً ۱) یا کد محصول را بفرستید.`
+        ? `${reply.text}\n\n📱 برای انتخاب با دکمه، این گفتگو را در اپ اینستاگرام باز کنید.`
+          + '\nاگر با نسخه‌ی وب هستید، شماره (مثلاً ۱) یا کد محصول را بفرستید.'
         : reply.text;
       const sent = await this.send(conversation, text, reply.buttons);
       if (sent) await this.logOutbound(conversation, toPlainText(text), 'bot');
