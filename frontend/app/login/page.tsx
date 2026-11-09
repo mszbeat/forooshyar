@@ -5,9 +5,11 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import './../auth.css';
+import './../auth-v3.css';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { Field, Spinner, useToast } from '@/components/ui';
+import { DayLightHero } from '@/components/daylight';
 import { IconAlertCircle, IconArrowLeft, IconCheck, IconEye, IconLogo, IconShield } from '@/components/icons';
 
 /**
