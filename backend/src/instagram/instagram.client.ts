@@ -52,13 +52,14 @@ export class InstagramClient {
     return this.config.apiKey.length > 0;
   }
 
-  /** UUID پیج؛ بدون آن هیچ اکشنی معنی ندارد. */
-  get accountId(): string {
-    return this.config.accountId;
-  }
-
-  /** متن‌های ورودی را به مسیر اکشن BoxAPI نگاشت می‌کند. */
-  private async post<T = unknown>(action: string, body: Record<string, unknown>): Promise<InstagramResult<T>> {
+  /**
+   * یک اکشن BoxAPI.
+   *
+   * `accountId` این‌جا پارامتر است و نه فیلد کلاس: هر فروشگاه پیج خودش را دارد،
+   * پس شناسه باید در هر درخواست از فروشگاهِ درست بیاید. اگر در کلاینت قفل شود،
+   * پیام یک فروشگاه با پیج فروشگاه دیگر می‌رود — بدترین باگ ممکن در چندمستأجری.
+   */
+  private async post<T = unknown>(accountId: string, action: string, body: Record<string, unknown>): Promise<InstagramResult<T>> {
     if (!this.configured) {
       return { ok: false, error: 'INSTAGRAM_API_KEY ست نشده است.' };
     }
@@ -74,7 +75,7 @@ export class InstagramClient {
           // توکن فقط در هدر و فقط از سمت سرور.
           'x-api-key': this.config.apiKey,
         },
-        body: JSON.stringify({ account_id: this.config.accountId, ...body }),
+        body: JSON.stringify({ account_id: accountId, ...body }),
         signal: controller.signal,
       });
       const text = await response.text();
@@ -101,7 +102,7 @@ export class InstagramClient {
   }
 
   /** پیام متنی دایرکت؛ با دکمه یا پاسخ سریع اختیاری. */
-  sendMessage(input: SendMessageInput): Promise<InstagramResult> {
+  sendMessage(accountId: string, input: SendMessageInput): Promise<InstagramResult> {
     const body: Record<string, unknown> = {
       recipient_id: input.recipientId,
       message: input.message,
@@ -109,28 +110,124 @@ export class InstagramClient {
     if (input.buttons?.length) body.buttons = input.buttons;
     if (input.quickReplies?.length) body.quick_replies = input.quickReplies;
     if (input.isEcho) body.is_echo = true;
-    return this.post('send_message', body);
+    return this.post(accountId, 'send_message', body);
   }
 
   /** قالب عمومی (کارت محصول با تصویر و دکمه). */
-  sendGenericTemplate(recipientId: string, elements: GenericTemplateElement[]): Promise<InstagramResult> {
-    return this.post('send_generic_template', { recipient_id: recipientId, elements });
+  sendGenericTemplate(accountId: string, recipientId: string, elements: GenericTemplateElement[]): Promise<InstagramResult> {
+    return this.post(accountId, 'send_generic_template', { recipient_id: recipientId, elements });
   }
 
   /** پیوست (فایل/تصویر) با آدرس عمومی. */
-  sendAttachment(recipientId: string, url: string, type = 'file'): Promise<InstagramResult> {
-    return this.post('send_attachment', { recipient_id: recipientId, attachment_type: type, url });
+  sendAttachment(accountId: string, recipientId: string, url: string, type = 'file'): Promise<InstagramResult> {
+    return this.post(accountId, 'send_attachment', { recipient_id: recipientId, attachment_type: type, url });
   }
 
   /** پاسخ عمومی به یک کامنت (نه دایرکت). */
-  replyComment(commentId: string, message: string): Promise<InstagramResult> {
-    return this.post('reply_comment', { comment_id: commentId, message });
+  replyComment(accountId: string, commentId: string, message: string): Promise<InstagramResult> {
+    return this.post(accountId, 'reply_comment', { comment_id: commentId, message });
   }
 
   /** فهرست گفتگوها؛ برای همگام‌سازی اولیه‌ی صندوق ورودی. */
-  conversations(userId?: string): Promise<InstagramResult> {
-    return this.post('conversation_conversations', userId ? { user_id: userId } : {});
+  conversations(accountId: string, userId?: string): Promise<InstagramResult> {
+    return this.post(accountId, 'conversation_conversations', userId ? { user_id: userId } : {});
   }
+
+  /**
+   * فهرست پیج‌هایی که از طریق لینک ورود اختصاصی حساب باکس‌ای‌پی لاگین شده‌اند.
+   *
+   * چرا این متد ستون فقرات اتصال چندفروشگاهی است: `account_id` هر پیج فقط
+   * این‌جا پیدا می‌شود. فروشنده لینک ورود را باز می‌کند، پیجش را اجازه می‌دهد و
+   * بعد پنل از همین فهرست پیج او را نشان می‌دهد تا انتخاب کند.
+   *
+   * `GET /service/accounts` (برخلاف بقیه‌ی اکشن‌ها) GET است و بدنه ندارد.
+   */
+  async listAccounts(): Promise<InstagramResult<InstagramAccount[]>> {
+    const result = await this.request('GET', 'service/accounts');
+    if (!result.ok) return result;
+    return { ok: true, data: normalizeAccounts(result.data) };
+  }
+
+  /** درخواست خام (GET یا POST) با همان قواعد خطا و سقف زمان. */
+  private async request<T = unknown>(method: 'GET' | 'POST', path: string, body?: Record<string, unknown>): Promise<InstagramResult<T>> {
+    if (!this.configured) return { ok: false, error: 'INSTAGRAM_API_KEY ست نشده است.' };
+    const url = `${this.config.baseUrl}/${path.replace(/^\/+/, '')}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          accept: 'application/json',
+          'x-api-key': this.config.apiKey,
+          ...(body ? { 'content-type': 'application/json' } : {}),
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      const parsed = text ? safeJson(text) : {};
+      if (!response.ok) return { ok: false, status: response.status, error: describe(parsed) || `HTTP ${response.status}` };
+      return { ok: true, data: parsed as T };
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === 'AbortError';
+      return { ok: false, error: aborted ? 'زمان پاسخ BoxAPI تمام شد.' : (error instanceof Error ? error.message : 'خطای شبکه') };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+/** یک پیج متصل، همان‌طور که BoxAPI برمی‌گرداند (و ما لازم داریم). */
+export type InstagramAccount = {
+  id: string;
+  username: string;
+  instagramUserId: string;
+  profilePhoto: string;
+  active: boolean;
+  /** تاریخ انقضای دسترسی؛ بعد از آن فروشنده باید دوباره وارد شود. */
+  expiresAt: string | null;
+};
+
+/**
+ * پاسخ `/service/accounts` را به شکل ثابت خودمان درمی‌آورد.
+ *
+ * چرا: مستندات نمونه را در `data` می‌گذارد، ولی بعضی پاسخ‌ها مستقیم آرایه‌ی
+ * بالا هستند یا کلید `accounts` دارند. اگر فقط یک شکل را بفهمیم، اتصال در
+ * بعضی حساب‌ها «هیچ پیجی پیدا نشد» می‌دهد بدون اینکه چیزی خراب باشد.
+ */
+export function normalizeAccounts(payload: unknown): InstagramAccount[] {
+  const list = pickList(payload);
+  return list.map(item => {
+    const record = (item ?? {}) as Record<string, unknown>;
+    const expires = typeof record.expires_at === 'string' ? record.expires_at : '';
+    return {
+      id: String(record.id ?? '').trim(),
+      username: String(record.username ?? '').trim(),
+      instagramUserId: String(record.instagram_user_id ?? '').trim(),
+      profilePhoto: String(record.profile_photo ?? '').trim(),
+      // `is_active` ممکن است نباشد؛ غیبتش را «فعال» می‌خوانیم تا پیج سالم
+      // به‌خاطر یک فیلد اختیاری از فهرست نیفتد.
+      active: record.is_active === undefined ? true : Boolean(record.is_active),
+      expiresAt: expires && !Number.isNaN(Date.parse(expires)) ? new Date(expires).toISOString() : null,
+    };
+  }).filter(account => account.id.length > 0);
+}
+
+function pickList(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  const record = payload as Record<string, unknown>;
+  for (const key of ['data', 'accounts', 'items', 'results']) {
+    const value = record[key];
+    if (Array.isArray(value)) return value;
+    // صفحه‌بندی تو در تو: { data: { data: [...] } }
+    if (value && typeof value === 'object') {
+      const nested = (value as Record<string, unknown>).data;
+      if (Array.isArray(nested)) return nested;
+    }
+  }
+  return [];
 }
 
 function safeJson(text: string): unknown {

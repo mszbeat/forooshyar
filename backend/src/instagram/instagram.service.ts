@@ -29,8 +29,14 @@ import {
 } from '../telegram/order-flow';
 import { helpText, welcomeText, KEYBOARD_ACTIONS } from '../telegram/menu';
 import { isDeliveryConfirmation } from '../telegram/delivery';
-import { InstagramClient } from './instagram.client';
-import { instagramConfigured, readInstagramConfig, webhookUrl, type InstagramConfig } from './instagram.config';
+import { InstagramClient, type InstagramAccount } from './instagram.client';
+import {
+  instagramConfigured,
+  instagramConnectable,
+  readInstagramConfig,
+  webhookUrl,
+  type InstagramConfig,
+} from './instagram.config';
 import { splitInstagramMessage, toInstagramActions, toPlainText } from './format';
 
 /**
@@ -75,6 +81,27 @@ export type InstagramHandleResult =
   | { status: 'ignored'; reason: string }
   | { status: 'duplicate' }
   | { status: 'handled'; replies: number; kind?: string };
+
+/** یک گزینه در فهرست «پیج خودت را انتخاب کن» در پنل. */
+type AccountOption = {
+  id: string;
+  username: string;
+  profilePhoto: string;
+  active: boolean;
+  expiresAt: string | null;
+  /** پیجی که همین حالا به این فروشگاه وصل است. */
+  mine: boolean;
+};
+
+/** پیج متصل به یک فروشگاه، همراه فیلدهای نمایشی. */
+type LinkedAccount = {
+  id: string;
+  username: string;
+  profilePhoto: string;
+  expiresAt: string | null;
+  linkedAt: string | null;
+  active: boolean;
+};
 
 /** کوچک‌ترین چیزی که برای ارسال/ثبت پیام لازم است. */
 type ChatTarget = { id: string; shopId: string; chatId: string };
@@ -144,16 +171,13 @@ export class InstagramService {
   }
 
   /**
-   * وضعیت اتصال برای پنل.
+   * وضعیت اتصال برای پنل — **همیشه از دید همان فروشگاه**.
    *
-   * توکن و سکرت **هرگز** برنمی‌گردند؛ فقط «ست شده یا نه» و چند کارت آماری.
-   * حتی مدیر پلتفرم هم از این مسیر مقدار خام را نمی‌بیند (فقط env).
+   * توکن و سکرت هرگز برنمی‌گردند؛ فقط «ست شده یا نه». پیج هم مال همین فروشگاه
+   * است (از `Channel`)، نه از env: هر فروشگاه پیج خودش را دارد.
    */
   async status(shopId: string) {
-    const channel = await this.db.channel.findFirst({
-      where: { shopId },
-      select: { instagramAccountId: true, instagramUsername: true, instagramLinkedAt: true },
-    });
+    const account = await this.account(shopId);
     const [messages, conversations, lastEvent] = await Promise.all([
       this.db.chatMessage.count({ where: { shopId, chatId: { startsWith: InstagramService.CHAT_PREFIX } } }),
       this.db.telegramConversation.count({ where: { shopId, chatId: { startsWith: InstagramService.CHAT_PREFIX } } }),
@@ -164,21 +188,195 @@ export class InstagramService {
       }),
     ]);
 
-    const linkedAccount = channel?.instagramAccountId ?? '';
+    const expiresAt = account?.expiresAt ?? null;
+    const daysLeft = expiresAt ? Math.ceil((Date.parse(expiresAt) - Date.now()) / 86_400_000) : null;
+
     return {
+      /** سمت سرور آماده است (کلید API هست). */
       configured: this.configured,
-      // ماسک‌شده؛ شناسه حساب برای پشتیبانی لازم است ولی محرمانه نیست.
-      accountId: mask(this.config.accountId),
-      accountLinked: Boolean(linkedAccount),
-      accountMatchesEnv: Boolean(linkedAccount) && linkedAccount === this.config.accountId,
-      username: channel?.instagramUsername ?? '',
-      linkedAt: channel?.instagramLinkedAt?.toISOString() ?? null,
-      loginUrl: this.config.loginUrl,
+      /** دکمه‌ی «اتصال پیج» قابل استفاده است (لینک ورود حساب تنظیم شده). */
+      connectable: instagramConnectable(this.config),
+      /** آیا همین فروشگاه پیجی وصل کرده است. */
+      accountLinked: Boolean(account?.id),
+      account: account
+        ? {
+          id: account.id,
+          username: account.username,
+          profilePhoto: account.profilePhoto,
+          expiresAt,
+          daysLeft,
+          active: account.active,
+          linkedAt: account.linkedAt,
+        }
+        : null,
       webhookUrl: webhookUrl(this.config),
       webhookUrlIsHttps: webhookUrl(this.config).startsWith('https://'),
       signatureEnforced: this.config.webhookSecret.length > 0,
-      apiBase: this.config.baseUrl,
       stats: { messages, conversations, lastEventAt: lastEvent?.createdAt.toISOString() ?? null, lastEventAction: lastEvent?.action ?? '' },
+    };
+  }
+
+  /**
+   * لینک ورود حساب برای فروشنده.
+   *
+   * این لینک را عمداً در `status` نمی‌فرستیم (توکن ورود داخلش است)؛ فقط با
+   * درخواست احراز‌شده و هنگام کلیک برمی‌گردد. هر باز کردن، در audit ثبت می‌شود
+   * تا اگر روزی پیج ناشناسی به پلتفرم وصل شد، ردش را داشته باشیم.
+   */
+  connectUrl(shopId: string, userId?: string): string {
+    if (!instagramConnectable(this.config)) return '';
+    this.audit.record({
+      action: 'instagram.connect_link_opened', entity: 'shop', entityId: shopId, shopId, userId,
+      meta: {},
+    });
+    return this.config.loginUrl;
+  }
+
+  /**
+   * پیج‌های قابل انتخاب برای این فروشگاه.
+   *
+   * فهرست از BoxAPI می‌آید (`/service/accounts`) و با اتصال‌های ثبت‌شده در
+   * دیتابیس تلاقی داده می‌شود:
+   *   - پیج آزاد → قابل انتخاب
+   *   - پیج خود این فروشگاه → «وصل است»
+   *   - پیج فروشگاه دیگر → **حذف می‌شود**؛ نام کاربری پیج دیگران نباید در پنل
+   *     این فروشگاه دیده شود.
+   */
+  async accounts(shopId: string) {
+    if (!this.configured) {
+      return { ok: false as const, error: 'کلید API اینستاگرام روی سرور تنظیم نشده است.', items: [] as AccountOption[] };
+    }
+    const listed = await this.client.listAccounts();
+    if (!listed.ok) {
+      return { ok: false as const, error: `دریافت پیج‌ها از BoxAPI انجام نشد: ${listed.error}`, items: [] as AccountOption[] };
+    }
+
+    const own = await this.account(shopId);
+    const taken = await this.db.channel.findMany({
+      where: { instagramAccountId: { not: null } },
+      select: { shopId: true, instagramAccountId: true },
+    });
+    const takenByOthers = new Map(
+      taken
+        .filter(row => row.shopId !== shopId && row.instagramAccountId)
+        .map(row => [row.instagramAccountId as string, row.shopId]),
+    );
+
+    const items: AccountOption[] = [];
+    for (const item of listed.data) {
+      if (takenByOthers.has(item.id)) continue;
+      const mine = item.id === own?.id;
+      items.push({
+        id: item.id,
+        username: item.username,
+        profilePhoto: item.profilePhoto,
+        active: item.active,
+        expiresAt: item.expiresAt,
+        mine,
+      });
+    }
+    return { ok: true as const, items };
+  }
+
+  /**
+   * وصل‌کردن یک پیج به فروشگاه.
+   *
+   * اعتبارسنجی سه‌لایه است و هر سه لازم‌اند:
+   *  ۱. پیج باید در فهرست حساب خودِ پلتفرم باشد (یعنی واقعاً لاگین شده).
+   *  ۲. نباید به فروشگاه دیگری وصل باشد (وگرنه پیام‌های دو فروشگاه قاطی می‌شود).
+   *  ۳. اگر همین فروشگاه پیج دیگری داشت، جایگزین می‌شود (فروشنده ممکن است
+   *     پیجش را عوض کند) — ولی پیوستگی گفتگوها حفظ می‌شود چون کلید گفتگو
+   *     `ig:<IGSID>` است نه شناسه‌ی پیج.
+   */
+  async link(shopId: string, accountId: string, userId?: string) {
+    if (!this.configured) return { ok: false as const, error: 'کلید API اینستاگرام روی سرور تنظیم نشده است.' };
+    const id = accountId.trim();
+    if (!id) return { ok: false as const, error: 'پیجی انتخاب نشده است.' };
+
+    const listed = await this.client.listAccounts();
+    if (!listed.ok) return { ok: false as const, error: `دریافت پیج‌ها از BoxAPI انجام نشد: ${listed.error}` };
+    const found = listed.data.find(item => item.id === id);
+    if (!found) return { ok: false as const, error: 'این پیج در فهرست حساب باکس‌ای‌پی نیست؛ اول با لینک ورود، پیج را اجازه بدهید.' };
+
+    const conflict = await this.db.channel.findFirst({
+      where: { instagramAccountId: id, NOT: { shopId } },
+      select: { shopId: true },
+    });
+    if (conflict) return { ok: false as const, error: 'این پیج قبلاً به فروشگاه دیگری وصل شده است.' };
+
+    await this.db.channel.upsert({
+      where: { shopId },
+      create: {
+        shopId,
+        code: TelegramService.generateCode(),
+        instagramAccountId: id,
+        instagramUsername: found.username,
+        instagramProfilePhoto: found.profilePhoto,
+        instagramExpiresAt: found.expiresAt ? new Date(found.expiresAt) : null,
+        instagramLinkedAt: new Date(),
+      },
+      update: {
+        instagramAccountId: id,
+        instagramUsername: found.username,
+        instagramProfilePhoto: found.profilePhoto,
+        instagramExpiresAt: found.expiresAt ? new Date(found.expiresAt) : null,
+        instagramLinkedAt: new Date(),
+      },
+    });
+
+    this.audit.record({
+      action: 'instagram.account_linked', entity: 'shop', entityId: shopId, shopId, userId,
+      meta: { accountId: mask(id), username: found.username },
+    });
+    return { ok: true as const, username: found.username };
+  }
+
+  /** قطع اتصال پیج از این فروشگاه. پیام‌های قبلی و گفتگوها می‌مانند. */
+  async unlink(shopId: string, userId?: string) {
+    const channel = await this.db.channel.findFirst({
+      where: { shopId },
+      select: { id: true, instagramAccountId: true, instagramUsername: true },
+    });
+    if (!channel?.instagramAccountId) return { ok: false as const, error: 'پیجی به این فروشگاه وصل نیست.' };
+
+    await this.db.channel.update({
+      where: { id: channel.id },
+      data: {
+        instagramAccountId: null,
+        instagramUsername: null,
+        instagramProfilePhoto: null,
+        instagramExpiresAt: null,
+        instagramLinkedAt: null,
+      },
+    });
+    this.audit.record({
+      action: 'instagram.account_unlinked', entity: 'shop', entityId: shopId, shopId, userId,
+      meta: { accountId: mask(channel.instagramAccountId), username: channel.instagramUsername },
+    });
+    return { ok: true as const };
+  }
+
+  /** پیج متصلِ همین فروشگاه؛ تنها منبع مجاز برای `account_id` در هر ارسال. */
+  private async account(shopId: string): Promise<LinkedAccount | null> {
+    const channel = await this.db.channel.findFirst({
+      where: { shopId, instagramAccountId: { not: null } },
+      select: {
+        instagramAccountId: true,
+        instagramUsername: true,
+        instagramProfilePhoto: true,
+        instagramExpiresAt: true,
+        instagramLinkedAt: true,
+        active: true,
+      },
+    });
+    if (!channel?.instagramAccountId) return null;
+    return {
+      id: channel.instagramAccountId,
+      username: channel.instagramUsername ?? '',
+      profilePhoto: channel.instagramProfilePhoto ?? '',
+      expiresAt: channel.instagramExpiresAt?.toISOString() ?? null,
+      linkedAt: channel.instagramLinkedAt?.toISOString() ?? null,
+      active: channel.active,
     };
   }
 
@@ -190,11 +388,13 @@ export class InstagramService {
    * توضیح می‌دهد که اول از خود پیج یک پیام بفرستید.
    */
   async sendTest(shopId: string, recipientId: string) {
-    if (!this.configured) return { ok: false as const, error: 'اتصال اینستاگرام هنوز کامل نیست.' };
+    if (!this.configured) return { ok: false as const, error: 'کلید API اینستاگرام روی سرور تنظیم نشده است.' };
+    const account = await this.account(shopId);
+    if (!account) return { ok: false as const, error: 'اول پیج اینستاگرام فروشگاه را وصل کنید.' };
     const target = recipientId.trim();
     if (!/^\d{5,32}$/.test(target)) return { ok: false as const, error: 'شناسه‌ی گیرنده باید عددی باشد (IGSID).' };
 
-    const result = await this.client.sendMessage({
+    const result = await this.client.sendMessage(account.id, {
       recipientId: target,
       message: 'پیام آزمایشی از فروش‌یار — اتصال اینستاگرام درست کار می‌کند ✅',
     });
@@ -279,48 +479,22 @@ export class InstagramService {
     return { status: 'ignored', reason: 'unsupported_event' };
   }
 
-  /** کدام فروشگاه صاحب این حساب است. */
+  /**
+   * کدام فروشگاه صاحب این حساب است.
+   *
+   * فقط از دیتابیس: پیج با انتخاب صاحبش در پنل به فروشگاه وصل می‌شود. نسخه‌ی
+   * اول این تابع، پیام حساب ناشناس را خودکار به «فروشگاه پیش‌فرض» می‌چسباند؛
+   * برای پنل چندفروشگاهی خطرناک است: پیام مشتری یک فروشگاه می‌توانست در گفتگوی
+   * فروشگاه دیگر بنشیند. حالا حساب ناشناس فقط ثبت و لاگ می‌شود تا فروشنده از
+   * پنل وصلش کند.
+   */
   private async resolveShop(accountId: string): Promise<string | null> {
     if (!accountId) return null;
     const channel = await this.db.channel.findUnique({
       where: { instagramAccountId: accountId },
       select: { shopId: true, active: true },
     });
-    if (channel?.active) return channel.shopId;
-
-    // ثبت خودکار: اگر حساب دیگری در پلن رایگان به این فروشگاه وصل نیست، همین
-    // حساب را به فروشگاه پیش‌فرض (INSTAGRAM_SHOP_CODE) وصل می‌کنیم. بدون این،
-    // اولین پیام بعد از نصب به «حساب ناشناس» می‌خورد و کاربر فکر می‌کند خراب است.
-    const shopId = await this.defaultShopId();
-    if (!shopId) return null;
-    const taken = await this.db.channel.findFirst({ where: { shopId }, select: { instagramAccountId: true } });
-    if (taken?.instagramAccountId && taken.instagramAccountId !== accountId) return null;
-    // `upsert` و نه `updateMany`: فروشگاهی که هنوز کانال تلگرام نساخته ردیف
-    // `Channel` ندارد و `updateMany` بی‌صدا هیچ کاری نمی‌کرد؛ نتیجه این بود که
-    // حساب هرگز ذخیره نمی‌شد و پنل همیشه «وصل نشده» نشان می‌داد.
-    await this.db.channel.upsert({
-      where: { shopId },
-      create: {
-        shopId,
-        code: TelegramService.generateCode(),
-        instagramAccountId: accountId,
-        instagramLinkedAt: new Date(),
-      },
-      update: { instagramAccountId: accountId, instagramLinkedAt: new Date() },
-    });
-    this.audit.record({ action: 'instagram.account_linked', entity: 'shop', entityId: shopId, shopId, meta: { accountId: mask(accountId) } });
-    return shopId;
-  }
-
-  /** فروشگاه پیش‌فرض برای حالت تک‌فروشگاهی (پلن رایگان). */
-  private async defaultShopId(): Promise<string | null> {
-    if (this.config.shopCode) {
-      const channel = await this.db.channel.findUnique({ where: { code: this.config.shopCode }, select: { shopId: true } });
-      if (channel) return channel.shopId;
-    }
-    // اگر فقط یک فروشگاه وجود دارد، ابهامی نیست.
-    const shops = await this.db.shop.findMany({ take: 2, select: { id: true } });
-    return shops.length === 1 ? shops[0].id : null;
+    return channel?.active ? channel.shopId : null;
   }
 
   // ------------------------------------------------------------------- دایرکت
@@ -329,7 +503,9 @@ export class InstagramService {
     if (!senderId) return { status: 'ignored', reason: 'no_sender' };
     // اکوی پیام خودمان/فروشنده: اگر دوباره پردازش شود، بات به خودش جواب می‌دهد.
     if (item.message?.is_echo) return { status: 'ignored', reason: 'echo' };
-    if (item.sender?.id && item.sender.id === this.config.accountId) return { status: 'ignored', reason: 'self' };
+    // پیام خود پیج (بدون پرچم echo): با شناسه‌ی پیجِ همین فروشگاه مقایسه می‌شود.
+    const account = await this.account(shopId);
+    if (item.sender?.id && account && item.sender.id === account.id) return { status: 'ignored', reason: 'self' };
 
     const chatId = `${InstagramService.CHAT_PREFIX}${senderId}`;
     const conversation = await this.conversation(shopId, chatId, item.sender?.name ?? item.sender?.username ?? '');
@@ -770,7 +946,9 @@ export class InstagramService {
     const message = title
       ? `${title} — ${toPlainText(reply.text).split('\n').find(line => line.includes('تومان')) ?? toPlainText(reply.text).slice(0, 180)}\n\nبرای سفارش، همین‌جا دایرکت بدهید 🌿`
       : `${toPlainText(reply.text).slice(0, 220)}\n\nبرای جزئیات بیشتر دایرکت بدهید 🌿`;
-    const result = await this.client.replyComment(commentId, message);
+    const account = await this.account(shopId);
+    if (!account) return;
+    const result = await this.client.replyComment(account.id, commentId, message);
     this.audit.record({
       action: result.ok ? 'instagram.comment_replied' : 'instagram.comment_failed',
       entity: 'comment', shopId,
@@ -797,14 +975,24 @@ export class InstagramService {
     if (parts.length === 0) return false;
 
     if (!this.configured) {
-      this.logger.warn('INSTAGRAM_API_KEY/INSTAGRAM_ACCOUNT_ID ست نشده؛ پیام دایرکت ارسال نشد.');
+      this.logger.warn('INSTAGRAM_API_KEY ست نشده؛ پیام دایرکت ارسال نشد.');
+      return false;
+    }
+    // پیج از فروشگاهِ همین گفتگو خوانده می‌شود؛ هرگز از env یا از فروشگاه دیگر.
+    const account = await this.account(conversation.shopId);
+    if (!account) {
+      this.logger.warn(`فروشگاه ${conversation.shopId} پیج اینستاگرام وصل نکرده؛ پیام ارسال نشد.`);
+      this.audit.record({
+        action: 'instagram.send_no_account', entity: 'conversation', entityId: conversation.id,
+        shopId: conversation.shopId, meta: { chatId: conversation.chatId },
+      });
       return false;
     }
 
     let allOk = true;
     for (const [index, part] of parts.entries()) {
       const last = index === parts.length - 1;
-      const result = await this.client.sendMessage({
+      const result = await this.client.sendMessage(account.id, {
         recipientId,
         message: part,
         buttons: last ? actions.buttons : undefined,
@@ -829,7 +1017,8 @@ export class InstagramService {
       select: { id: true, shopId: true, chatId: true, firstName: true, username: true },
     });
     if (!conversation) return { ok: false as const, error: 'این گفتگو پیدا نشد.' };
-    if (!this.configured) return { ok: false as const, error: 'اتصال اینستاگرام کامل نیست؛ INSTAGRAM_API_KEY را تنظیم کنید.' };
+    if (!this.configured) return { ok: false as const, error: 'کلید API اینستاگرام روی سرور تنظیم نشده است.' };
+    if (!await this.account(shopId)) return { ok: false as const, error: 'پیج اینستاگرام این فروشگاه وصل نیست؛ از تنظیمات وصل کنید.' };
     const sent = await this.send(conversation, text);
     return sent ? { ok: true as const } : { ok: false as const, error: 'ارسال دایرکت ناموفق بود؛ لاگ سرور را ببینید.' };
   }

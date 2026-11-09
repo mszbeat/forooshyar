@@ -202,6 +202,9 @@ export class ChatService {
   /**
    * ارسال پاسخ فروشنده از پنل به دایرکت اینستاگرام.
    *
+   * پیج از `Channel` همین فروشگاه خوانده می‌شود؛ اگر فروشگاه پیجی وصل نکرده
+   * باشد، پیام ارسال نمی‌شود و خطا برمی‌گردد (پنل نباید وانمود کند پیام رفت).
+   *
    * چرا کلاینت را مستقیم می‌سازیم و سرویس را تزریق نمی‌کنیم: `InstagramService`
    * به `TelegramService` (برای اعلان فروشنده) وابسته است و این سرویس در همان
    * ماژول تلگرام است؛ تزریق دوطرفه فقط یک چرخه‌ی ماژولی بی‌فایده می‌ساخت.
@@ -210,8 +213,14 @@ export class ChatService {
   private async sendInstagram(shopId: string, chatId: string, text: string): Promise<boolean> {
     const config = readInstagramConfig();
     if (!instagramConfigured(config)) return false;
+    const channel = await this.db.channel.findFirst({
+      where: { shopId, instagramAccountId: { not: null } },
+      select: { instagramAccountId: true },
+    });
+    if (!channel?.instagramAccountId) return false;
+
     const client = new InstagramClient(config);
-    const result = await client.sendMessage({
+    const result = await client.sendMessage(channel.instagramAccountId, {
       recipientId: InstagramService.recipientOf(chatId),
       message: toPlainText(text).slice(0, 1000),
     });

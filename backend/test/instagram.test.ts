@@ -19,6 +19,8 @@ type Captured = { action: string; body: Record<string, unknown>; apiKey: string 
 
 const API_KEY = 'test-api-key-123';
 const ACCOUNT_ID = '11111111-2222-3333-4444-555555555555';
+/** پیج دوم روی همان حساب باکس‌ای‌پی؛ برای تست «این پیج مال دیگری است». */
+const OTHER_ACCOUNT_ID = '99999999-8888-7777-6666-555555555555';
 const WEBHOOK_SECRET = 'test-webhook-secret';
 
 let server: Server;
@@ -36,6 +38,25 @@ before(async () => {
     let raw = '';
     request.on('data', chunk => { raw += chunk; });
     request.on('end', () => {
+      // فهرست پیج‌های لاگین‌شده (GET، بدون بدنه) — ستون فقرات اتصال چندفروشگاهی.
+      if (request.method === 'GET' && request.url === '/api/v1/service/accounts') {
+        if (String(request.headers['x-api-key'] ?? '') !== API_KEY) {
+          response.statusCode = 401;
+          response.setHeader('content-type', 'application/json');
+          response.end(JSON.stringify({ success: false, message: 'unauthorized' }));
+          return;
+        }
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({
+          success: true,
+          data: [
+            { id: ACCOUNT_ID, username: 'shop_test_page', instagram_user_id: '17841400', profile_photo: 'https://cdn.test/p.jpg', is_active: true, expires_at: '2030-01-01T00:00:00.000Z' },
+            { id: OTHER_ACCOUNT_ID, username: 'someone_else_page', instagram_user_id: '17841401', profile_photo: '', is_active: true, expires_at: '2030-01-01T00:00:00.000Z' },
+          ],
+          pagination: { current_page: 1, last_page: 1, per_page: 20, total: 2 },
+        }));
+        return;
+      }
       const match = /^\/api\/v1\/service\/actions\/(\w+)$/.exec(request.url ?? '');
       if (!match) {
         response.statusCode = 404;
@@ -62,7 +83,6 @@ before(async () => {
 
   process.env.INSTAGRAM_BASE_URL = base;
   process.env.INSTAGRAM_API_KEY = API_KEY;
-  process.env.INSTAGRAM_ACCOUNT_ID = ACCOUNT_ID;
   process.env.INSTAGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
   process.env.INSTAGRAM_LOGIN_URL = 'https://api.sendbox.chat/instagram-oauth?token=demo';
   process.env.PUBLIC_API_URL = 'https://api.example.test';
@@ -95,8 +115,11 @@ before(async () => {
   // اتصال حساب از اجرای قبلی آزاد می‌شود؛ وگرنه پیام‌ها به فروشگاه قدیمی
   // (که هنوز در دیتابیس تست است) می‌رود و تست بی‌دلیل قرمز می‌شود.
   await prisma.channel.updateMany({
-    where: { instagramAccountId: ACCOUNT_ID },
-    data: { instagramAccountId: null, instagramLinkedAt: null, instagramUsername: null },
+    where: { instagramAccountId: { in: [ACCOUNT_ID, OTHER_ACCOUNT_ID] } },
+    data: {
+      instagramAccountId: null, instagramLinkedAt: null, instagramUsername: null,
+      instagramProfilePhoto: null, instagramExpiresAt: null,
+    },
   });
 
   // داده‌ی تست
@@ -117,9 +140,17 @@ before(async () => {
     include: { variants: true },
   });
   const channelCode = `ig${Date.now().toString(36).slice(-6)}`;
-  await prisma.channel.create({ data: { shopId, code: channelCode } });
+  // پیج از این پس مالکِ فروشگاه است (نه env): همان چیزی که پنل ثبت می‌کند.
+  await prisma.channel.create({
+    data: {
+      shopId,
+      code: channelCode,
+      instagramAccountId: ACCOUNT_ID,
+      instagramUsername: 'shop_test_page',
+      instagramLinkedAt: new Date(),
+    },
+  });
   // در حالت تک‌فروشگاهی، پیام حساب ناشناس به فروشگاه پیش‌فرض وصل می‌شود.
-  process.env.INSTAGRAM_SHOP_CODE = channelCode;
 
   seed = { shopId, variantId: product.variants[0].id, productId: product.id, channelCode };
   service = new InstagramService(prisma as never, audit, realtimeStub, new AiService(), orders, payments, telegram);
@@ -223,9 +254,9 @@ describe('کلاینت BoxAPI', () => {
     reset();
     const client = new InstagramClient({
       baseUrl: process.env.INSTAGRAM_BASE_URL!, apiKey: API_KEY, webhookSecret: WEBHOOK_SECRET,
-      accountId: ACCOUNT_ID, loginUrl: '', shopCode: '', timeoutMs: 5000, profileUrl: '',
+      loginUrl: '', timeoutMs: 5000,
     });
-    const result = await client.sendMessage({ recipientId: '17840001', message: 'سلام' });
+    const result = await client.sendMessage(ACCOUNT_ID, { recipientId: '17840001', message: 'سلام' });
     assert.equal(result.ok, true);
     assert.equal(captured.length, 1);
     assert.equal(captured[0].action, 'send_message');
@@ -237,19 +268,19 @@ describe('کلاینت BoxAPI', () => {
   it('خطای منطقی BoxAPI موفق حساب نمی‌شود', async () => {
     const client = new InstagramClient({
       baseUrl: process.env.INSTAGRAM_BASE_URL!, apiKey: API_KEY, webhookSecret: WEBHOOK_SECRET,
-      accountId: ACCOUNT_ID, loginUrl: '', shopCode: '', timeoutMs: 5000, profileUrl: '',
+      loginUrl: '', timeoutMs: 5000,
     });
-    const result = await client.sendMessage({ recipientId: '17840001', message: 'FAIL_SEND' });
+    const result = await client.sendMessage(ACCOUNT_ID, { recipientId: '17840001', message: 'FAIL_SEND' });
     assert.equal(result.ok, false);
   });
 
   it('بدون توکن هیچ درخواستی نمی‌رود', async () => {
     reset();
     const client = new InstagramClient({
-      baseUrl: process.env.INSTAGRAM_BASE_URL!, apiKey: '', webhookSecret: '', accountId: ACCOUNT_ID,
-      loginUrl: '', shopCode: '', timeoutMs: 5000, profileUrl: '',
+      baseUrl: process.env.INSTAGRAM_BASE_URL!, apiKey: '', webhookSecret: '',
+      loginUrl: '', timeoutMs: 5000,
     });
-    const result = await client.sendMessage({ recipientId: '17840001', message: 'سلام' });
+    const result = await client.sendMessage(ACCOUNT_ID, { recipientId: '17840001', message: 'سلام' });
     assert.equal(result.ok, false);
     assert.equal(captured.length, 0);
   });
@@ -309,7 +340,65 @@ describe('جریان پیام اینستاگرام', () => {
     assert.ok(!serialized.includes(WEBHOOK_SECRET), 'سکرت در پاسخ وضعیت لو رفت');
     assert.equal(status.webhookUrl, 'https://api.example.test/webhooks/instagram');
     assert.equal(status.signatureEnforced, true);
-    assert.ok(status.accountLinked, 'حساب به فروشگاه وصل نشده است');
+    assert.equal(status.accountLinked, true, 'پیج به فروشگاه وصل نشده است');
+    assert.equal(status.account?.username, 'shop_test_page');
+  });
+
+  it('فهرست پیج‌ها فقط پیج آزاد و پیج خود فروشگاه را نشان می‌دهد', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    // یک فروشگاه دوم که پیج دیگر را گرفته است
+    const rival = await prisma.user.create({
+      data: { email: `ig-rival-${Date.now()}@example.com`, passwordHash: 'x', shop: { create: { name: 'فروشگاه رقیب' } } },
+      include: { shop: true },
+    });
+    await prisma.channel.upsert({
+      where: { shopId: rival.shop!.id },
+      create: { shopId: rival.shop!.id, code: `rv${Date.now().toString(36).slice(-5)}`, instagramAccountId: OTHER_ACCOUNT_ID },
+      update: { instagramAccountId: OTHER_ACCOUNT_ID },
+    });
+
+    const result = await service.accounts(seed.shopId);
+    assert.equal(result.ok, true);
+    const ids = result.items.map(item => item.id);
+    assert.ok(ids.includes(ACCOUNT_ID), 'پیج آزاد خودِ فروشگاه باید در فهرست باشد');
+    assert.ok(!ids.includes(OTHER_ACCOUNT_ID), 'پیج فروشگاه دیگر نباید دیده شود');
+    assert.equal(result.items.find(item => item.id === ACCOUNT_ID)?.mine, true);
+  });
+
+  it('وصل‌کردن پیجِ فروشگاه دیگر رد می‌شود', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    const result = await service.link(seed.shopId, OTHER_ACCOUNT_ID);
+    assert.equal(result.ok, false);
+    assert.match(String('error' in result ? result.error : ''), /فروشگاه دیگری|فهرست/u);
+  });
+
+  it('وصل‌کردن پیج معتبر، شناسه و نام کاربری را ذخیره می‌کند', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    const result = await service.link(seed.shopId, ACCOUNT_ID);
+    assert.equal(result.ok, true);
+    const channel = await prisma.channel.findFirst({ where: { shopId: seed.shopId } });
+    assert.equal(channel?.instagramAccountId, ACCOUNT_ID);
+    assert.equal(channel?.instagramUsername, 'shop_test_page');
+  });
+
+  it('پیام حسابی که به هیچ فروشگاهی وصل نیست پردازش نمی‌شود', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    reset();
+    const payload = event({ text: 'سلام' });
+    payload.account_id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const result = await service.handleWebhook(payload);
+    assert.equal(result.status, 'ignored');
+    assert.equal(captured.length, 0, 'برای حساب ناشناس هیچ پیامی نباید برود');
+  });
+
+  it('قطع اتصال پیج، ارسال را متوقف می‌کند', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    const removed = await service.unlink(seed.shopId);
+    assert.equal(removed.ok, true);
+    const status = await service.status(seed.shopId);
+    assert.equal(status.accountLinked, false);
+    // برگرداندن پیج تا بقیه‌ی تست‌ها به آن نیاز دارند
+    await service.link(seed.shopId, ACCOUNT_ID);
   });
 
   it('پاسخ فروشنده از پنل به دایرکت می‌رود', async t => {

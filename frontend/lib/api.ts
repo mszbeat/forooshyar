@@ -105,18 +105,35 @@ export type TelegramStatus = {
   conversations: number;
 };
 /** وضعیت کانال اینستاگرام (BoxAPI) — هیچ توکنی در این پاسخ نیست. */
-export type InstagramStatus = {
-  configured: boolean;
-  accountId: string;
-  accountLinked: boolean;
-  accountMatchesEnv: boolean;
+export type InstagramAccount = {
+  id: string;
   username: string;
-  linkedAt: string | null;
-  loginUrl: string;
+  profilePhoto: string;
+  active: boolean;
+  expiresAt: string | null;
+  /** پیجی که همین حالا به این فروشگاه وصل است. */
+  mine: boolean;
+};
+
+export type InstagramStatus = {
+  /** سمت سرور آماده است (کلید API تنظیم شده). */
+  configured: boolean;
+  /** دکمه‌ی «اتصال پیج» قابل نمایش است (لینک ورود حساب تنظیم شده). */
+  connectable: boolean;
+  /** پیج این فروشگاه؛ هر فروشگاه پیج خودش را دارد. */
+  accountLinked: boolean;
+  account: {
+    id: string;
+    username: string;
+    profilePhoto: string;
+    expiresAt: string | null;
+    daysLeft: number | null;
+    active: boolean;
+    linkedAt: string | null;
+  } | null;
   webhookUrl: string;
   webhookUrlIsHttps: boolean;
   signatureEnforced: boolean;
-  apiBase: string;
   stats: { messages: number; conversations: number; lastEventAt: string | null; lastEventAction: string };
 };
 
@@ -337,6 +354,18 @@ export const api = {
   telegramDisable: () => request<TelegramStatus>('/channel/telegram', { method: 'DELETE' }),
 
   instagramStatus: () => request<InstagramStatus>('/instagram/status'),
+  /** پیج‌های آماده‌ی انتخاب (از BoxAPI، فیلترشده برای همین فروشگاه). */
+  /** لینک ورود حساب (فقط هنگام کلیک و با احراز هویت؛ در `status` نمی‌آید). */
+  instagramConnectUrl: () =>
+    request<{ ok: boolean; url?: string; error?: string }>('/instagram/connect-url'),
+  instagramAccounts: () =>
+    request<{ ok: boolean; items: InstagramAccount[]; error?: string }>('/instagram/accounts'),
+  instagramLink: (accountId: string) =>
+    request<{ ok: boolean; username?: string; error?: string }>('/instagram/link', {
+      method: 'POST',
+      body: { accountId },
+    }),
+  instagramUnlink: () => request<{ ok: boolean; error?: string }>('/instagram/link', { method: 'DELETE' }),
   /** ارسال پیام آزمایشی به یک IGSID (شناسه‌ی گیرنده در دایرکت). */
   instagramTest: (recipientId: string) =>
     request<{ ok: boolean; message?: string; error?: string }>('/instagram/test', {
