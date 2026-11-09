@@ -6,6 +6,7 @@ import { adminApi, type Overview } from '@/lib/admin';
 import { SkeletonRows, Spinner, useToast } from '@/components/ui';
 import { ServiceCard } from '@/components/admin/probe';
 import { faNum } from '@/lib/format';
+import { useAdminRealtime } from '@/lib/realtime';
 import {
   IconAlertCircle, IconBolt, IconInfo, IconRefresh, IconSparkles, IconStore, IconWallet,
 } from '@/components/icons';
@@ -44,6 +45,10 @@ export default function AdminOverviewPage() {
   }
 
   useEffect(load, []);
+
+  // اتاق کنترل زنده: سفارش/پیام تازه یا تغییر تنظیمات، شمارنده‌ها را بی‌درنگ
+  // تازه می‌کند — بدون رفرش و بدون polling سنگین.
+  useAdminRealtime(['order', 'chat', 'settings', 'product', 'stock'], () => { void load(); });
 
   async function restart() {
     if (!window.confirm('سرویس ری‌استارت می‌شود و چند ثانیه قطع خواهد بود. ادامه می‌دهید؟')) return;

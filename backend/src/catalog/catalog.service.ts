@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 
@@ -11,6 +12,8 @@ export class CatalogService {
     private readonly audit: AuditService,
     // اعلان تلگرام اختیاری است: اگر TELEGRAM_BOT_TOKEN نباشد، notify خودش بی‌صدا رد می‌شود.
     private readonly telegram: TelegramService,
+    // تغییر محصول/موجودی باید در پنل و داشبورد بی‌درنگ دیده شود.
+    private readonly realtime: RealtimeService,
   ) {}
   async product(shopId: string, id: string) {
     const product = await this.db.product.findFirst({ where: { shopId, id }, include: { variants: true } });
@@ -23,6 +26,8 @@ export class CatalogService {
   async createProduct(shopId: string, input: { title: string; description?: string; category?: string }) {
     const product = await this.db.product.create({ data: { ...input, shopId } });
     this.audit.record({ action: 'product.create', entity: 'product', entityId: product.id, shopId, meta: { title: product.title, category: product.category } });
+    this.realtime.emitShop(shopId, 'product', { id: product.id, reason: 'created' });
+    this.realtime.emitAdmin('product', { shopId, reason: 'created' });
     return product;
   }
   async updateProduct(shopId: string, id: string, data: { title?: string; description?: string; category?: string; active?: boolean }) {
@@ -34,6 +39,8 @@ export class CatalogService {
       entity: 'product', entityId: id, shopId,
       meta: { fields: Object.keys(data), title: product.title, ...(data.active !== undefined ? { active: data.active } : {}) },
     });
+    this.realtime.emitShop(shopId, 'product', { id, reason: 'updated' });
+    this.realtime.emitAdmin('product', { shopId, reason: 'updated' });
     return product;
   }
   async createVariant(shopId: string, userId: string, productId: string, data: { sku?: string; size?: string; color?: string; price: number; stock: number }) {
@@ -49,6 +56,7 @@ export class CatalogService {
         action: 'variant.create', entity: 'variant', entityId: created.id, shopId,
         meta: { productId, sku: created.sku, size: created.size, color: created.color, price: created.price, stock: created.stock },
       });
+      this.realtime.emitShop(shopId, 'product', { id: productId, reason: 'variant_created' });
       return created;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('SKU already exists');
@@ -65,6 +73,7 @@ export class CatalogService {
         entity: 'variant', entityId: id, shopId,
         meta: { fields: Object.keys(data), ...(data.price !== undefined ? { price: data.price } : {}), ...(data.sku !== undefined ? { sku: data.sku } : {}) },
       });
+      this.realtime.emitShop(shopId, 'product', { id: variant.productId, reason: 'variant_updated' });
       return variant;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw new ConflictException('SKU already exists');
@@ -84,6 +93,7 @@ export class CatalogService {
         meta: { quantity, stockAfter: result.stock, idempotencyKey: null },
       });
       void this.telegram.notifySale(shopId, variantId, quantity);
+      this.realtime.emitShop(shopId, 'stock', { variantId, stockAfter: result.stock, reason: 'sale' });
       return result;
     }
     try {
@@ -105,6 +115,7 @@ export class CatalogService {
         meta: { quantity, stockAfter: sold.stock, idempotencyKey: requestKey },
       });
       void this.telegram.notifySale(shopId, variantId, quantity);
+      this.realtime.emitShop(shopId, 'stock', { variantId, stockAfter: sold.stock, reason: 'sale' });
       return sold;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -149,6 +160,7 @@ export class CatalogService {
         meta: { delta, reason, stockAfter: variant.stock },
       });
     }
+    this.realtime.emitShop(shopId, 'stock', { variantId, stockAfter: variant.stock, reason });
     return variant;
   }
   async movements(shopId: string, variantId: string) {

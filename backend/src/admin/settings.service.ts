@@ -7,6 +7,8 @@ import {
 } from './settings.catalog';
 import { applyOverrides, normalizeValue } from './settings.runtime';
 import { RuntimeService } from './runtime.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { clearModelCache } from './model-catalog';
 
 export type SettingView = {
   key: string;
@@ -38,6 +40,8 @@ export class SettingsService implements OnModuleInit {
     private readonly db: PrismaService,
     private readonly audit: AuditService,
     private readonly runtime: RuntimeService,
+    // پنل ادمین و پنل فروشنده هر دو با همین رخداد بی‌درنگ به‌روز می‌شوند.
+    private readonly realtime: RealtimeService,
   ) {}
 
   async onModuleInit() {
@@ -156,6 +160,9 @@ export class SettingsService implements OnModuleInit {
       meta: { actor: actor.email, keys: prepared.map(entry => entry.def.key) },
     });
 
+    // آدرس/کلید مدل عوض شده؟ فهرست مدل‌ها باید از نو گرفته شود.
+    clearModelCache();
+    this.realtime.emitAdmin('settings', { keys: prepared.map(entry => entry.def.key) });
     const applied = this.runtime.apply(prepared.map(entry => entry.def.key));
     return {
       saved: prepared.map(entry => entry.def.key),

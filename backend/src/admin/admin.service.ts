@@ -7,6 +7,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
 import { readTelegramConfig, TelegramClient } from '../telegram/telegram.client';
 import { SettingsService } from './settings.service';
+import { listModels } from './model-catalog';
 
 export type AdminIdentity = { id: string; email: string; name: string };
 
@@ -238,6 +239,16 @@ export class AdminService implements OnModuleInit {
         ok: result.ok, model: result.model, provider: result.provider,
         latencyMs: result.latencyMs, draft: Object.keys(overrides).length > 0,
       },
+    });
+    return result;
+  }
+
+  /** فهرست مدل‌های درگاه؛ زنده از ارائه‌دهنده و با بازگشت به کاتالوگ. */
+  async aiModels(input: { provider: string; baseUrl?: string; apiKey?: string; refresh?: boolean }) {
+    const result = await listModels(input.provider, input);
+    this.audit.record({
+      action: 'admin.ai_models', entity: 'settings',
+      meta: { provider: result.provider, live: result.live, count: result.models.length, refresh: Boolean(input.refresh) },
     });
     return result;
   }

@@ -1,17 +1,19 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { discover, type CatalogProduct } from '../catalog/discovery';
 import { AiService } from '../ai/ai.service';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
 import { type BotButton, answerIntent, clarifyProducts, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
-import { addPersonality, resolveReply } from '../ai/understand';
+import { addPersonality, resolveReply, type UnderstandResult } from '../ai/understand';
 import { MAX_CLARIFY_ROUNDS, type IntentId } from './understanding';
 import { applyInput, draftTitle, escapeHtml, fullAddress, promptFor, startDraft, type OrderDraft } from './order-flow';
 import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } from './telegram.client';
 import { actionOf, actionsKeyboard, BOT_COMMANDS, helpText, welcomeText } from './menu';
+import { isDeliveryConfirmation } from './delivery';
 
 type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
 /** پیامی که این پیام پاسخش است؛ برای «پاسخ فروشنده به مشتری» لازم است. */
@@ -97,6 +99,8 @@ export class TelegramService {
     @Inject(forwardRef(() => OrdersService)) private readonly orders: OrdersService,
     @Inject(forwardRef(() => PaymentsService)) private readonly payments: PaymentsService,
     private readonly ai: AiService,
+    // رخداد زنده برای پنل: پیام تازه، سفارش تازه، تغییر وضعیت.
+    private readonly realtime: RealtimeService,
   ) {}
 
   get configured(): boolean {
@@ -356,6 +360,7 @@ export class TelegramService {
 
     const products = await this.catalog(conversation.shopId);
     const forwardSource = message ? TelegramService.forwardSource(message) : '';
+
     // نقل‌قول: مشتری روی یک پیام (معمولاً پیام بات/فروشنده) ریپلای زده است.
     const quoted = message?.reply_to_message
       ? {
@@ -363,6 +368,14 @@ export class TelegramService {
         from: message.reply_to_message.from?.is_bot ? 'out' : 'in',
       }
       : null;
+
+    // «تحویل گرفتم» پیش از هر قاعده‌ای بررسی می‌شود.
+    // چرا اول: قاعده‌ی «ارسال و تحویل» به همین واژه می‌چسبد و قبلاً به مشتری
+    // هزینه‌ی پست را توضیح می‌داد، در حالی که منظورش تأیید دریافت بود.
+    if (isDeliveryConfirmation(text)) {
+      const confirmed = await this.confirmDelivery(conversation, chatId, text, quoted);
+      if (confirmed) return confirmed;
+    }
     // چند پیام نامفهوم پشت‌سرهم؟ تا ۳ بار سؤال می‌پرسیم، بعد از آن ارجاع.
     const round = TelegramService.clarifyRound(conversation.clarify);
     let reply = composeReply(text, shop as BrainShop, products, { round });
@@ -373,15 +386,30 @@ export class TelegramService {
     // پاسخ روشنِ قاعده‌محور و مسیر سفارش هرگز با مدل جایگزین نمی‌شود.
     // فقط وقتی قاعده‌محور مطمئن نیست. `resolveReply` خودش تشخیص می‌دهد
     // «پیدا نشد» یعنی محصول نبوده یا مشتری با واژه‌ی دیگری گفته است.
-    if (this.ai.enabled) {
+    // بودجه‌ی زمانی مدل: پاسخ باید سریع برسد (درخواست کاربر).
+    // بدون این سقف، یک مدل کند تا AI_TIMEOUT_MS (۱۲ ثانیه) مشتری را منتظر
+    // نگه می‌داشت. با سقف ۴ ثانیه، بدترین حالت هم پاسخ قاعده‌محورِ آماده است.
+    if (this.ai.enabled && reply.kind !== 'order') {
+      const budget = Number(process.env.AI_REPLY_BUDGET_MS ?? 4000);
       const history = await this.recentMessages(conversation.shopId, chatId, 8);
-      const resolved = await resolveReply({ ai: this.ai, shop: shop as BrainShop, products, text, rule: reply, history });
+      const resolved = await this.withBudget(
+        resolveReply({ ai: this.ai, shop: shop as BrainShop, products, text, rule: reply, history }),
+        budget,
+        reply,
+      ) as UnderstandResult;
       // لایه‌ی دوم: همان پاسخ (قاعده‌محور، تطبیق محصول، یا پاسخ مدل) با لحن
       // فروشگاه بازنویسی می‌شود؛ داده و ساختار با نگهبان قفل است. مسیر سفارش و
       // ارجاع از این لایه بیرون‌اند.
+      // بازنویسی لحن (همان قابلیتِ «پاسخ با لحن فروشگاه») ولی با سقف زمانی:
+      // اگر مدل دیر کند، متن آماده **همین حالا** می‌رود. مسیر سفارش و ارجاع
+      // از این لایه بیرون‌اند تا داده و مرحله دست‌نخورده بماند.
       const understood = resolved.kind === 'order' || resolved.kind === 'handoff'
         ? resolved
-        : await addPersonality(this.ai, shop as BrainShop, resolved, text);
+        : await this.withBudget(
+          addPersonality(this.ai, shop as BrainShop, resolved, text),
+          Math.max(1200, budget - 2500),
+          resolved,
+        ) as UnderstandResult;
 
       if (understood.source !== 'rules') {
         // `parseMode` باید همراه پاسخ بماند؛ اگر جا بیفتد، تگ‌های <b>/<i>/<code>
@@ -440,7 +468,13 @@ export class TelegramService {
     if (forwardSource && reply.kind === 'handoff') {
       lines.unshift(`این پست از «${forwardSource}» است، ولی محصولش را در کاتالوگ فروشگاه پیدا نکردم.`);
     }
-    if (await this.sendWithButtons(chatId, lines.join('\n'), reply.buttons, reply.parseMode)) replies += 1;
+    const outbound = lines.join('\n');
+    if (await this.sendWithButtons(chatId, outbound, reply.buttons, reply.parseMode)) {
+      replies += 1;
+      // پاسخ بات هم در تاریخچه می‌نشیند؛ وگرنه پنل فقط نیمی از گفتگو را نشان
+      // می‌داد و فروشنده نمی‌دانست بات چه گفته است (درخواست کاربر).
+      await this.logOutbound(conversation.shopId, chatId, outbound, 'bot');
+    }
 
     if (reply.kind === 'handoff') {
       const code = TelegramService.conversationCode(conversation.id);
@@ -504,16 +538,103 @@ export class TelegramService {
    */
   private async logInbound(shopId: string, chatId: string, text: string, reply?: { text: string; from: string } | null): Promise<void> {
     try {
-      await this.db.chatMessage.create({
+      const saved = await this.db.chatMessage.create({
         data: {
-          shopId, chatId, direction: 'in', text: text.slice(0, 4000),
+          shopId, chatId, direction: 'in', author: 'customer', text: text.slice(0, 4000),
           replyText: (reply?.text ?? '').slice(0, 300),
           replyFrom: (reply?.from ?? '').slice(0, 8),
         },
+        select: { id: true },
       });
+      this.realtime.emitShop(shopId, 'chat', { chatId, messageId: saved.id, author: 'customer' });
+      this.realtime.emitAdmin('chat', { shopId, chatId });
     } catch (error) {
       this.logger.warn(`ثبت پیام مشتری ناموفق: ${error instanceof Error ? error.message : 'unknown'}`);
     }
+  }
+
+  /**
+   * اجرای یک کار اختیاری با بودجه‌ی زمانی.
+   *
+   * اگر مدل دیر کند، به‌جای انتظار، `fallback` برمی‌گردد — که همیشه یک پاسخ
+   * آماده و درست است. عمداً promise را cancel نمی‌کنیم (fetch داخلی خودش
+   * AbortSignal دارد)؛ فقط دیگر منتظرش نمی‌مانیم.
+   */
+  private async withBudget<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    const guard = new Promise<T>(resolve => {
+      timer = setTimeout(() => resolve(fallback), ms);
+    });
+    try {
+      return await Promise.race([work.catch(() => fallback), guard]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * پاک‌کردن تگ‌های HTML تلگرام برای نمایش در پنل.
+   *
+   * پیام‌ها با `<b>`/`<i>`/`<code>` به تلگرام می‌روند؛ پنل متن ساده نشان می‌دهد،
+   * پس اگر همان رشتهٔ خام ذخیره شود، کاربر تگ‌ها را عیناً می‌بیند (باگ
+   * گزارش‌شده: «<b>سفارش … تحویل شد.</b>»). اینجا هم تگ حذف می‌شود و هم موجودیت‌های
+   * HTML رمزگشایی می‌شوند تا متن گفتگو همان چیزی باشد که مشتری دیده است.
+   */
+  private static plainForPanel(text: string): string {
+    return text
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div)>/gi, '\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  /** ثبت پاسخ فروشگاه (بات یا فروشنده) در تاریخچهٔ گفتگو + رخداد زنده. */
+  private async logOutbound(shopId: string, chatId: string, text: string, author: 'bot' | 'seller'): Promise<void> {
+    try {
+      const saved = await this.db.chatMessage.create({
+        data: { shopId, chatId, direction: 'out', author, text: TelegramService.plainForPanel(text).slice(0, 4000) },
+        select: { id: true },
+      });
+      this.realtime.emitShop(shopId, 'chat', { chatId, messageId: saved.id, author });
+      this.realtime.emitAdmin('chat', { shopId, chatId });
+    } catch (error) {
+      this.logger.warn(`ثبت پاسخ فروشگاه ناموفق: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
+  }
+
+  /**
+   * تأیید تحویل توسط مشتری.
+   *
+   * سفارش «ارسال‌شده» همان چت به «تحویل‌شده» می‌رود، به فروشنده اعلان می‌رسد و
+   * مشتری یک پیام تشکر می‌گیرد. اگر سفارشی در وضعیت ارسال‌شده نباشد، `null`
+   * برمی‌گردد تا مسیر پاسخ عادی ادامه پیدا کند (بات بی‌دلیل «تحویل شد» نمی‌گوید).
+   */
+  private async confirmDelivery(
+    conversation: { id: string; shopId: string; firstName: string },
+    chatId: string,
+    text: string,
+    quoted: { text: string; from: string } | null,
+  ): Promise<HandleResult | null> {
+    const order = await this.orders.confirmDeliveryByCustomer(conversation.shopId, chatId);
+    if (!order) return null;
+
+    await this.logInbound(conversation.shopId, chatId, text, quoted);
+    const message = [
+      `✅ <b>سفارش ${escapeHtml(order.code)} تحویل شد.</b>`,
+      'ممنون که تحویلش را تأیید کردید 🌿',
+      'اگر دوست داشتید، نظرتان درباره‌ی خرید را همین‌جا بنویسید تا بقیه هم ببینند.',
+    ].join('\n');
+    const sent = await this.send(chatId, message, undefined, 'HTML');
+    await this.logOutbound(conversation.shopId, chatId, message, 'bot');
+    this.audit.record({
+      action: 'telegram.delivery_confirmed', entity: 'order', entityId: order.id,
+      shopId: conversation.shopId, meta: { code: order.code, chatId },
+    });
+    return { status: 'handled', replies: sent ? 1 : 0, kind: 'delivery_confirmed' };
   }
 
   /** کاتالوگ فعال فروشگاه؛ سقف ۵۰۰ محصول مثل مسیر داشبورد. */
@@ -1048,12 +1169,15 @@ export class TelegramService {
     if (sent) {
       await this.db.chatMessage.create({
         data: {
-          shopId: channel.shopId, chatId: customerChat, direction: 'out', text: body, orderId: orderId ?? null,
+          shopId: channel.shopId, chatId: customerChat, direction: 'out', author: 'seller', text: body,
+          orderId: orderId ?? null,
           replyToId: reply?.id ?? null,
           replyText: quotedText.slice(0, 300),
           replyFrom: quotedFrom,
         },
+        select: { id: true },
       });
+      this.realtime.emitShop(channel.shopId, 'chat', { chatId: customerChat, author: 'seller' });
       this.audit.record({
         action: 'telegram.seller_reply',
         entity: 'conversation',

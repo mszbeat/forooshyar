@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiError, type NotificationItem } from '@/lib/api';
+import { useRealtime } from '@/lib/realtime';
 import { relativeTime } from '@/lib/format';
 import { IconBell, IconBox, IconChat, IconRefresh, IconWallet, IconX } from '@/components/icons';
 
@@ -54,10 +55,17 @@ export function NotificationBell() {
     }
   }, []);
 
-  // اولین بار در پس‌زمینه، بعد هر ۶۰ ثانیه و هر بار باز شدن پنل.
+  /**
+   * رخداد زنده: پیام تازه، سفارش تازه یا تغییر وضعیت، زنگ را همان لحظه
+   * به‌روز می‌کند. بازخوانی دوره‌ای هم می‌ماند (شبکه‌ی ناپایدار، تب خواب‌رفته)
+   * ولی فاصله‌اش بیشتر شده چون دیگر مسیر اصلی نیست.
+   */
+  useRealtime(['chat', 'order', 'stock', 'product'], () => { void load(); });
+
+  // اولین بار در پس‌زمینه، بعد هر ۹۰ ثانیه و هر بار باز شدن پنل.
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 60_000);
+    const timer = window.setInterval(() => void load(), 90_000);
     return () => window.clearInterval(timer);
   }, [load]);
 

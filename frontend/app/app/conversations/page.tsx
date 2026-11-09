@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   api, ApiError, type ConversationSummary, type ConversationThread, type ThreadMessage,
 } from '@/lib/api';
+import { useRealtime } from '@/lib/realtime';
 import { faNum, relativeTime, toman } from '@/lib/format';
 import { EmptyState, PageHeader, SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import { IconChat, IconSearch, IconSend, IconStore } from '@/components/icons';
@@ -76,6 +77,19 @@ export default function ConversationsPage() {
     const chat = params.get('chat');
     if (chat) void open(chat, params.get('msg'));
   }, [open]);
+
+  /**
+   * به‌روزرسانی زنده: پیام تازه در تلگرام (از سمت مشتری، بات یا فروشنده‌ی دیگر)
+   * بدون رفرش همین‌جا می‌نشیند. اگر گفتگو باز است، فقط رشته دوباره خوانده
+   * می‌شود؛ فهرست هم تازه می‌شود تا «بی‌پاسخ» درست بماند.
+   */
+  useRealtime(['chat'], event => {
+    void load();
+    const chatId = typeof event.data?.chatId === 'string' ? event.data.chatId : null;
+    if (chatId && chatId === active) {
+      void api.conversation(chatId).then(setThread).catch(() => undefined);
+    }
+  });
 
   // اسکرول: اگر پیام مشخصی خواسته شده، روی همان؛ وگرنه انتهای گفتگو.
   useEffect(() => {
@@ -227,21 +241,32 @@ export default function ConversationsPage() {
                 {threadLoading && (
                   <div className="conv-loading"><Spinner size={18} /><span className="small muted">بارگذاری پیام‌ها…</span></div>
                 )}
-                {thread?.messages.map(message => (
-                  <div
-                    key={message.id}
-                    ref={message.id === targetMsg ? targetRef : undefined}
-                    className={`msg ${message.direction === 'in' ? 'msg-in' : 'msg-out'} ${message.id === targetMsg ? 'msg-target' : ''}`}
-                  >
-                    <div className="msg-bubble">
-                      <p>{message.text}</p>
-                      <span className="msg-meta">
-                        {message.direction === 'in' ? 'مشتری' : 'شما'} · {relativeTime(message.at)}
-                        {message.replyText && <em> · پاسخ به «{message.replyText.slice(0, 28)}…»</em>}
-                      </span>
+                {thread?.messages.map(message => {
+                  // سمت حباب از نویسنده می‌آید، نه از جهت پیام: مشتری راست،
+                  // پاسخ بات و پاسخ فروشنده چپ — همان چیزی که در تلگرام می‌بینید.
+                  const author = message.author ?? (message.direction === 'in' ? 'customer' : 'bot');
+                  const mine = author !== 'customer';
+                  return (
+                    <div
+                      key={message.id}
+                      ref={message.id === targetMsg ? targetRef : undefined}
+                      className={`msg ${mine ? 'msg-out' : 'msg-in'} msg-${author} ${message.id === targetMsg ? 'msg-target' : ''}`}
+                    >
+                      <div className="msg-bubble">
+                        {mine && (
+                          <span className={`msg-author ${author === 'seller' ? 'is-seller' : 'is-bot'}`}>
+                            {author === 'seller' ? 'فروشنده' : 'پاسخ خودکار'}
+                          </span>
+                        )}
+                        <p>{message.text}</p>
+                        <span className="msg-meta">
+                          {relativeTime(message.at)}
+                          {message.replyText && <em> · پاسخ به «{message.replyText.slice(0, 28)}…»</em>}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {thread && thread.messages.length === 0 && (
                   <div className="conv-empty"><p>پیامی در این گفتگو ثبت نشده.</p></div>
                 )}

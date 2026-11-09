@@ -559,6 +559,24 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .input-wrap { position: relative; display: flex; align-items: center; }
 .input-wrap .input { padding-inline-start: 42px; }
 .input-wrap .input-ico { position: absolute; inset-inline-start: 14px; width: 16px; height: 16px; color: var(--ink-4); pointer-events: none; }
+
+/*
+ * دکمهٔ «نمایش رمز».
+ * قبلاً همین آیکون با کلاس `.input-ico` رندر می‌شد که `pointer-events: none`
+ * دارد؛ نتیجه‌اش یک مربعِ بی‌اثر شبیه چک‌باکس بود (باگ گزارش‌شده). اینجا یک
+ * دکمهٔ واقعی با ناحیهٔ لمس ۳۲ پیکسل، حالت hover/focus و نشانگر چشمِ خط‌خورده
+ * در حالت فعال داریم.
+ */
+.input-reveal {
+  position: absolute; inset-inline-start: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 9px;
+  border: 0; background: transparent; color: var(--ink-4);
+  cursor: pointer; transition: background 140ms ease, color 140ms ease;
+}
+.input-reveal:hover { background: var(--surface-2, #f4f2f6); color: var(--ink-2); }
+.input-reveal:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.input-reveal[aria-pressed='true'] { color: var(--brand); background: var(--brand-50); }
 .input-wrap .input-suffix { position: absolute; inset-inline-end: 14px; font-size: var(--fs-xs); color: var(--ink-3); }
 
 /* نشان‌ها */
@@ -1147,6 +1165,25 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-row .lbl { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .adm-row .hint { font-size: 12px; color: var(--ink-3); line-height: 1.85; margin-top: 4px; }
 .adm-row .ctl { display: grid; gap: 6px; justify-items: stretch; }
+/*
+ * ردیف سوییچ در فرم تنظیمات: شبکه‌ی ثابت، بدون جابه‌جایی.
+ * ستون اول عرض سوییچ (۳۸px) و ستون دوم جایگاهِ ۶۴ پیکسلیِ متن وضعیت است، پس
+ * عرض متن «روشن/خاموش» هیچ اثری روی موقعیت سوییچ یا ردیف‌های دیگر ندارد.
+ */
+.adm-row .ctl-switch {
+  display: grid;
+  grid-template-columns: 38px 64px;
+  align-items: center;
+  justify-content: start;
+  gap: 10px;
+  min-height: 26px;
+}
+.ctl-switch-state {
+  font-size: 11px; font-weight: 700; text-align: start; white-space: nowrap;
+  transition: color 0.16s ease;
+}
+.ctl-switch-state.on { color: var(--brand-700); }
+.ctl-switch-state.off { color: var(--ink-4); }
 .adm-row .ctl .input, .adm-row .ctl .select { width: 100%; }
 .adm-row.dirty { background: linear-gradient(90deg, rgba(252, 241, 222, 0.55), transparent 65%); }
 .adm-row.dirty .lbl::after {
@@ -1313,7 +1350,74 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-form + .adm-bar { margin-top: 10px; }
 
 /* --------------------------------------------------------------- مسیر مدل */
-.ai-route { display: grid; gap: 12px; }
+/*
+ * چیدمان صفحه‌ی مدل هوش مصنوعی: دو نیمه‌ی ثابت + ردیف نتیجه‌ی تمام‌عرض.
+ * `align-items: start` کلیدِ جلوگیری از کشیدگی است: هر ستون به اندازه‌ی محتوای
+ * خودش می‌ماند و ردیف دوم (نتیجه) با `grid-column: 1 / -1` همه‌ی عرض را می‌گیرد.
+ */
+.ai-page-split {
+  display: grid;
+  /* ستون فرم کشسان، ستون آزمون باریک و ثابت — مثل یک نوار وضعیت کنار فرم. */
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 372px);
+  align-items: start;
+  gap: 14px;
+}
+@media (max-width: 1180px) { .ai-page-split { grid-template-columns: minmax(0, 1fr); } }
+.ai-page-col { display: grid; gap: 14px; min-width: 0; align-content: start; }
+/*
+ * ستون آزمون چسبان است: فرم تنظیمات بلند است و کارت آزمون کوتاه؛ با sticky
+ * کارت آزمون در دید می‌ماند و ستون کوتاه‌تر «فضای خالی» به نظر نمی‌رسد.
+ */
+.ai-page-col-probe { position: sticky; top: 14px; }
+@media (max-width: 1180px) { .ai-page-col-probe { position: static; } }
+.ai-page-result { grid-column: 1 / -1; min-width: 0; }
+@media (max-width: 1180px) {
+  .ai-page-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* نتیجه‌ی آزمون: بلوک تمام‌عرض با شبکه‌ی خوانا. */
+.probe-result { align-items: flex-start; }
+.probe-result-title { font-size: 12px; font-weight: 700; color: var(--ink-2); }
+.probe-result-grid {
+  display: grid; gap: 4px 18px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.probe-result-cell { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.probe-result-cell .k { font-size: 11px; color: var(--ink-3); flex: 0 0 auto; }
+.probe-result-cell .v { overflow-wrap: anywhere; font-size: 12px; }
+
+/*
+ * کارت «مسیر مدل» عمداً باریک‌تر از بقیه است.
+ * عرض کامل صفحه، ردیف‌های مدل را به خط‌های کشیده‌ی بی‌خوان تبدیل می‌کرد؛ متن
+ * فارسی در عرض زیاد ردیابی چشم را از دست می‌دهد. سقف عرض، همان حس «پنل
+ * کنترلِ جمع‌وجور» را می‌سازد.
+ */
+.ai-route { display: grid; gap: 12px; max-width: 620px; }
+/* مبدأ فهرست مدل: زنده یا پیشنهادی. تفکیک بصری آرام، بدون شلوغی. */
+.ai-src { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ai-src-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 9.5px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-full);
+  border: 1px solid var(--line); color: var(--ink-3); background: var(--surface);
+  white-space: nowrap;
+}
+.ai-src-tag i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.6; }
+.ai-src-tag.live { color: var(--green-700, #157a4a); border-color: color-mix(in srgb, var(--green-700, #157a4a) 24%, transparent); background: color-mix(in srgb, var(--green-700, #157a4a) 7%, var(--surface)); }
+.ai-src-tag.live i { opacity: 1; box-shadow: 0 0 0 3px color-mix(in srgb, var(--green-700, #157a4a) 16%, transparent); }
+.ai-src-tag.fallback { color: var(--ink-4); }
+.ai-src-refresh {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink-3); cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ai-src-refresh:hover:not(:disabled) { border-color: var(--brand-200); color: var(--brand-700); }
+.ai-src-refresh:disabled { opacity: 0.55; cursor: progress; }
+.ai-src-warn {
+  font-size: 10.5px; line-height: 1.8; color: var(--amber-700, #8a5300);
+  background: color-mix(in srgb, var(--amber) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--amber) 26%, transparent);
+  border-radius: 9px; padding: 5px 9px;
+}
 .ai-route-head { display: flex; align-items: flex-start; gap: 10px; }
 
 /* انتخابگر میزبان: یک فهرست بازشو، نه چهار تب کنار هم. */
@@ -1552,7 +1656,16 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .conv-msgs > .msg:first-child { margin-top: auto; }
 .conv-msgs > .conv-empty { margin-top: auto; }
 .conv-loading { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 20px; margin-top: auto; }
-.msg { display: flex; }
+/*
+ * `.msg` قبلاً برای حباب‌های تلگرام‌مانند تعریف شده بود (`flex-direction:
+ * column; max-width: 82%`). همان قواعد این‌جا خنثی می‌شوند، وگرنه
+ * `justify-content` روی محور عمودی اثر می‌گذارد و پیام‌ها همه به یک سمت
+ * می‌چسبند (باگ گزارش‌شده: تفکیک مشتری/بات/فروشنده دیده نمی‌شد).
+ */
+.conv-msgs .msg {
+  display: flex; flex-direction: row; max-width: 100%; width: 100%;
+  align-items: flex-end;
+}
 .msg-in { justify-content: flex-start; }
 .msg-out { justify-content: flex-end; }
 .msg-bubble {
@@ -1566,6 +1679,33 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   border-radius: 14px 14px 4px 14px;
   background: color-mix(in srgb, var(--brand-50) 72%, var(--brand-100));
   border-color: var(--brand-200);
+}
+/*
+ * تفکیک نویسنده در گفتگو:
+ *   مشتری   → راست، حباب روشن (حباب پیش‌فرض)
+ *   بات (AI) → چپ، حباب خاکستری آرام با برچسب «پاسخ خودکار»
+ *   فروشنده  → چپ، حباب برند با برچسب «فروشنده»
+ * رنگ‌ها عمداً کم‌تفاوت‌اند: چشم باید فوراً بفهمد کدام پیام دستِ آدم است،
+ * بدون اینکه صفحه به رنگ‌آمیزی کودکانه تبدیل شود.
+ */
+.msg-bot .msg-bubble {
+  background: var(--surface); border-color: var(--line);
+  border-radius: 14px 14px 14px 4px;
+}
+.msg-seller .msg-bubble {
+  background: color-mix(in srgb, var(--brand-50) 78%, var(--brand-100));
+  border-color: var(--brand-200);
+}
+.msg-author {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-bottom: 4px; padding: 1px 7px; border-radius: var(--r-full);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.2px; line-height: 1.9;
+  border: 1px solid transparent;
+}
+.msg-author.is-seller { color: var(--brand-700); background: var(--brand-50); border-color: var(--brand-100); }
+.msg-author.is-bot { color: var(--ink-3); background: var(--surface-2); border-color: var(--line); }
+.msg-author::before {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: 0.65;
 }
 .msg-bubble p { margin: 0; font-size: 12.8px; line-height: 1.95; white-space: pre-wrap; word-break: break-word; }
 .msg-meta { display: block; margin-top: 3px; font-size: 10px; color: var(--ink-4); }

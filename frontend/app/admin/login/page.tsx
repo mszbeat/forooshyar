@@ -122,10 +122,11 @@ export default function AdminLoginPage() {
                 autoComplete="current-password" required dir="ltr" style={{ paddingInlineStart: 42 }}
               />
               <button
-                type="button" className="input-ico" onClick={() => setReveal(value => !value)}
+                type="button" className="input-reveal" onClick={() => setReveal(value => !value)}
                 aria-label={reveal ? 'پنهان‌کردن رمز' : 'نمایش رمز'}
+                aria-pressed={reveal} title={reveal ? 'پنهان‌کردن رمز' : 'نمایش رمز'}
               >
-                <IconEye size={16} />
+                <IconEye size={17} />
               </button>
             </div>
           </Field>

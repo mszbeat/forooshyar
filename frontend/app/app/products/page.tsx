@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, ApiError, type Product, type Variant } from '@/lib/api';
 import { faDateTime, faNum, relativeTime, statusOfStock, toman, variantLabel } from '@/lib/format';
+import { useRealtime } from '@/lib/realtime';
 import { EmptyState, Field, Modal, PageHeader, Segmented, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import {
   IconAlertCircle, IconBox, IconChevronDown, IconClock, IconEdit, IconMinus,
@@ -43,7 +44,11 @@ export default function ProductsPage() {
     }
   }, [toast]);
 
-  useEffect(() => { void load(); }, [load]);
+    // رخداد زنده: هر تغییر سمت سرور (سفارش، پیام، موجودی، محصول) همین‌جا
+  // بدون رفرش بازخوانی می‌شود. فعل و انفعال پنل با خودش هم بی‌ضرر است.
+  useRealtime(['product', 'stock'], () => { void load(); });
+
+useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

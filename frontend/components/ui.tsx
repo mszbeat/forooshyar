@@ -199,11 +199,31 @@ export function Segmented<T extends string>({ value, options, onChange, ariaLabe
 
 /* ------------------------------------------------------------------ Switch */
 
-export function Switch({ checked, onChange, label, id }: { checked: boolean; onChange: (next: boolean) => void; label: string; id?: string }) {
+/**
+ * سوییچ روشن/خاموش.
+ *
+ * `hideLabel` برای جاهایی است که متن وضعیت را خودِ والد جدا نشان می‌دهد (ردیف‌های
+ * تنظیمات ادمین): برچسب برای صفحه‌خوان می‌ماند ولی دیده نمی‌شود، تا عرضِ متنِ
+ * «روشن/خاموش» جایی در چیدمان را جابه‌جا نکند.
+ */
+export function Switch({ checked, onChange, label, id, hideLabel }: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  id?: string;
+  hideLabel?: boolean;
+}) {
   const auto = useId();
   const inputId = id ?? auto;
   return (
-    <label htmlFor={inputId} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontSize: 'var(--fs-sm)' }}>
+    <label
+      htmlFor={inputId}
+      aria-label={label}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 9, cursor: 'pointer',
+        fontSize: 'var(--fs-sm)', ...(hideLabel ? { width: 38, flex: '0 0 38px' } : {}),
+      }}
+    >
       <input
         id={inputId}
         type="checkbox"
@@ -212,7 +232,7 @@ export function Switch({ checked, onChange, label, id }: { checked: boolean; onC
         style={{ appearance: 'none', width: 38, height: 22, borderRadius: 999, background: checked ? 'var(--brand)' : 'var(--line-strong)', position: 'relative', cursor: 'pointer', transition: 'background .18s', margin: 0 }}
         className="switch-input"
       />
-      <span>{label}</span>
+      {!hideLabel && <span>{label}</span>}
       <style>{`.switch-input::after{content:'';position:absolute;top:3px;inset-inline-end:${checked ? '19px' : '3px'};width:16px;height:16px;border-radius:50%;background:#fff;transition:inset-inline-end .18s var(--ease);box-shadow:0 1px 2px rgba(0,0,0,.2)}`}</style>
     </label>
   );

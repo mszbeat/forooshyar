@@ -113,6 +113,15 @@ export type AiProvider = {
 
 export type SettingsPayload = { groups: SettingGroup[]; providers: AiProvider[]; restartRequired: string[] };
 
+/** فهرست مدل‌های یک درگاه؛ `live` یعنی از خود ارائه‌دهنده آمده، نه از کاتالوگ. */
+export type AiModelList = {
+  provider: string;
+  live: boolean;
+  fetchedAt: string;
+  models: AiModel[];
+  error?: string;
+};
+
 export type Overview = {
   counts: {
     shops: number; users: number; products: number; variants: number;
@@ -172,6 +181,15 @@ export const adminApi = {
    */
   probeAi: (draft?: { baseUrl?: string; model?: string; apiKey?: string }) =>
     call<AiProbe>('/admin/diagnostics/ai', { method: 'POST', body: draft ?? {} }),
+  /** فهرست مدل‌ها؛ با `refresh` کش سرور هم دور زده می‌شود. */
+  aiModels: (input: { provider?: string; baseUrl?: string; apiKey?: string; refresh?: boolean }) => {
+    const params = new URLSearchParams();
+    if (input.provider) params.set('provider', input.provider);
+    if (input.baseUrl) params.set('baseUrl', input.baseUrl);
+    if (input.apiKey) params.set('apiKey', input.apiKey);
+    if (input.refresh) params.set('refresh', '1');
+    return call<AiModelList>(`/admin/ai/models?${params.toString()}`);
+  },
   probeTelegram: () => call<TelegramProbe>('/admin/diagnostics/telegram', { method: 'POST', body: {} }),
   probeDatabase: (url?: string) => call<DatabaseProbe>('/admin/diagnostics/database', { method: 'POST', body: url ? { url } : {} }),
   database: () => call<{ latencyMs: number; version: string; size: string; tables: number; migrations: { name: string; at: string | null }[] }>('/admin/database'),

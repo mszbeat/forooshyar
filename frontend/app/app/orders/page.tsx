@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError, type ChatMessage, type Order, type OrderStatus, type OrdersSummary } from '@/lib/api';
 import { faDateTime, faNum, relativeTime, toman } from '@/lib/format';
+import { useRealtime } from '@/lib/realtime';
 import { EmptyState, Modal, PageHeader, Segmented, SkeletonBlock, Spinner, StatCard, useToast } from '@/components/ui';
 import {
   IconAlertCircle, IconArrowLeft, IconBox, IconCheckCircle, IconClock, IconDownload,
@@ -80,6 +81,20 @@ export default function OrdersPage() {
       setLoading(false);
     }
   }, [toast]);
+
+  // رخداد زنده: هر تغییر سمت سرور (سفارش، پیام، موجودی) همین‌جا بدون رفرش
+  // بازخوانی می‌شود. اگر جزئیات سفارشی باز است، همان هم تازه می‌شود تا وضعیت
+  // «تحویل‌شده»ای که مشتری در تلگرام تأیید کرده، بی‌درنگ روی صفحه بیاید.
+  useRealtime(['order', 'chat', 'stock'], () => {
+    void load();
+    if (open?.id) {
+      api.orderMessages(open.id).then(setMessages).catch(() => undefined);
+      api.orders().then(list => {
+        const fresh = list.find(item => item.id === open.id);
+        if (fresh) setOpen(fresh);
+      }).catch(() => undefined);
+    }
+  });
 
   useEffect(() => { void load(); }, [load]);
 
@@ -396,6 +411,12 @@ export default function OrdersPage() {
                         </button>
                       </span>
                       <div className={`bubble ${item.direction === 'in' ? 'bubble-in' : 'bubble-out'}`}>
+                        {/* برچسب نویسنده: پاسخ بات از پاسخ فروشنده جدا دیده شود. */}
+                        {item.direction !== 'in' && (
+                          <span className={`msg-author ${item.author === 'seller' ? 'is-seller' : 'is-bot'}`}>
+                            {item.author === 'seller' ? 'فروشنده' : 'پاسخ خودکار'}
+                          </span>
+                        )}
                         {item.replyText ? (
                           <button
                             type="button"
@@ -415,7 +436,9 @@ export default function OrdersPage() {
                           </button>
                         ) : null}
                         <div>{item.text}</div>
-                        <div className="bubble-meta">{item.direction === 'in' ? 'مشتری' : 'شما'} · {relativeTime(item.createdAt)}</div>
+                        <div className="bubble-meta">
+                          {item.direction === 'in' ? 'مشتری' : item.author === 'seller' ? 'شما' : 'بات'} · {relativeTime(item.createdAt)}
+                        </div>
                       </div>
                     </div>
                   ))}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api, ApiError, type CustomerRow, type Customers } from '@/lib/api';
 import { faDate, faNum, relativeTime, toman } from '@/lib/format';
+import { useRealtime } from '@/lib/realtime';
 import { EmptyState, PageHeader, Segmented, SkeletonBlock, useToast } from '@/components/ui';
 import { IconChat, IconSearch, IconUsers } from '@/components/icons';
 
@@ -41,7 +42,11 @@ export default function CustomersPage() {
     }
   }, [toast]);
 
-  useEffect(() => { void load(); }, [load]);
+    // رخداد زنده: هر تغییر سمت سرور (سفارش، پیام، موجودی، محصول) همین‌جا
+  // بدون رفرش بازخوانی می‌شود. فعل و انفعال پنل با خودش هم بی‌ضرر است.
+  useRealtime(['chat', 'order'], () => { void load(); });
+
+useEffect(() => { void load(); }, [load]);
 
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();

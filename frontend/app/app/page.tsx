@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { api, ApiError, type AttentionItem, type Summary } from '@/lib/api';
 import { faDate, faNum, faWeekday, relativeTime, toman, tomanShort, variantLabel } from '@/lib/format';
+import { useRealtime } from '@/lib/realtime';
 import { EmptyState, SkeletonBlock, SkeletonRows, StatCard, useToast } from '@/components/ui';
 import {
   IconAlert, IconArrowLeft, IconBolt, IconBox, IconCheckCircle, IconClock,
@@ -37,7 +38,11 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+    // رخداد زنده: هر تغییر سمت سرور (سفارش، پیام، موجودی، محصول) همین‌جا
+  // بدون رفرش بازخوانی می‌شود. فعل و انفعال پنل با خودش هم بی‌ضرر است.
+  useRealtime(['order', 'chat', 'stock', 'product'], () => { void load(); });
+
+useEffect(() => { void load(); }, [load]);
   useEffect(() => { setTested(window.localStorage.getItem('forooshyar.botTested') === '1'); }, []);
 
   const maxUnits = useMemo(() => Math.max(1, ...(summary?.sales.series.map(point => point.units) ?? [1])), [summary]);

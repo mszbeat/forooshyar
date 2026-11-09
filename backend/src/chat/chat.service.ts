@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 
@@ -17,6 +18,7 @@ export class ChatService {
     private readonly db: PrismaService,
     private readonly audit: AuditService,
     private readonly telegram: TelegramService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /**
@@ -96,7 +98,7 @@ export class ChatService {
         orderBy: { createdAt: 'asc' },
         take,
         select: {
-          id: true, direction: true, text: true, createdAt: true,
+          id: true, direction: true, author: true, text: true, createdAt: true,
           replyToId: true, replyText: true, replyFrom: true, orderId: true,
         },
       }),
@@ -120,6 +122,8 @@ export class ChatService {
       messages: messages.map(message => ({
         id: message.id,
         direction: message.direction === 'in' ? 'in' : 'out',
+        // نویسنده: مشتری، بات یا فروشنده. پنل با همین، حباب و برچسب را می‌چیند.
+        author: message.author,
         text: message.text,
         at: message.createdAt.toISOString(),
         replyText: message.replyText,
@@ -147,9 +151,10 @@ export class ChatService {
       return { ok: false as const, error: 'ارسال نشد؛ اتصال تلگرام را بررسی کنید.' };
     }
     const message = await this.db.chatMessage.create({
-      data: { shopId, chatId, direction: 'out', text },
+      data: { shopId, chatId, direction: 'out', author: 'seller', text },
       select: { id: true, direction: true, text: true, createdAt: true },
     });
+    this.realtime.emitShop(shopId, 'chat', { chatId, messageId: message.id, author: 'seller' });
     this.audit.record({
       action: 'chat.seller_reply', entity: 'conversation', entityId: conversation.id,
       shopId, userId, meta: { chatId, length: text.length },
