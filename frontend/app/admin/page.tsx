@@ -63,7 +63,17 @@ export default function AdminOverviewPage() {
   if (!data) {
     return (
       <section className="card card-pad">
-        {error ? <div className="adm-note bad"><IconAlertCircle size={16} /><span>{error}</span></div> : <SkeletonRows rows={6} />}
+        {error ? (
+          <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
+            <div className="adm-note bad"><IconAlertCircle size={16} /><span>{error}</span></div>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => void load()} disabled={busy}>
+              <IconRefresh size={14} />
+              تلاش دوباره
+            </button>
+          </div>
+        ) : (
+          <SkeletonRows rows={6} />
+        )}
       </section>
     );
   }
@@ -72,6 +82,32 @@ export default function AdminOverviewPage() {
 
   return (
     <>
+      {/* بخش‌هایی که روی سرور خطا داده‌اند: بقیه‌ی صفحه می‌آید و اینجا دلیل
+          واقعی (کد خطا یا پیام دیتابیس) دیده می‌شود، نه یک «خطای غیرمنتظره». */}
+      {data.problems && data.problems.length > 0 && (
+        <div className="adm-note bad">
+          <IconAlertCircle size={16} />
+          <div style={{ display: 'grid', gap: 6 }}>
+            <span>
+              بخشی از این گزارش از سرور نیامد؛ بقیه‌ی اعداد طبیعی است. جزئیات برای پیگیری:
+            </span>
+            <ul style={{ display: 'grid', gap: 3, margin: 0, paddingInlineStart: 16 }}>
+              {data.problems.map(problem => (
+                <li key={problem.scope} style={{ fontSize: 12 }}>
+                  <b className="mono">{problem.scope}</b> — <span className="mono" style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{problem.message}</span>
+                </li>
+              ))}
+            </ul>
+            <div>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => void load()} disabled={busy}>
+                <IconRefresh size={14} />
+                تلاش دوباره
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {data.restartRequired.length > 0 && (
         <div className="adm-note warn">
           <IconAlertCircle size={16} />

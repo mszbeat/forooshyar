@@ -942,6 +942,12 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   transition: background 0.16s var(--ease), color 0.16s var(--ease), box-shadow 0.16s;
 }
 .segmented button:hover { color: var(--ink); }
+/* نوار بخش‌بندی با شش گزینه در عرض موبایل از لبه بیرون می‌زد (اسکرول افقیِ
+   ناخواسته در کل صفحه). حالا می‌شکند و دو خط می‌شود، بدون بریدگی. */
+@media (max-width: 760px) {
+  .segmented { flex-wrap: wrap; max-width: 100%; row-gap: 4px; padding: 5px; }
+  .segmented button { padding: 6px 11px; font-size: 12px; }
+}
 .segmented button.on { background: var(--surface); color: var(--brand-700); box-shadow: var(--sh-xs); }
 
 .progress { height: 6px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
@@ -1456,30 +1462,70 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-login-card h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
 .adm-login-card .sub { font-size: 12.5px; color: var(--ink-3); line-height: 1.9; margin-top: -8px; }
 
+/* ------------------------------------------------------------- پنل ادمین: موبایل
+   در عرض کم، نوار کنار به یک نوار باریک بالای صفحه تبدیل می‌شود و منو از یک
+   دکمه باز می‌شود (به‌جای نوار افقیِ بلند که هم ارتفاع می‌گرفت و هم آخرین
+   آیتم‌هایش از لبه بیرون می‌زد). */
+.ad-nav-scrim-placeholder { display: none; }
+.adm-nav-toggle { display: none; }
+.adm-scrim { display: none; }
+
 @media (max-width: 980px) {
   .adm-shell { grid-template-columns: 1fr; }
   .adm-side {
-    position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center;
-    gap: 12px; padding: 12px 14px; border-inline-start: 0;
+    position: sticky; top: 0; z-index: 45; height: auto;
+    flex-direction: row; flex-wrap: nowrap; align-items: center;
+    gap: 10px; padding: 8px 12px; border-inline-start: 0;
+    border-bottom: 1px solid var(--night-line);
   }
-  .adm-brand { border-bottom: 0; padding: 0; }
+  /* نوار بالای موبایل فقط برند و دکمه‌ی منو دارد؛ فاصله‌های ستونی حذف می‌شود. */
+  .adm-brand { border-bottom: 0; padding: 0; width: 100%; }
   .adm-brand .rl { display: none; }
-  .adm-nav { display: flex; gap: 6px; overflow-x: auto; width: 100%; padding-bottom: 2px; }
-  .adm-nav-lab, .adm-side-foot { display: none; }
-  .adm-nav-item { white-space: nowrap; padding: 7px 11px; font-size: 12.5px; }
+  .adm-nav-toggle { display: inline-flex; margin-inline-start: auto; color: var(--night-ink); }
+  .adm-nav-toggle:hover { background: rgba(255, 255, 255, 0.08); }
+
+  /* منو: ورقه‌ای که زیر نوار باز می‌شود و تمام عرض را می‌گیرد. */
+  .adm-nav {
+    display: none; position: absolute; inset-block-start: 100%; inset-inline: 0;
+    z-index: 50; flex-direction: column; gap: 4px; width: auto;
+    max-height: min(84dvh, 640px); overflow-y: auto;
+    padding: 10px 12px 14px;
+    background: linear-gradient(180deg, #171126, #120e1c);
+    border-bottom: 1px solid var(--night-line);
+    box-shadow: 0 28px 50px -28px rgba(0, 0, 0, 0.85);
+  }
+  .adm-shell.nav-open .adm-nav { display: flex; animation: admNavIn 0.18s var(--ease-soft) both; }
+  @keyframes admNavIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .adm-shell.nav-open .adm-scrim {
+    display: block; position: fixed; inset: 0; z-index: 40;
+    background: rgba(13, 11, 20, 0.55); border: 0; padding: 0; cursor: pointer;
+  }
+  .adm-nav-lab { display: block; padding: 8px 10px 2px; }
+  .adm-side-foot { display: none; }
+  .adm-nav-item { white-space: normal; padding: 11px 12px; font-size: 13px; border-radius: 11px; }
   .adm-nav-item .sp { display: none; }
-  .adm-top { padding: 12px 16px; }
-  .adm-body { padding-block: 16px 40px; padding-inline: 14px; }
+
+  .adm-top { padding: 12px 14px; gap: 10px; }
   .adm-row { grid-template-columns: 1fr; gap: 9px; padding: 13px 14px; }
   .adm-login { grid-template-columns: 1fr; }
   .adm-login-side { display: none; }
   .adm-table .hide-sm { display: none; }
-  /* KPI شش‌تایی در عرض موبایل به ستون‌های ۲تایی می‌شکند؛ عددها همان‌قدر درشت
-     می‌مانند و متن پانویس کوتاه می‌شود. */
+  /* KPIها دو ستونه می‌مانند؛ پانویس دیگر با «...» بریده نمی‌شود، می‌شکند. */
   .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adm-kpi { padding: 11px 12px; }
-  .adm-kpi .vl { font-size: 18px; }
-  .adm-kpi .ft { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .adm-kpi .vl { font-size: 18px; overflow-wrap: anywhere; }
+  .adm-kpi .ft { white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+}
+
+/* زیر ۶۴۰ پیکسل سرصفحه‌ی ادمین یک خط می‌شود: عنوان کوتاه، بدون نشانگرهای
+   تزئینی که همان وضعیت را در KPIها هم می‌بینیم. */
+@media (max-width: 640px) {
+  .adm-top { flex-wrap: nowrap; align-items: flex-start; }
+  .adm-top .crumbs { display: none; }
+  .adm-top h1 { font-size: 15px; }
+  .adm-top .sp { flex-wrap: nowrap; gap: 6px; }
+  .adm-top .adm-pipe { display: none; }
+  .adm-body { padding-block: 14px 32px; padding-inline: 12px; }
 }
 
 /* اعداد و شناسه‌های لاتین در متن فارسی: جهت خودشان را نگه می‌دارند و
@@ -1953,3 +1999,23 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-row { padding: 9px 14px; gap: 12px; }
 .adm-model { padding: 7px 10px; }
 .adm-note { padding: 10px 13px; gap: 9px; }
+
+/* ============================================================================
+   پنل ادمین در موبایل — اصلاح‌های پایانی (بعد از همه‌ی قاعده‌های قبلی، تا با
+   `overflow: hidden` نوار کنار تعارض نداشته باشد).
+   ========================================================================== */
+@media (max-width: 980px) {
+  /* منو زیر نوار باز می‌شود؛ اگر نوار کنار `overflow: hidden` بماند، منو کلیپ
+     و عملاً نامرئی می‌شود. اسکرول افقی هم دیگر لازم نیست چون منو عمودی است. */
+  .adm-side { overflow: visible; position: sticky; }
+  /* منوی باز نباید روی سرصفحه بیفتد: نوار کنار ارتفاع خودش را نگه می‌دارد و
+     ورقه‌ی منو از زیرش باز می‌شود. */
+  .adm-shell.nav-open .adm-side { z-index: 60; }
+}
+
+/* رشته‌های بلند لاتین (نام مهاجرت، آدرس، شناسه) در کارت باریک می‌شکنند؛
+   وگرنه عرض کارت را می‌شکستند و کل صفحه اسکرول افقی می‌گرفت. */
+.row-between > .ltr,
+.adm-tag,
+.adm-code,
+.mono { overflow-wrap: anywhere; min-width: 0; }
