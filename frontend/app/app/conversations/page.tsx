@@ -142,7 +142,9 @@ export default function ConversationsPage() {
         }
       />
 
-      <div className="card conv-shell">
+      {/* وقتی هیچ گفتگویی نیست، کادر بلندِ چت‌مانند فقط فضای مرده است؛
+          `is-idle` ارتفاع را به اندازه‌ی محتوا جمع می‌کند. */}
+      <div className={`card conv-shell ${!loading && items.length === 0 ? 'is-idle' : ''}`}>
         {/* ------------------------------------------------------------ فهرست */}
         <div className={`conv-list ${active ? 'has-active' : ''}`}>
           <div className="conv-list-head">

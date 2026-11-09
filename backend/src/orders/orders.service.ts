@@ -363,13 +363,17 @@ export class OrdersService {
   /** برای کارت داشبورد. */
   async summary(shopId: string) {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [awaiting, paidToday, recent] = await Promise.all([
+    const [awaiting, paidToday, cancelled, cancelledLast24h, recent] = await Promise.all([
       this.db.order.count({ where: { shopId, status: OrderStatus.AWAITING_PAYMENT } }),
       this.db.order.aggregate({
         where: { shopId, status: { in: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.COMPLETED] }, paidAt: { gte: dayAgo } },
         _sum: { total: true },
         _count: true,
       }),
+      // لغوشده‌ها: هم مجموع (برای این‌که فروشنده حجم لغو را ببیند) و هم ۲۴ ساعت
+      // گذشته (برای این‌که اگر امروز چند سفارش لغو شده، فوراً به چشم بیاید).
+      this.db.order.count({ where: { shopId, status: OrderStatus.CANCELLED } }),
+      this.db.order.count({ where: { shopId, status: OrderStatus.CANCELLED, createdAt: { gte: dayAgo } } }),
       this.db.order.findMany({
         where: { shopId, status: { in: [OrderStatus.PAID, OrderStatus.SHIPPED] } },
         orderBy: { createdAt: 'desc' },
@@ -381,6 +385,8 @@ export class OrdersService {
       awaitingPayment: awaiting,
       paidLast24h: paidToday._count,
       revenueLast24h: paidToday._sum.total ?? 0,
+      cancelled,
+      cancelledLast24h,
       recent,
     };
   }

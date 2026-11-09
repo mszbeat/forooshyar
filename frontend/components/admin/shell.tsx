@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { adminApi, adminToken, AdminError, type AdminIdentity, type Overview } from '@/lib/admin';
 import { Spinner } from '@/components/ui';
+import { ThemeToggle } from '@/components/theme';
 import {
   IconAlertCircle, IconBolt, IconDashboard, IconLogout, IconSettings, IconShield,
   IconSparkles, IconStore, IconWallet,
@@ -156,6 +157,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <h1>{meta.title}</h1>
           </div>
           <div className="sp">
+            <ThemeToggle className="adm-theme-toggle" />
             <span className={`adm-pipe ${ai?.ready ? 'on' : ai?.enabled ? 'warn' : 'off'}`}>
               <i /><span className="mono">AI</span>
             </span>
