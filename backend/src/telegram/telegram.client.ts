@@ -23,9 +23,14 @@ export type TelegramConfig = {
 
 export type ReplyMarkup =
   | { inline_keyboard: { text: string; callback_data?: string; url?: string }[][] }
+  /** کیبورد پایین صفحه‌ی چت: دکمه‌های عملیات اصلی بات، همیشه در دسترس. */
+  | { keyboard: { text: string }[][]; resize_keyboard: true; is_persistent: true; input_field_placeholder?: string }
   | { remove_keyboard: true }
   /** با این، تلگرام مستقیم کادر پاسخ را برای فروشنده باز می‌کند. */
   | { force_reply: true; input_field_placeholder?: string };
+
+/** یک فرمان در فهرست ☰ تلگرام (کنار دکمه‌ی پیوست). */
+export type BotCommand = { command: string; description: string };
 
 export type SendMessagePayload = {
   chat_id: string | number;
@@ -68,6 +73,20 @@ export class TelegramClient {
       allowed_updates: ['message', 'edited_message', 'callback_query'],
       drop_pending_updates: false,
     });
+  }
+
+  /**
+   * فهرست فرمان‌ها را ثبت می‌کند؛ همین فهرست در تلگرام زیر آیکون ☰ (کنار دکمه‌ی
+   * پیوست فایل) نشان داده می‌شود و مشتری بدون حفظ کردن دستور، عملیات بات را
+   * می‌بیند.
+   */
+  async setMyCommands(commands: BotCommand[]): Promise<TelegramApiResult<true>> {
+    return this.call<true>('setMyCommands', { commands, scope: { type: 'default' }, language_code: '' });
+  }
+
+  /** متن ثابت پایین کادر پیام (اختیاری) — راهنمای سریع. */
+  async setChatMenuButton(): Promise<TelegramApiResult<true>> {
+    return this.call<true>('setChatMenuButton', { menu_button: { type: 'commands' } });
   }
 
   /** بستن چرخ‌لودینگ دکمه؛ بدون این، دکمه‌ی مشتری «گیر» می‌ماند. */

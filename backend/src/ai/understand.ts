@@ -3,6 +3,7 @@ import { discover, productTokens, type CatalogProduct } from '../catalog/discove
 import type { AiService } from './ai.service';
 import { answerWithAi } from './answer';
 import { interpretWithAi } from './interpret';
+import { polishReply } from './polish';
 import type { AiMessage } from './context';
 
 export type UnderstandInput = {
@@ -16,10 +17,10 @@ export type UnderstandInput = {
 };
 
 export type UnderstandResult = BotReply & {
-  /** از کجا آمد: قاعده، تشخیص محصول با مدل، یا پاسخ مدل. */
-  source: 'rules' | 'ai_match' | 'ai_answer';
+  /** از کجا آمد: قاعده، تشخیص محصول با مدل، پاسخ مدل، یا بازنویسی لحن. */
+  source: 'rules' | 'ai_match' | 'ai_answer' | 'ai_polished';
   /** اگر مدل به کار رفت، برای گزارش و پنل. */
-  ai?: { model: string; match?: string; keywords?: string; skip?: string };
+  ai?: { model: string; match?: string; keywords?: string; skip?: string; polished?: boolean };
 };
 
 /**
@@ -92,4 +93,32 @@ export async function resolveReply(input: UnderstandInput): Promise<UnderstandRe
     ? notFoundReply(cleanQuery, products)
     : rule;
   return { ...finalRule, source: 'rules', ai: { model: ai.model, keywords: cleanQuery } };
+}
+
+/**
+ * «جان دادن» به پاسخ نهایی، بدون تغییر داده.
+ *
+ * چرا جدا از `resolveReply`: آن یکی **چه بگوییم** را تعیین می‌کند و این یکی
+ * **چطور بگوییم**. جدا نگه‌داشتنشان دو فایده دارد: مسیر پاسخ‌دادن حتی با خطای
+ * مدل دست‌نخورده می‌ماند، و تست می‌تواند هر لایه را تنها بسنجد.
+ *
+ * اگر بازنویسی رد شود (نگهبان عدد/کد/ساختار)، همان متن قبلی برمی‌گردد؛ پس
+ * خروجی این تابع همیشه ایمن است.
+ */
+export async function addPersonality(
+  ai: AiService,
+  shop: BrainShop,
+  reply: UnderstandResult,
+  text: string,
+): Promise<UnderstandResult> {
+  const polished = await polishReply(ai, shop, reply, text);
+  if (!polished.ok) {
+    return { ...reply, ai: { ...(reply.ai ?? { model: ai.model }), skip: reply.ai?.skip ?? polished.reason } };
+  }
+  return {
+    ...reply,
+    text: polished.text,
+    source: reply.source === 'ai_answer' ? 'ai_answer' : 'ai_polished',
+    ai: { ...(reply.ai ?? { model: ai.model }), polished: true } as UnderstandResult['ai'],
+  };
 }
