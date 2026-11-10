@@ -133,6 +133,34 @@ export type OrdersSummary = {
   recent: { id: string; code: string; total: number; status: OrderStatus; customerName: string; createdAt: string }[];
 };
 export type TelegramOwnerCode = { ownerCode: string | null; ownerLink: string | null; command?: string; reason?: string };
+
+/** پیج‌های قابل انتخاب و وضعیت اتصال اینستاگرام برای فروشگاه جاری. */
+export type InstagramAccount = {
+  id: string;
+  username: string;
+  profilePhoto: string;
+  active: boolean;
+  expiresAt: string | null;
+  mine: boolean;
+};
+export type InstagramStatus = {
+  configured: boolean;
+  connectable: boolean;
+  accountLinked: boolean;
+  account: {
+    id: string;
+    username: string;
+    profilePhoto: string;
+    expiresAt: string | null;
+    daysLeft: number | null;
+    active: boolean;
+    linkedAt: string | null;
+  } | null;
+  webhookUrl: string;
+  webhookUrlIsHttps: boolean;
+  signatureEnforced: boolean;
+  stats: { messages: number; conversations: number; lastEventAt: string | null; lastEventAction: string };
+};
 export type SaleResult = Variant & { stock: number };
 export type AuthResult = { accessToken: string; tokenType: string; expiresIn: number };
 
@@ -313,6 +341,16 @@ export const api = {
   telegramOwnerCode: () => request<TelegramOwnerCode>('/channel/telegram/owner-code', { method: 'POST' }),
   telegramDisconnectOwner: () => request<TelegramStatus>('/channel/telegram/disconnect-owner', { method: 'POST' }),
   telegramDisable: () => request<TelegramStatus>('/channel/telegram', { method: 'DELETE' }),
+
+  instagramStatus: () => request<InstagramStatus>('/instagram/status'),
+  instagramConnectUrl: () => request<{ ok: boolean; url?: string; error?: string }>('/instagram/connect-url'),
+  instagramAccounts: () => request<{ ok: boolean; items: InstagramAccount[]; error?: string }>('/instagram/accounts'),
+  instagramEvents: () => request<{ ok: boolean; items: { eventType: string; at: string; summary: string }[] }>('/instagram/events'),
+  instagramLink: (accountId: string) =>
+    request<{ ok: boolean; error?: string; accountId?: string; username?: string }>('/instagram/link', { method: 'POST', body: { accountId } }),
+  instagramUnlink: () => request<{ ok: boolean; error?: string }>('/instagram/link', { method: 'DELETE' }),
+  instagramTest: (recipientId: string) =>
+    request<{ ok: boolean; error?: string; message?: string }>('/instagram/test', { method: 'POST', body: { recipientId } }),
 
   orders: (query: { status?: string; limit?: number } = {}) => {
     const params = new URLSearchParams();
