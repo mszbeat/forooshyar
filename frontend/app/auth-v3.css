@@ -1,0 +1,175 @@
+/* ==========================================================================
+   ورود و ثبت‌نام — بازنویسی v3
+   بعد از auth.css وارد می‌شود تا همان کلاس‌ها با زبان تازه بنشینند: برگه‌ی
+   تیره‌ی نمایشی، فرم روی کاغذ، خط مویی و تایپ نازک، و نوار نور روز/شب.
+   ========================================================================== */
+.authx {
+  background: var(--bg);
+  color: var(--ink);
+  gap: 0;
+  transition: var(--ground-transition);
+}
+.authx-seam { display: none; }
+
+.authx-visual {
+  /* مهم: position و inset از auth.css می‌آیند (پنل مطلق در نیمه‌ی راست).
+     اگر اینجا position عوض شود، پنل به یک آیتم گرید تبدیل می‌شود و کل چیدمان
+     دو نیمه می‌ریزد؛ فقط رنگ و لبه را اینجا می‌گیریم. */
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.authx-visual::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: 0.06;
+  mix-blend-mode: screen;
+}
+.authx-glow {
+  background: radial-gradient(60% 50% at 70% 15%,
+    color-mix(in srgb, var(--brand) 55%, transparent), transparent 70%);
+  opacity: 0.5;
+  filter: blur(30px);
+}
+.authx-visual-inner { color: var(--bg); padding: clamp(26px, 3.4vw, 44px); }
+.authx-brand .mark {
+  background: var(--bg);
+  color: var(--ink);
+  border-radius: var(--r-sm);
+}
+.authx-brand .name { font-family: var(--font-display); font-weight: 500; font-size: 17px; }
+.authx-brand .role { font-size: 10.5px; color: color-mix(in srgb, var(--bg) 60%, transparent); }
+.authx-copy .kick {
+  display: inline-block;
+  font-family: var(--font-label);
+  font-size: 10px;
+  color: color-mix(in srgb, var(--bg) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bg) 22%, transparent);
+  border-radius: var(--r-xs);
+  padding: 3px 9px;
+  margin-bottom: 20px;
+}
+.authx-copy h2,
+.authx-copy .title {
+  font-family: var(--font-display);
+  font-weight: 200;
+  line-height: 1.16;
+  letter-spacing: 0;
+}
+.authx-feats { border-top: 1px solid color-mix(in srgb, var(--bg) 18%, transparent); padding-top: 16px; }
+.authx-feat { font-size: 12px; line-height: 1.95; color: color-mix(in srgb, var(--bg) 74%, transparent); }
+.authx-feat .tick {
+  border: 1px solid color-mix(in srgb, var(--bg) 30%, transparent);
+  color: var(--bg);
+  border-radius: var(--r-xs);
+  background: transparent;
+}
+.authx-bubble {
+  border-radius: var(--r-md);
+  font-size: 11.5px;
+  line-height: 1.85;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.authx-bubble.in {
+  background: color-mix(in srgb, var(--bg) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--bg) 20%, transparent);
+  color: var(--bg);
+}
+.authx-bubble.out {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--bg);
+}
+.authx-foot { font-size: 10.5px; color: color-mix(in srgb, var(--bg) 55%, transparent); }
+.authx-foot .dot { background: var(--brand); }
+
+/* فرم */
+.authx-form-side { background: var(--bg); padding-inline: clamp(20px, 4vw, 56px); }
+.authx-form-card { background: transparent; border: 0; box-shadow: none; padding: 0; }
+.authx-head h1, .authx-head .title {
+  font-family: var(--font-display);
+  font-weight: 300;
+  letter-spacing: 0;
+  font-size: clamp(24px, 2.6vw, 34px);
+}
+.authx-head p, .authx-head .sub { font-size: 12.5px; color: var(--ink-3); line-height: 2; }
+
+.authx-tabs {
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: 3px;
+  gap: 3px;
+}
+.authx-tabs .thumb {
+  border-radius: var(--r-xs);
+  background: var(--ink);
+  box-shadow: none;
+  top: 3px; bottom: 3px;
+}
+.authx-tabs button {
+  font-family: var(--font-label);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  border-radius: var(--r-xs);
+  transition: color 0.35s var(--ease);
+}
+.authx-tabs button[aria-selected='true'] { color: var(--bg); }
+
+.authx-form .label, .authx-row .label { font-size: 11.5px; }
+.authx-submit {
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 500;
+  font-size: 13px;
+  box-shadow: none;
+  transition: background-color 0.3s var(--ease), color 0.3s var(--ease);
+}
+.authx-submit:hover { background: var(--brand); color: #fff; }
+.authx-demo {
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: 11px;
+}
+.authx-demo .mono, .authx-demo code { font-family: var(--font-label); }
+.authx-link { color: var(--brand); }
+.authx-back { color: var(--ink-3); font-size: 11.5px; }
+.authx-note { font-size: 11px; color: var(--ink-3); }
+
+/* نوار نور روی صفحه‌ی ورود */
+.authx-daylight { margin-top: 18px; }
+
+/* نوار نور داخل برگه‌ی تیره: رنگ‌ها باید از پالت روشن بیایند، وگرنه روی
+   پس‌زمینه‌ی جوهر دیده نمی‌شود. */
+.authx-visual .dl-hero .dl-head { color: color-mix(in srgb, var(--bg) 62%, transparent); }
+.authx-visual .dl-hero .dl-head b { color: var(--bg) !important; }
+.authx-visual .dl-hero .dl-clock { color: color-mix(in srgb, var(--bg) 55%, transparent); }
+.authx-visual .dl-hero .dl-scale { color: color-mix(in srgb, var(--bg) 40%, transparent); }
+.authx-visual .dl-hero .dl-hero-track { border-color: color-mix(in srgb, var(--bg) 30%, transparent); }
+.authx-visual .dl-hero .dl-hero-knob { background: var(--bg); }
+.authx-visual .dl-hero .dl-hero-knob::after { background: var(--bg); }
+
+/* واژه‌ی تأکید در تیتر پلاته.
+   نسخه‌ی قبلی زیر واژه یک نوار ۷ پیکسلی بنفش می‌گذاشت که روی زمینه‌ی جوهری
+   شبیه خط سرگردان دیده می‌شد. اینجا شده خط مویی زعفرانی، هم‌خانواده‌ی زیرخطِ
+   صفحه‌ی اصلی — یک حرکت، یک زبان. */
+.authx-copy h2 em {
+  font-style: normal;
+  color: color-mix(in srgb, var(--brand-400) 82%, var(--bg));
+}
+.authx-copy h2 em::after {
+  content: '';
+  position: absolute;
+  inset-inline: -3px;
+  bottom: -0.14em;
+  height: 1.5px;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--brand-400) 78%, transparent);
+}

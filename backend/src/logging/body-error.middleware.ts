@@ -4,7 +4,29 @@ import { currentContext } from './request-context';
 
 type BodyParserError = Error & { type?: string; status?: number; statusCode?: number };
 
-const parseJson = json({ limit: '64kb' });
+/** بدنه‌ی خام فقط برای مسیرهایی که امضای HMAC دارند نگه داشته می‌شود. */
+type WithRawBody = { rawBody?: Buffer; originalUrl?: string; url?: string };
+
+/**
+ * نگه‌داشتن بدنه‌ی خام برای بررسی امضای webhook.
+ *
+ * چرا لازم است: امضای BoxAPI روی **بایت‌های اصلی** بدنه حساب می‌شود. اگر بعداً
+ * `JSON.stringify(req.body)` را امضا کنیم، ترتیب کلیدها و فاصله‌ها عوض می‌شود و
+ * امضا هرگز نمی‌خواند. فقط مسیر webhook این بافر را نگه می‌دارد تا حافظه‌ی
+ * بقیه‌ی درخواست‌ها بی‌دلیل اشغال نشود.
+ */
+const RAW_BODY_PATHS = ['/webhooks/instagram'];
+function keepRawBody(req: { originalUrl?: string; url?: string }): boolean {
+  const path = req.originalUrl ?? req.url ?? '';
+  return RAW_BODY_PATHS.some(prefix => path.startsWith(prefix));
+}
+
+const parseJson = json({
+  limit: '64kb',
+  verify: (req, _res, buffer) => {
+    if (keepRawBody(req as WithRawBody)) (req as WithRawBody).rawBody = Buffer.from(buffer);
+  },
+});
 
 /**
  * body-parser خطاهایش را به‌صورت Error با `status` و پیام انگلیسی فنی پرتاب

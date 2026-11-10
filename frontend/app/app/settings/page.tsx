@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { api, ApiError, type Shop } from '@/lib/api';
 import { Field, PageHeader, SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import { TelegramConnect } from '@/components/telegram-connect';
+import { InstagramConnect } from '@/components/instagram-connect';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
 
 type Form = Pick<Shop, 'name' | 'tone' | 'shipping' | 'payment' | 'workingHours' | 'returns' | 'handoffMessage'>;
@@ -166,6 +167,8 @@ export default function SettingsPage() {
           </section>
 
           <TelegramConnect />
+
+          <InstagramConnect />
 
           <section className="card">
             <div className="card-head">

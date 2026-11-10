@@ -220,7 +220,7 @@ useEffect(() => { void load(); }, [load]);
             <ul className="mt-4" style={{ display: 'grid', gap: 10 }}>
               {checklist.steps.map(step => (
                 <li key={step.label}>
-                  <Link href={step.href} className="row" style={{ gap: 9, color: step.done ? 'var(--ink-3)' : 'var(--ink)' }}>
+                  <Link href={step.href} className="row setup-step" style={{ gap: 9, color: step.done ? 'var(--ink-3)' : 'var(--ink)' }}>
                     <span
                       style={{
                         width: 20, height: 20, borderRadius: 7, display: 'grid', placeItems: 'center', flex: '0 0 auto',

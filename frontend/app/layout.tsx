@@ -2,8 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import './fonts.css';
 import './globals.css';
+// لایه‌ی طراحی v3: پالت پنج‌گانه‌ی نور روز، تایپوگرافی تحریریه‌ای و حرکت.
+// بعد از globals.css می‌آید تا توکن‌ها و اجزای نسخه‌ی قبل را بازنویسی کند.
+import './design-v3.css';
 import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/components/ui';
+import { DayLightBoot } from '@/components/daylight';
+import { MotionBoot } from '@/components/reveal';
 
 export const metadata: Metadata = {
   title: 'فروش‌یار — دستیار فروش فارسی برای فروشگاه‌های آنلاین',
@@ -31,6 +36,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
+        <DayLightBoot />
+        <MotionBoot />
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
         </AuthProvider>

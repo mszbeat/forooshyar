@@ -1,0 +1,880 @@
+/* ==========================================================================
+   فروش‌یار — لایه‌ی طراحی v3 «کاغذ، خط مو، زعفران»
+   --------------------------------------------------------------------------
+   چرا این لایه اضافه شد و globals.css بازنویسی نشد: نسخه‌ی قبلی یک پنل نرم و
+   گرد با سایه‌های نرم و بنفش برند بود؛ خوانا بود ولی شبیه بقیه‌ی پنل‌ها.
+   این نسخه از یک زبان بصری تحریریه‌ای می‌آید (گرید دوازده‌ستونی، فضای منفی
+   زیاد، خطوط مویی، تیترهای نازک و بزرگ، یک لهجه‌ی گرم و کم‌مصرف) و از یک
+   موتور نور روز/شب: کل پالت با حرکت یک نوار از سپیده تا شب عوض می‌شود.
+   همه‌چیز از توکن می‌آید، پس با همین یک فایل کل سایت (پنل فروشنده، پنل مدیر،
+   ورود و صفحه‌ی اصلی) تغییر می‌کند.
+
+   ۱. فونت  ۲. پالت پنج‌گانه‌ی نور  ۳. تایپوگرافی  ۴. پوسته  ۵. اجزا
+   ۶. حرکت  ۷. نوار روز/شب
+   ========================================================================== */
+
+/* 1. فونت ---------------------------------------------------------------- */
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Estedad';
+  src: url('/fonts/Estedad-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 2. پالت ---------------------------------------------------------------
+   پنج فاز روشنایی. هر فاز یک پالت کامل است و روی <html data-phase> می‌نشیند؛
+   موتور نور در components/daylight.tsx آن را با حرکت نوار عوض می‌کند.
+   مرکب‌ها روی همان زمینه‌ای که چاپ می‌شوند سنجیده شده‌اند (نسبت‌ها در کامنت).
+   ------------------------------------------------------------------------ */
+:root {
+  /* زمینه — کاغذ گرم، نه سفید بیمارستانی */
+  --bg: #f4f1e9;              /* زمینه‌ی اصلی */
+  --bg-deep: #eae5d9;
+  --surface: #fbf9f3;         /* برگه‌ی روی میز */
+  --surface-2: #f2eee3;
+  --surface-3: #e7e1d2;
+  --line: #ddd6c6;
+  --line-strong: #c9c0ac;
+
+  /* مرکب — تقریباً سیاه، با حرارت */
+  --ink: #16150f;             /* 15.9:1 روی --bg */
+  --ink-2: #4c4739;           /* 8.1:1 */
+  --ink-3: #6d6656;           /* 5.0:1 */
+  --ink-4: #948c78;
+
+  /* لهجه — زعفران؛ کم و گران */
+  --brand-50: #f7efe0;
+  --brand-100: #efdfc4;
+  --brand-200: #e2c795;
+  --brand-400: #c08a3c;
+  --brand: #9a5f12;           /* 5.6:1 روی --bg */
+  --brand-600: #7f4c0c;
+  --brand-700: #5f390a;
+  --brand-ink: #16150f;
+
+  --amber: #96601a;
+  --amber-soft: #f6edda;
+  --amber-line: #e6d3b0;
+  --saffron: #c0812e;
+  --danger: #a12f1e;
+  --danger-soft: #f7e7e2;
+  --danger-line: #e5c8c0;
+  --ok: #146147;
+  --ok-soft: #e4efe8;
+  --ok-line: #c3d9cd;
+  --info: #2a5375;
+  --info-soft: #e7eef4;
+  --info-line: #c6d6e3;
+
+  /* شب — آبی-سیاه سرد، مثل شب کوهستان در سایت مرجع */
+  --night: #0b0d11;
+  --night-2: #11151c;
+  --night-ink: #f1eee5;
+  --night-ink-2: rgba(241, 238, 229, 0.66);
+  --night-line: rgba(241, 238, 229, 0.13);
+
+  /* شکل — تحریریه‌ای: گوشه‌ی کم، لبه‌ی مویی، سایه‌ی کم */
+  --r-xs: 2px;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --r-lg: 5px;
+  --r-xl: 6px;
+  --r-2xl: 8px;
+  --r-full: 3px;              /* قرص‌ها هم مستطیل می‌شوند؛ امضای این زبان */
+
+  --sh-xs: 0 1px 0 rgba(22, 21, 15, 0.04);
+  --sh-sm: 0 14px 30px -26px rgba(22, 21, 15, 0.45);
+  --sh-md: 0 24px 50px -40px rgba(22, 21, 15, 0.5);
+  --sh-lg: 0 40px 80px -50px rgba(22, 21, 15, 0.55);
+  --sh-brand: 0 10px 24px -20px rgba(154, 95, 18, 0.7);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink);
+
+  /* تایپ */
+  --font: 'Vazirmatn', ui-sans-serif, system-ui, 'Segoe UI', Tahoma, sans-serif;
+  --font-display: 'Estedad', 'Vazirmatn', ui-sans-serif, system-ui, Tahoma, sans-serif;
+  --font-label: 'Estedad', 'Vazirmatn', ui-sans-serif, system-ui, Tahoma, sans-serif;
+
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-base: 13.5px;
+  --fs-md: 14.5px;
+  --fs-lg: 17px;
+  --fs-xl: 21px;
+  --fs-2xl: 27px;
+  --fs-3xl: 34px;
+  --fs-display: clamp(34px, 4.4vw, 58px);
+  --fs-section: clamp(23px, 2.4vw, 32px);
+
+  /* ریتم */
+  --sp-4: 16px;
+  --sp-6: 24px;
+  --container: 1240px;
+  --content-max: 800px;
+  --sidebar-w: 252px;
+  --topbar-h: 62px;
+  --ease: cubic-bezier(0.22, 0.9, 0.24, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --ground-transition: background-color 0.55s var(--ease), color 0.55s var(--ease),
+    border-color 0.55s var(--ease);
+
+  /* بافت کاغذ — خیلی ملایم، مثل سایت مرجع */
+  --grain-opacity: 0.035;
+}
+
+/* --- فاز ۱: سپیده (۰۵:۰۰–۰۷:۰۰) --------------------------------------- */
+html[data-phase='dawn'] {
+  --bg: #ecece9;
+  --bg-deep: #e2e2df;
+  --surface: #f6f6f4;
+  --surface-2: #ebebe8;
+  --surface-3: #dededa;
+  --line: #d8d8d3;
+  --line-strong: #c2c2bb;
+  --ink: #14161a;
+  --ink-2: #454a52;
+  --ink-3: #656a72;
+  --ink-4: #8d9299;
+  --brand: #8a4a63;
+  --brand-600: #723b51;
+  --brand-400: #b07088;
+  --brand-50: #f7eef1;
+  --brand-100: #edd9e0;
+  --brand-200: #dcc0ca;
+  --saffron: #a9727a;
+  --amber: #8a4a63;
+}
+
+/* --- فاز ۲: بامداد (۰۷:۰۰–۱۰:۰۰) -------------------------------------- */
+html[data-phase='morning'] {
+  --bg: #f4f2ea;
+  --bg-deep: #eae7dc;
+  --surface: #fbfaf5;
+  --surface-2: #f2efe5;
+  --surface-3: #e6e2d5;
+  --line: #dcd8c9;
+  --line-strong: #c8c3b1;
+  --ink: #15150f;
+  --ink-2: #4a4739;
+  --ink-3: #6b6555;
+  --ink-4: #918a76;
+  --brand: #96601a;
+  --saffron: #c0812e;
+}
+
+/* --- فاز ۳: نیم‌روز (۱۰:۰۰–۱۵:۳۰) — پالت پیش‌فرض ---------------------- */
+html[data-phase='midday'] {
+  --bg: #f4f1e9;
+  --bg-deep: #eae5d9;
+  --surface: #fbf9f3;
+  --surface-2: #f2eee3;
+  --surface-3: #e7e1d2;
+  --line: #ddd6c6;
+  --line-strong: #c9c0ac;
+  --ink: #16150f;
+  --ink-2: #4c4739;
+  --ink-3: #6d6656;
+  --ink-4: #948c78;
+  --brand: #9a5f12;
+  --saffron: #c0812e;
+}
+
+/* --- فاز ۴: غروب / بادگیر (۱۵:۳۰–۱۸:۳۰) ------------------------------- */
+html[data-phase='glow'] {
+  --bg: #f8eee2;
+  --bg-deep: #f0e0cd;
+  --surface: #fdf7ef;
+  --surface-2: #f7eadb;
+  --surface-3: #eedcc8;
+  --line: #e6d3bd;
+  --line-strong: #d3b899;
+  --ink: #1d140e;
+  --ink-2: #4c3524;
+  --ink-3: #6e5137;
+  --ink-4: #97795a;
+  --brand: #9a3f21;
+  --brand-600: #7f331b;
+  --brand-400: #bc6a45;
+  --brand-50: #f8ece5;
+  --brand-100: #efd7ca;
+  --brand-200: #e0bda9;
+  --saffron: #b4622c;
+  --amber: #9a3f21;
+}
+
+/* --- فاز ۵: شب (۱۸:۳۰–۰۵:۰۰) ------------------------------------------ */
+html[data-phase='night'],
+html[data-theme='dark'] {
+  --bg: #0b0d11;
+  --bg-deep: #070809;
+  --surface: #12151b;
+  --surface-2: #171b23;
+  --surface-3: #1e232c;
+  --line: #262b34;
+  --line-strong: #343b46;
+  --ink: #f1eee5;            /* 15.4:1 روی --bg */
+  --ink-2: #b9b5a8;          /* 9.0:1 */
+  --ink-3: #8b877c;          /* 5.6:1 */
+  --ink-4: #615f58;
+  --brand: #dcab62;
+  --brand-600: #e8be7d;
+  --brand-400: #c79345;
+  --brand-50: #201b13;
+  --brand-100: #2b2417;
+  --brand-200: #3d331f;
+  --brand-ink: #0b0d11;
+  --amber: #dcab62;
+  --amber-soft: #221d13;
+  --amber-line: #3a3020;
+  --saffron: #e8be7d;
+  --danger: #f08a78;
+  --danger-soft: #2a1714;
+  --danger-line: #46241f;
+  --ok: #63c9a2;
+  --ok-soft: #10241d;
+  --ok-line: #1f4a3c;
+  --info: #8ab4dd;
+  --info-soft: #131c26;
+  --info-line: #23384c;
+  --sh-xs: 0 1px 0 rgba(0, 0, 0, 0.5);
+  --sh-sm: 0 18px 40px -34px rgba(0, 0, 0, 0.9);
+  --sh-md: 0 30px 60px -44px rgba(0, 0, 0, 0.95);
+  --sh-lg: 0 46px 90px -52px rgba(0, 0, 0, 1);
+  --ring: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink);
+  --grain-opacity: 0.05;
+  color-scheme: dark;
+}
+
+/* پاک‌سازی رنگ‌های نسخه‌ی قبل در شب (بنفش برند قدیمی) */
+html[data-theme='dark'] .btn-primary,
+html[data-phase='night'] .btn-primary {
+  --btn-bg: var(--ink);
+  --btn-fg: var(--bg);
+  --btn-bd: var(--ink);
+  box-shadow: none;
+}
+html[data-theme='dark'] .btn-soft,
+html[data-phase='night'] .btn-soft {
+  --btn-bg: var(--brand-100);
+  --btn-fg: var(--brand);
+  --btn-bd: var(--brand-200);
+}
+html[data-theme='dark'] .btn-outline,
+html[data-phase='night'] .btn-outline { --btn-bg: transparent; }
+html[data-theme='dark'] .input:focus,
+html[data-theme='dark'] .textarea:focus,
+html[data-theme='dark'] .select:focus,
+html[data-phase='night'] .input:focus,
+html[data-phase='night'] .textarea:focus,
+html[data-phase='night'] .select:focus { background: var(--surface); }
+
+/* 3. تایپوگرافی ---------------------------------------------------------- */
+body {
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: 1.75;
+  background: var(--bg);
+  color: var(--ink);
+  transition: var(--ground-transition);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* خط مویی به‌جای سایه در همه‌ی مرزها */
+.card,
+.stat-strip,
+.side-card,
+.panel,
+.table-wrap,
+.modal,
+.drawer {
+  box-shadow: none;
+}
+
+h1, h2, h3, .hero-title, .page-title, .card-title, .section-title,
+.brand-name, .stat-value, .adm-sec-title, .dl-phase {
+  font-family: var(--font-display);
+}
+
+h1, h2, h3 { font-weight: 300; letter-spacing: 0; }
+
+.page-title, .section-title {
+  font-size: var(--fs-section);
+  font-weight: 300;
+  line-height: 1.15;
+}
+
+/* برچسب کوچک — معادل «مونو»ی مرجع، ولی با حروف فارسی: کوچک، کم‌رنگ،
+   با فاصله‌ی حروف فقط در لاتین (فارسی به فاصله‌ی حروف نمی‌نشیند). */
+.eyebrow,
+.nav-label,
+.kv-k,
+.stat-label,
+.dl-label {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+/* عددها همیشه جدولی و با فونت نمایشی */
+.num, .stat-value, .kv-v, td.num, .mono {
+  font-variant-numeric: tabular-nums;
+}
+.mono, code, .code {
+  font-family: var(--font-label);
+  letter-spacing: 0;
+}
+
+::selection { background: var(--ink); color: var(--bg); }
+
+/* 4. پوسته --------------------------------------------------------------- */
+
+/* نوار کنار: از «شب بنفش» به «کاغذ با خط مو» تغییر می‌کند — بزرگ‌ترین
+   تفاوت بصری این نسخه. */
+.sidebar {
+  background: var(--bg);
+  background-image: none;
+  border-inline-end: 1px solid var(--line);
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  box-shadow: none;
+  padding: 22px 14px 14px;
+  transition: var(--ground-transition);
+}
+.sidebar::before { display: none; }
+
+.brand { color: var(--ink); padding: 2px 6px 20px; border-bottom: 1px solid var(--line); }
+.brand-mark {
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--r-sm);
+  width: 30px; height: 30px;
+  box-shadow: none;
+}
+.brand-name { font-size: 16px; font-weight: 500; letter-spacing: 0; }
+.brand-sub { font-size: 10.5px; color: var(--ink-3); font-family: var(--font-label); }
+
+.nav-label {
+  padding: 18px 8px 8px;
+  font-size: 10.5px;
+  text-transform: none;
+  border: 0;
+}
+.nav-item {
+  border-radius: var(--r-sm);
+  color: var(--ink-2);
+  font-weight: 400;
+  font-size: 13px;
+  padding: 8px 10px;
+  gap: 10px;
+  position: relative;
+  transition: color 0.25s var(--ease), background-color 0.25s var(--ease);
+}
+.nav-item:hover { background: var(--surface-2); color: var(--ink); }
+.nav-item.active {
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: none;
+}
+/* نشانه‌ی آیتم فعال: یک میله‌ی جوهر در لبه، نه پرکردن رنگی */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: -14px;
+  top: 50%;
+  width: 2px;
+  height: 20px;
+  transform: translateY(-50%);
+  background: var(--ink);
+  border-radius: 0;
+  box-shadow: none;
+  display: block;
+}
+.nav-item .nav-icon { color: currentColor; opacity: 0.75; }
+.nav-item.active .nav-icon { opacity: 1; }
+.nav-item.disabled { color: var(--ink-4); }
+.nav-item.disabled:hover { background: transparent; color: var(--ink-4); }
+.sidebar-foot { border-top: 1px solid var(--line); padding-top: 12px; }
+.side-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  line-height: 1.85;
+}
+.side-card strong { color: var(--ink); font-weight: 600; }
+
+/* نوار بالا: خط مویی، بلور ملایم، ارتفاع کم‌تر */
+.topbar {
+  height: var(--topbar-h);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-bottom: 1px solid var(--line);
+  padding-inline: var(--sp-6);
+  transition: var(--ground-transition);
+}
+.topbar-title { font-family: var(--font-display); font-weight: 500; font-size: 14px; }
+.topbar-sub { font-size: 11px; color: var(--ink-3); }
+.topbar-user-name { font-weight: 500; }
+.topbar-user-role { font-size: 10.5px; color: var(--ink-3); }
+.topbar-divider { background: var(--line); }
+
+/* پنل مدیر: ستون کنار عمداً «کاغذِ جوهری» می‌ماند در همه‌ی فازها.
+   دلیل: در نسخه‌ی اول این لایه زمینه‌ی ستون را روشن کردم ولی متن‌های
+   وضعیت (READY/ONLINE/OFF) از پالت شب می‌آمدند و روی زمینه‌ی روشن ناپیدا
+   شدند. به‌جای روشن‌کردن ستون، پالت جوهری را در هر فاز نگه می‌داریم و فقط
+   رنگ لهجه با فاز عوض می‌شود؛ نتیجه یک تضاد ثابت و خوانا در همه‌ی ساعت‌هاست. */
+:root {
+  --plate: #17150f;
+  --plate-2: #1f1c14;
+  --plate-ink: rgba(241, 238, 229, 0.78);
+  --plate-ink-strong: #f4f1e8;
+  --plate-line: rgba(241, 238, 229, 0.14);
+}
+html[data-phase='dawn'] { --plate: #171a1e; --plate-2: #1f232a; }
+html[data-phase='glow'] { --plate: #1d150e; --plate-2: #281c12; }
+html[data-phase='night'], html[data-theme='dark'] { --plate: #12151b; --plate-2: #191d25; }
+
+.adm-shell { background: var(--bg); }
+.adm-side {
+  background: var(--plate);
+  background-image:
+    radial-gradient(100% 46% at 100% 0%, color-mix(in srgb, var(--brand) 22%, transparent), transparent 64%);
+  color: var(--plate-ink);
+  border-inline-end: 1px solid var(--plate-line);
+  box-shadow: none;
+}
+.adm-brand { border-bottom: 1px solid var(--plate-line); }
+.adm-brand .nm { color: var(--plate-ink-strong); font-family: var(--font-display); font-weight: 600; letter-spacing: 0; }
+.adm-brand .rl { color: color-mix(in srgb, var(--plate-ink) 62%, transparent); }
+.adm-brand .glyph {
+  background: var(--ink);
+  background-image: linear-gradient(150deg, var(--brand-400), var(--brand-600));
+  border-radius: var(--r-md);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.adm-nav-lab { color: color-mix(in srgb, var(--plate-ink) 52%, transparent); }
+.adm-nav-item {
+  border-radius: var(--r-sm);
+  /* ۷۸٪ شفافیت روی این پلاته کم‌رنگ می‌شد و آیتم‌های غیرفعال محو به نظر
+     می‌رسیدند؛ ۹۰٪ از مرکب روشن، سلسله‌مراتب را نگه می‌دارد و خوانا می‌ماند. */
+  color: color-mix(in srgb, var(--plate-ink-strong) 90%, transparent);
+  font-weight: 500;
+  border: 1px solid transparent;
+}
+.adm-nav-item .nav-icon, .adm-nav-item svg { opacity: 0.8; }
+.adm-nav-item:hover { background: rgba(255, 255, 255, 0.055); color: var(--plate-ink-strong); }
+.adm-nav-item[aria-current='page'],
+.adm-nav-item.active {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--plate-ink-strong);
+  font-weight: 600;
+  border: 1px solid var(--plate-line);
+  border-inline-start: 2px solid var(--brand);
+  box-shadow: none;
+}
+.adm-nav-item .sp { color: color-mix(in srgb, var(--plate-ink) 45%, transparent); }
+.adm-ident { background: rgba(255, 255, 255, 0.045); border-color: var(--plate-line); }
+.adm-status { background: rgba(255, 255, 255, 0.035); border-color: var(--plate-line); }
+.adm-status .row0 { border-top-color: var(--plate-line); }
+.adm-top {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+.adm-top h1 { font-family: var(--font-display); font-weight: 500; letter-spacing: 0; font-size: 19px; }
+.adm-top .crumbs { font-family: var(--font-mono, ui-monospace, monospace); }
+
+/* شش کارت آماری صفحه‌ی کلی: auto-fit با شش کارت یک ردیف پنج‌تایی می‌ساخت و
+   کارت ششم تنها می‌ماند. سه ستون، دو ردیف کامل و هم‌تراز می‌دهد. */
+@media (min-width: 1080px) {
+  .adm-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .adm-kpi { border: 0; border-radius: 0; background: var(--surface); }
+  .adm-kpi .vl { font-size: 26px; font-weight: 400; font-family: var(--font-display); }
+  .adm-kpi .lb { font-size: 11px; letter-spacing: 0.02em; font-weight: 500; }
+}
+
+/* 5. اجزا ---------------------------------------------------------------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  transition: border-color 0.3s var(--ease), background-color 0.55s var(--ease),
+    transform 0.4s var(--ease);
+}
+.card:hover { border-color: var(--line-strong); }
+.card-head {
+  border-bottom: 1px solid var(--line);
+  padding: 18px 22px;
+  align-items: center;
+}
+.card-title { font-size: 15px; font-weight: 500; }
+.card-desc { font-size: 11.5px; color: var(--ink-3); }
+.card-body { padding: 22px; }
+.card-foot { border-top: 1px solid var(--line); padding: 14px 22px; }
+
+.btn {
+  border-radius: var(--r-sm);
+  height: 38px;
+  padding: 0 16px;
+  font-family: var(--font);
+  font-weight: 500;
+  font-size: 12.5px;
+  box-shadow: none;
+  transition: background-color 0.3s var(--ease), color 0.3s var(--ease),
+    border-color 0.3s var(--ease), transform 0.3s var(--ease);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary {
+  --btn-bg: var(--ink);
+  --btn-fg: var(--bg);
+  --btn-bd: var(--ink);
+  box-shadow: none;
+}
+.btn-primary:hover {
+  --btn-bg: var(--brand);
+  --btn-fg: #fff;
+  --btn-bd: var(--brand);
+}
+.btn-outline { --btn-bg: transparent; --btn-bd: var(--line-strong); }
+.btn-outline:hover { --btn-bg: var(--ink); --btn-fg: var(--bg); --btn-bd: var(--ink); }
+.btn-soft {
+  --btn-bg: var(--surface-2);
+  --btn-fg: var(--ink);
+  --btn-bd: var(--line);
+}
+.btn-soft:hover { --btn-bg: var(--surface-3); }
+.btn-ghost { --btn-bd: transparent; color: var(--ink-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--ink); }
+.btn-lg { height: 46px; padding: 0 22px; font-size: 14px; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 11.5px; }
+
+.input, .textarea, .select {
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: 13px;
+  transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+.input:focus, .textarea:focus, .select:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 10%, transparent);
+  outline: none;
+}
+.label { font-size: 11.5px; font-weight: 500; color: var(--ink-2); }
+
+.badge {
+  border-radius: var(--r-xs);
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  font-weight: 500;
+  padding: 2px 7px;
+  letter-spacing: 0;
+}
+.avatar { border-radius: var(--r-sm); }
+.avatar-brand { background: var(--ink); color: var(--bg); }
+
+.stat-strip {
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.stat { border-inline-start: 1px solid var(--line); padding: 20px 22px; }
+.stat-ico {
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  width: 26px; height: 26px;
+}
+.stat-label { font-size: 11px; font-weight: 400; }
+.stat-value {
+  font-size: 34px;
+  font-weight: 300;
+  letter-spacing: 0;
+  margin-top: 12px;
+}
+.stat-foot { font-size: 11px; color: var(--ink-3); }
+
+.table th {
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line-strong);
+  background: transparent;
+}
+.table td { border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.table tbody tr { transition: background-color 0.2s var(--ease); }
+.table tbody tr:hover { background: var(--surface-2); }
+
+.kv { border-color: var(--line); }
+.kv-k { font-size: 11px; }
+.kv-v { font-weight: 500; }
+.row-item + .row-item { border-top: 1px solid var(--line); }
+
+.alert { border-radius: var(--r-sm); border-width: 1px; font-size: 12.5px; }
+.tabs { border-bottom: 1px solid var(--line); }
+.tab.active, .tab[aria-selected='true'] { box-shadow: inset 0 -2px 0 var(--ink); }
+
+/* سربرگ صفحه: مثل مرجع، با شماره‌ی بخش و خط مویی */
+.page-head {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+  margin-bottom: 26px;
+}
+.page-head .eyebrow { display: block; margin-bottom: 6px; }
+
+/* 6. حرکت ---------------------------------------------------------------
+   سه حرکت امضای مرجع، در نسخه‌ای که برای پنل هم بی‌خطر است:
+   .fx         بالا آمدن نرم با محو‌شدگی (روی کارت‌ها و سربرگ‌ها)
+   .wipe-plate پرده‌ی کنار‌رو برای تصویر/کارت شاخص
+   [data-depth] پارالاکس ملایم
+   ------------------------------------------------------------------------ */
+@keyframes fx-up {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fx-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dl-sweep {
+  from { transform: translateX(-30%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.fx {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+  transition-delay: var(--fx-delay, 0ms);
+}
+.fx.in { opacity: 1; transform: none; }
+
+.wipe-plate { clip-path: inset(0 0 0 100%); transition: clip-path 1s var(--ease); }
+.wipe-plate.in { clip-path: inset(0 0 0 0); }
+
+/* پیوندهای ناوبری با خط زیرینِ کشیده‌شونده */
+.sweep-link {
+  position: relative;
+  transition: color 0.3s var(--ease);
+}
+.sweep-link::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: -3px;
+  height: 1px;
+  width: 0;
+  background: currentColor;
+  transition: width 0.4s var(--ease);
+}
+.sweep-link:hover::after { width: 100%; }
+
+/* کارت‌های آماری و ردیف‌ها: بالا آمدن ملایم با تأخیر پله‌ای */
+.stat, .row-item, .card { will-change: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx, .wipe-plate { opacity: 1; transform: none; clip-path: none; transition: none; }
+  * { animation-duration: 0.001s !important; }
+}
+
+/* 7. نوار روز/شب ---------------------------------------------------------
+   ایده از سایت مرجع دوم: یک نوار که ساعت روز را جابه‌جا می‌کند و کل پالت را
+   تدریجی از سپیده به شب می‌برد. برای پنل، نسخه‌ی جمع‌وجور آن در نوار بالا
+   می‌نشیند: مسیر رنگی روز→شب، دستگیره‌ی خورشید/ماه و برچسب فاز.
+   ------------------------------------------------------------------------ */
+.dl {
+  --dl-track: 96px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-2);
+  transition: var(--ground-transition);
+}
+.dl-track {
+  position: relative;
+  width: var(--dl-track);
+  height: 14px;
+  border-radius: 1px;
+  background: linear-gradient(90deg,
+    #1b2233 0%, #33465f 12%, #b0748c 26%, #e7c48a 42%,
+    #e8dfc1 55%, #e5b183 72%, #a75f3c 84%, #1b2233 100%);
+  overflow: hidden;
+}
+.dl-track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 12px);
+  opacity: 0.5;
+}
+.dl-knob {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 12px rgba(255, 220, 150, 0.9);
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: left 0.08s linear;
+}
+.dl-phase { font-size: 11px; font-weight: 500; min-width: 34px; text-align: center; }
+.dl-clock {
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: center;
+}
+.dl input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  direction: ltr;
+}
+.dl-wrap { position: relative; width: var(--dl-track); height: 14px; }
+.dl input[type='range']:focus-visible + .dl-focus { outline: 2px solid var(--ink); outline-offset: 3px; }
+.dl-ico { color: var(--ink-3); display: inline-flex; }
+
+/* نسخه‌ی بزرگ نوار برای صفحه‌ی اصلی و ورود */
+.dl-hero {
+  display: grid;
+  gap: 10px;
+  width: min(420px, 100%);
+}
+.dl-hero .dl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.dl-hero .dl-hero-track {
+  position: relative;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(90deg,
+    #11182a 0%, #2a3b52 10%, #8f5f75 22%, #dfae74 34%, #f3e3c2 46%,
+    #f6ead2 56%, #edc193 68%, #b06a44 82%, #241d2b 92%, #0b0d11 100%);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.dl-hero .dl-hero-track::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 26px);
+}
+.dl-hero .dl-hero-knob {
+  position: absolute; top: -5px; width: 2px; height: 36px;
+  background: var(--ink);
+  transform: translateX(-50%);
+  transition: left 0.1s linear;
+}
+.dl-hero .dl-hero-knob::after {
+  content: '';
+  position: absolute; left: 50%; top: -6px;
+  width: 8px; height: 8px; margin-left: -4px;
+  background: var(--ink);
+  border-radius: 50%;
+}
+.dl-hero input[type='range'] {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; opacity: 0; cursor: ew-resize; direction: ltr;
+}
+.dl-hero .dl-scale {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-label); font-size: 10px; color: var(--ink-4);
+}
+
+/* 8. اصلاح‌های موبایل ---------------------------------------------------- */
+@media (max-width: 900px) {
+  .sidebar {
+    border-inline-end: 0;
+    border-inline-start: 0;
+    border-top: 1px solid var(--line);
+  }
+  .nav-item.active::before { inset-inline-start: -12px; }
+  .topbar { padding-inline: 14px; }
+  .dl { --dl-track: 76px; padding: 0 8px; }
+  .dl-clock { display: none; }
+}
+@media (max-width: 560px) {
+  .dl-phase { display: none; }
+  .dl { padding: 0 6px; }
+}
+
+/* 9. اصلاح‌های ریز ------------------------------------------------------- */
+
+/* آیکن‌ها در دکمه‌های مربعی جمع می‌شدند: `svg{max-width:100%}` همراه با
+   flex-shrink باعث می‌شد آیکن منو در موبایل به چند پیکسل برسد. */
+.btn svg,
+.btn-icon svg,
+.topbar svg,
+.adm-top svg {
+  flex: 0 0 auto;
+  max-width: none;
+}
+.btn-icon svg { width: 18px; height: 18px; }
+.btn-icon.btn-sm svg { width: 15px; height: 15px; }
+
+@media (max-width: 560px) {
+  /* عدد آماری در موبایل کوچک‌تر می‌نشیند تا واحد «میلیون» جدا نیفتد. */
+  .stat-value { font-size: 26px; }
+  .stat-value small { font-size: 11px; }
+  .stat { padding: 16px; }
+  .card-body, .card-head, .card-foot { padding-inline: 16px; }
+}
+
+/* چک‌لیست راه‌اندازی: برچسب بلند دو خط می‌شود و مربع وضعیت وسط دو خط
+   می‌افتاد، طوری که یک ردیف خالی به نظر می‌رسید. حالا هر دو از بالا هم‌تراز
+   می‌شوند و مربع روی خط اول می‌نشیند. */
+.setup-step { align-items: flex-start; }
+.setup-step > span:first-child { margin-top: 1.5px; }
+.setup-step > span:last-child { line-height: 1.7; }
