@@ -3,10 +3,6 @@ import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
-import { InstagramService } from '../instagram/instagram.service';
-import { InstagramClient } from '../instagram/instagram.client';
-import { instagramConfigured, readInstagramConfig } from '../instagram/instagram.config';
-import { toPlainText } from '../instagram/format';
 
 /**
  * «گفتگوها و مشتریان» — همان چیزی که تا امروز فقط در تلگرام بود.
@@ -69,8 +65,7 @@ export class ChatService {
       return {
         id: row.id,
         chatId: row.chatId,
-        channel: InstagramService.isInstagramChat(row.chatId) ? 'instagram' : 'telegram',
-        name: ChatService.displayName(row),
+        name: row.firstName || (row.username ? `@${row.username}` : 'مشتری تلگرام'),
         username: row.username,
         messageCount: counts.get(row.chatId) ?? row.messageCount,
         lastMessage: last ? { id: last.id, text: last.text.slice(0, 120), direction: last.direction, at: last.createdAt.toISOString() } : null,
@@ -90,19 +85,6 @@ export class ChatService {
         open: items.length,
       },
     };
-  }
-
-  /**
-   * نام نمایشی مشتری.
-   *
-   * چرا کانال هم مهم است: از وقتی دایرکت اینستاگرام هم در همین صندوق ورودی
-   * می‌نشیند، «مشتری تلگرام» برای یک پیام اینستاگرامی گمراه‌کننده است. پیشوند
-   * `ig:` روی `chatId` دقیقاً همین را نشان می‌دهد.
-   */
-  private static displayName(row: { chatId: string; firstName: string; username: string }): string {
-    const label = InstagramService.isInstagramChat(row.chatId) ? 'مشتری اینستاگرام' : 'مشتری تلگرام';
-    if (row.firstName?.trim()) return row.firstName;
-    return row.username ? `@${row.username}` : label;
   }
 
   /** رشته‌ی پیام‌های یک گفتگو + مشخصات مشتری و سفارش‌هایش. */
@@ -132,8 +114,7 @@ export class ChatService {
       conversation: {
         id: conversation.id,
         chatId: conversation.chatId,
-        channel: InstagramService.isInstagramChat(conversation.chatId) ? 'instagram' : 'telegram',
-        name: ChatService.displayName(conversation),
+        name: conversation.firstName || (conversation.username ? `@${conversation.username}` : 'مشتری تلگرام'),
         username: conversation.username,
         lastSeenAt: conversation.lastSeenAt.toISOString(),
         createdAt: conversation.createdAt.toISOString(),
@@ -165,19 +146,9 @@ export class ChatService {
     const conversation = await this.db.telegramConversation.findFirst({ where: { shopId, chatId } });
     if (!conversation) throw new NotFoundException('این گفتگو پیدا نشد.');
 
-    // مسیر ارسال به کانال مشتری بستگی دارد: دایرکت اینستاگرام یا چت تلگرام.
-    // انتخاب با پیشوند `chatId` است، نه با یک فیلد جدا، تا گفتگوهای قدیمی که
-    // قبل از این تغییر ساخته شده‌اند هم درست مسیریابی شوند.
-    const sent = InstagramService.isInstagramChat(chatId)
-      ? await this.sendInstagram(shopId, chatId, text)
-      : await this.telegram.sendTo(chatId, text);
+    const sent = await this.telegram.sendTo(chatId, text);
     if (!sent) {
-      return {
-        ok: false as const,
-        error: InstagramService.isInstagramChat(chatId)
-          ? 'ارسال نشد؛ اتصال اینستاگرام را در تنظیمات بررسی کنید.'
-          : 'ارسال نشد؛ اتصال تلگرام را بررسی کنید.',
-      };
+      return { ok: false as const, error: 'ارسال نشد؛ اتصال تلگرام را بررسی کنید.' };
     }
     const message = await this.db.chatMessage.create({
       data: { shopId, chatId, direction: 'out', author: 'seller', text },
@@ -186,50 +157,12 @@ export class ChatService {
     this.realtime.emitShop(shopId, 'chat', { chatId, messageId: message.id, author: 'seller' });
     this.audit.record({
       action: 'chat.seller_reply', entity: 'conversation', entityId: conversation.id,
-      shopId, userId,
-      meta: {
-        chatId,
-        length: text.length,
-        channel: InstagramService.isInstagramChat(chatId) ? 'instagram' : 'telegram',
-      },
+      shopId, userId, meta: { chatId, length: text.length },
     });
     return {
       ok: true as const,
       message: { id: message.id, direction: 'out', text: message.text, at: message.createdAt.toISOString() },
     };
-  }
-
-  /**
-   * ارسال پاسخ فروشنده از پنل به دایرکت اینستاگرام.
-   *
-   * پیج از `Channel` همین فروشگاه خوانده می‌شود؛ اگر فروشگاه پیجی وصل نکرده
-   * باشد، پیام ارسال نمی‌شود و خطا برمی‌گردد (پنل نباید وانمود کند پیام رفت).
-   *
-   * چرا کلاینت را مستقیم می‌سازیم و سرویس را تزریق نمی‌کنیم: `InstagramService`
-   * به `TelegramService` (برای اعلان فروشنده) وابسته است و این سرویس در همان
-   * ماژول تلگرام است؛ تزریق دوطرفه فقط یک چرخه‌ی ماژولی بی‌فایده می‌ساخت.
-   * ساختن کلاینت با همان env، رفتار یکسان می‌دهد بدون وابستگی حلقه‌ای.
-   */
-  private async sendInstagram(shopId: string, chatId: string, text: string): Promise<boolean> {
-    const config = readInstagramConfig();
-    if (!instagramConfigured(config)) return false;
-    const channel = await this.db.channel.findFirst({
-      where: { shopId, instagramAccountId: { not: null } },
-      select: { instagramAccountId: true },
-    });
-    if (!channel?.instagramAccountId) return false;
-
-    const client = new InstagramClient(config);
-    const result = await client.sendMessage(channel.instagramAccountId, {
-      recipientId: InstagramService.recipientOf(chatId),
-      message: toPlainText(text).slice(0, 1000),
-    });
-    if (!result.ok) {
-      this.audit.record({
-        action: 'instagram.send_failed', entity: 'conversation', shopId, meta: { chatId, error: result.error },
-      });
-    }
-    return result.ok;
   }
 
   /**
@@ -283,8 +216,7 @@ export class ChatService {
       const order = stat.get(row.chatId);
       return {
         chatId: row.chatId,
-        channel: InstagramService.isInstagramChat(row.chatId) ? 'instagram' : 'telegram',
-        name: ChatService.displayName(row),
+        name: row.firstName || (row.username ? `@${row.username}` : 'مشتری تلگرام'),
         username: row.username,
         messageCount: messageCount.get(row.chatId) ?? row.messageCount,
         orders: order?.orders ?? 0,

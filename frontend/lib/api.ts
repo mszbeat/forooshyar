@@ -104,39 +104,6 @@ export type TelegramStatus = {
   ownerLinkedAt: string | null;
   conversations: number;
 };
-/** وضعیت کانال اینستاگرام (BoxAPI) — هیچ توکنی در این پاسخ نیست. */
-export type InstagramAccount = {
-  id: string;
-  username: string;
-  profilePhoto: string;
-  active: boolean;
-  expiresAt: string | null;
-  /** پیجی که همین حالا به این فروشگاه وصل است. */
-  mine: boolean;
-};
-
-export type InstagramStatus = {
-  /** سمت سرور آماده است (کلید API تنظیم شده). */
-  configured: boolean;
-  /** دکمه‌ی «اتصال پیج» قابل نمایش است (لینک ورود حساب تنظیم شده). */
-  connectable: boolean;
-  /** پیج این فروشگاه؛ هر فروشگاه پیج خودش را دارد. */
-  accountLinked: boolean;
-  account: {
-    id: string;
-    username: string;
-    profilePhoto: string;
-    expiresAt: string | null;
-    daysLeft: number | null;
-    active: boolean;
-    linkedAt: string | null;
-  } | null;
-  webhookUrl: string;
-  webhookUrlIsHttps: boolean;
-  signatureEnforced: boolean;
-  stats: { messages: number; conversations: number; lastEventAt: string | null; lastEventAction: string };
-};
-
 export type OrderStatus = 'AWAITING_PAYMENT' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED';
 export type OrderItem = {
   id: string; title: string; spec: string; price: number; quantity: number; variantId: string | null;
@@ -248,8 +215,6 @@ export async function request<T>(path: string, { body, auth = true, headers = {}
 export type ConversationSummary = {
   id: string;
   chatId: string;
-  /** کانال مشتری؛ پیش‌فرض «تلگرام» است. */
-  channel?: 'telegram' | 'instagram';
   name: string;
   username: string;
   messageCount: number;
@@ -276,11 +241,7 @@ export type ThreadMessage = {
   orderId?: string | null;
 };
 export type ConversationThread = {
-  conversation: {
-    id: string; chatId: string; name: string; username: string;
-    channel?: 'telegram' | 'instagram';
-    lastSeenAt: string; createdAt: string;
-  };
+  conversation: { id: string; chatId: string; name: string; username: string; lastSeenAt: string; createdAt: string };
   messages: ThreadMessage[];
   orders: { id: string; code: string; status: OrderStatus; total: number; createdAt: string }[];
 };
@@ -352,29 +313,6 @@ export const api = {
   telegramOwnerCode: () => request<TelegramOwnerCode>('/channel/telegram/owner-code', { method: 'POST' }),
   telegramDisconnectOwner: () => request<TelegramStatus>('/channel/telegram/disconnect-owner', { method: 'POST' }),
   telegramDisable: () => request<TelegramStatus>('/channel/telegram', { method: 'DELETE' }),
-
-  instagramStatus: () => request<InstagramStatus>('/instagram/status'),
-  /** پیج‌های آماده‌ی انتخاب (از BoxAPI، فیلترشده برای همین فروشگاه). */
-  /** لینک ورود حساب (فقط هنگام کلیک و با احراز هویت؛ در `status` نمی‌آید). */
-  instagramConnectUrl: () =>
-    request<{ ok: boolean; url?: string; error?: string }>('/instagram/connect-url'),
-  instagramAccounts: () =>
-    request<{ ok: boolean; items: InstagramAccount[]; error?: string }>('/instagram/accounts'),
-  instagramLink: (accountId: string) =>
-    request<{ ok: boolean; username?: string; error?: string }>('/instagram/link', {
-      method: 'POST',
-      body: { accountId },
-    }),
-  instagramUnlink: () => request<{ ok: boolean; error?: string }>('/instagram/link', { method: 'DELETE' }),
-  /** آخرین رویدادهای webhook همین پیج (برای عیب‌یابی «دایرکت آمد یا نه»). */
-  instagramEvents: () =>
-    request<{ ok: boolean; items: { eventType: string; at: string; summary: string }[] }>('/instagram/events'),
-  /** ارسال پیام آزمایشی به یک IGSID (شناسه‌ی گیرنده در دایرکت). */
-  instagramTest: (recipientId: string) =>
-    request<{ ok: boolean; message?: string; error?: string }>('/instagram/test', {
-      method: 'POST',
-      body: { recipientId },
-    }),
 
   orders: (query: { status?: string; limit?: number } = {}) => {
     const params = new URLSearchParams();
