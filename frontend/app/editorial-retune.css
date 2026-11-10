@@ -278,3 +278,12 @@ html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-cell .v{color:#
 @media (max-width: 420px) {
   .orders-kpi-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Chart hover card: JS clamps its measured center to the chart bounds; permit
+   the card to shrink on narrow phones so even edge data points stay readable. */
+.sales-chart-tooltip {
+  min-width: min(174px, calc(100% - 20px));
+  max-width: calc(100% - 20px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
