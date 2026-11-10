@@ -5,6 +5,7 @@ import './globals.css';
 // لایه‌ی طراحی v3: پالت پنج‌گانه‌ی نور روز، تایپوگرافی تحریریه‌ای و حرکت.
 // بعد از globals.css می‌آید تا توکن‌ها و اجزای نسخه‌ی قبل را بازنویسی کند.
 import './design-v3.css';
+import './editorial-retune.css';
 import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/components/ui';
 import { MotionBoot } from '@/components/reveal';
@@ -25,7 +26,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" suppressHydrationWarning>
       <head>
         {/* اعمال تم پیش از رنگ‌آمیزی اول — جلوگیری از پرشِ سفید به تیره */}
         <script

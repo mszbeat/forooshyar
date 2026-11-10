@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import './landing.css';
+import './grain-landing.css';
 import {
   IconArrowLeft, IconBolt, IconChat, IconCheckCircle, IconLogo, IconPackage,
   IconShield, IconSparkles, IconStore, IconTrendUp, IconUpload, IconClock,
