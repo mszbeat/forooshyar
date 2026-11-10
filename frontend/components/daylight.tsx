@@ -105,11 +105,37 @@ function rgbValue(value: string): [number, number, number] | null {
   const rgb = value.match(/rgba?\((\d+(?:\.\d+)?)[, ]+\s*(\d+(?:\.\d+)?)[, ]+\s*(\d+(?:\.\d+)?)/i);
   return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : null;
 }
+function toOklab(color: string): [number, number, number] | null {
+  const srgb = rgbValue(color);
+  if (!srgb) return null;
+  const [r, g, b] = srgb.map(v => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+  const l = Math.cbrt(0.4122214708*r + 0.5363325363*g + 0.0514459929*b);
+  const m = Math.cbrt(0.2119034982*r + 0.6806995451*g + 0.1073969566*b);
+  const s = Math.cbrt(0.0883024619*r + 0.2817188376*g + 0.6299787005*b);
+  return [0.2104542553*l + 0.7936177850*m - 0.0040720468*s, 1.9779984951*l - 2.4285922050*m + 0.4505937099*s, 0.0259040371*l + 0.7827717662*m - 0.8086757660*s];
+}
+function fromOklab(L: number, a: number, b: number) {
+  const l = (L + 0.3963377774*a + 0.2158037573*b) ** 3;
+  const m = (L - 0.1055613458*a - 0.0638541728*b) ** 3;
+  const s = (L - 0.0894841775*a - 1.2914855480*b) ** 3;
+  const linear = [4.0767416621*l - 3.3077115913*m + 0.2309699292*s, -1.2684380046*l + 2.6097574011*m - 0.3413193965*s, -0.0041960863*l - 0.7034186147*m + 1.7076147010*s];
+  const channel = (v: number) => Math.round(255 * (v <= 0.0031308 ? 12.92*v : 1.055*Math.max(0,v)**(1/2.4)-0.055));
+  return `rgb(${linear.map(channel).join(' ')})`;
+}
 function blendColor(from: string, to: string, amount: number) {
-  const a = rgbValue(from), b = rgbValue(to);
+  const a = toOklab(from), b = toOklab(to);
   if (!a || !b) return amount < 0.5 ? from : to;
-  const channels = a.map((value, i) => Math.round(value + (b[i] - value) * amount));
-  return `rgb(${channels[0]} ${channels[1]} ${channels[2]})`;
+  return fromOklab(a[0] + (b[0]-a[0])*amount, a[1] + (b[1]-a[1])*amount, a[2] + (b[2]-a[2])*amount);
+}
+function luminance(color: string) {
+  const channels = rgbValue(color);
+  if (!channels) return 0;
+  const linear = channels.map(value => { const c = value/255; return c <= 0.04045 ? c/12.92 : ((c+0.055)/1.055)**2.4; });
+  return linear[0]*0.2126 + linear[1]*0.7152 + linear[2]*0.0722;
+}
+function contrast(a: string, b: string) {
+  const values = [luminance(a), luminance(b)].sort((x,y) => y-x);
+  return (values[0]+0.05)/(values[1]+0.05);
 }
 
 function apply(minutes: number) {
@@ -129,6 +155,17 @@ function apply(minutes: number) {
   for (const token of COLOR_TOKENS) {
     root.style.setProperty(token, blendColor(palettes[left.key][token], palettes[right.key][token], amount));
   }
+
+  // در گذار سپیده/غروب، متن را هم‌زمان با زمینه خاکستری نمی‌کنیم؛ رنگ متن
+  // از دو گزینهٔ روشن/تیره، آنی با بیشترین کنتراست نسبت به زمینه را می‌گیرد.
+  const background = root.style.getPropertyValue('--bg');
+  for (const token of ['--ink', '--ink-2', '--ink-3', '--ink-4']) {
+    const darkText = palettes.midday[token];
+    const lightText = palettes.night[token];
+    root.style.setProperty(token, contrast(darkText, background) >= contrast(lightText, background) ? darkText : lightText);
+  }
+  const brandBackground = root.style.getPropertyValue('--brand');
+  root.style.setProperty('--brand-ink', contrast(palettes.midday['--brand-ink'], brandBackground) >= contrast(palettes.night['--brand-ink'], brandBackground) ? palettes.midday['--brand-ink'] : palettes.night['--brand-ink']);
 
   root.style.colorScheme = phase.key === 'night' ? 'dark' : 'light';
   root.querySelector('meta[name="theme-color"]')?.setAttribute(
