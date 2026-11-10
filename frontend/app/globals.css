@@ -1214,7 +1214,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
    فضای فنی و دقیق. هر دو از همان توکن‌ها استفاده می‌کنند تا یک محصول به نظر
    برسند، نه دو اپلیکیشن.
    ========================================================================== */
-.adm-shell { display: grid; grid-template-columns: 258px 1fr; min-height: 100dvh; background: var(--bg); }
+.adm-shell { display: grid; width: 100%; max-width: none; min-width: 0; grid-template-columns: minmax(0, 258px) minmax(0, 1fr); min-height: 100dvh; background: var(--bg); }
 
 .adm-side {
   position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column;
