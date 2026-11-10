@@ -41,10 +41,22 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
       const chartRect = chart.getBoundingClientRect();
       const svgRect = svg.getBoundingClientRect();
       const pointX = svgRect.left - chartRect.left - chart.clientLeft + (point.x / W) * svgRect.width;
+      const plotTop = svgRect.top - chartRect.top - chart.clientTop;
+      const plotBottom = plotTop + svgRect.height;
+      const pointY = plotTop + (point.y / H) * svgRect.height;
       const half = tooltip.offsetWidth / 2;
-      const min = half + 8;
-      const max = chart.clientWidth - half - 8;
-      tooltip.style.left = `${Math.max(min, Math.min(max, pointX))}px`;
+      const minX = half + 8;
+      const maxX = chart.clientWidth - half - 8;
+      tooltip.style.left = `${Math.max(minX, Math.min(maxX, pointX))}px`;
+
+      const tooltipHeight = tooltip.offsetHeight;
+      const gap = 10;
+      const above = pointY - tooltipHeight - gap >= plotTop + 8;
+      const preferredTop = above ? pointY - tooltipHeight - gap : pointY + gap;
+      const minY = plotTop + 8;
+      const maxY = plotBottom - tooltipHeight - 8;
+      tooltip.style.top = `${Math.max(minY, Math.min(maxY, preferredTop))}px`;
+      tooltip.style.transform = 'translateX(-50%)';
     };
 
     placeTooltip();
@@ -106,7 +118,7 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
         ))}
       </svg>
       {hovered !== null && points[hovered] && (
-        <div ref={tooltipRef} className="sales-chart-tooltip" style={{ left: '50%', top: `${Math.max(25, (points[hovered].y / H) * 100)}%` }} aria-live="polite">
+        <div ref={tooltipRef} className="sales-chart-tooltip" style={{ left: '50%', top: '50%' }} aria-live="polite">
           <b>{faWeekday(points[hovered].point.date)}</b>
           <span>{metric === 'revenue' ? `${tomanShort(points[hovered].point.revenue)} تومان` : `${faNum(points[hovered].point.units)} قلم`}</span>
           <small>{faNum(points[hovered].point.units)} قلم فروش</small>
