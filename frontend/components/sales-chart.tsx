@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Summary } from '@/lib/api';
 import { faNum, faWeekday, tomanShort } from '@/lib/format';
 
@@ -8,6 +8,15 @@ type Metric = 'revenue' | 'units';
 
 export function SalesChart({ series, metric }: { series: Summary['sales']['series']; metric: Metric }) {
   const [hovered, setHovered] = useState<number | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showPoint = (index: number) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHovered(index), 120);
+  };
+  const hidePoint = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHovered(null), 220);
+  };
   const W = 760, H = 270, left = 58, right = 14, top = 18, bottom = 42;
   const innerW = W - left - right, innerH = H - top - bottom;
   const values = series.map(point => metric === 'revenue' ? point.revenue : point.units);
@@ -63,8 +72,8 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
             <title>{`${faWeekday(point.date)} · ${metric === 'revenue' ? tomanShort(point.revenue) + ' تومان' : faNum(point.units) + ' قلم'} · ${faNum(point.units)} قلم`}</title>
             <circle cx={x} cy={y} r="16" fill="transparent" className="sales-hover-target" tabIndex={0} role="button"
               aria-label={`${faWeekday(point.date)}: ${metric === 'revenue' ? tomanShort(point.revenue) + ' تومان' : faNum(point.units) + ' قلم'}, ${faNum(point.units)} قلم`}
-              onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)}
-              onFocus={() => setHovered(index)} onBlur={() => setHovered(null)} />
+              onPointerEnter={() => showPoint(index)} onPointerLeave={hidePoint}
+              onFocus={() => showPoint(index)} onBlur={hidePoint} />
             <circle cx={x} cy={y} r={hovered === index ? 8 : 7} className="sales-point-halo" />
             <circle cx={x} cy={y} r={hovered === index ? 4.5 : 3.5} className="sales-point" />
             <text x={x} y={H - 13} textAnchor="middle" className="sales-axis-label sales-x-label">{faWeekday(point.date)}</text>

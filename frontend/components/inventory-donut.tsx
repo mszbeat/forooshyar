@@ -1,10 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { faNum } from '@/lib/format';
 
 export function InventoryDonut({ total, low, out }: { total: number; low: number; out: number }) {
   const [hovered, setHovered] = useState<'healthy' | 'low' | 'out' | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleHover = (value: 'healthy' | 'low' | 'out' | null) => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHovered(value), value ? 140 : 220);
+  };
   const safeTotal = Math.max(0, total);
   const safeOut = Math.min(safeTotal, Math.max(0, out));
   const safeLow = Math.min(safeTotal - safeOut, Math.max(0, low));
@@ -30,7 +35,7 @@ export function InventoryDonut({ total, low, out }: { total: number; low: number
             {arcs.map(arc => arc.length > 0 && (
               <circle key={arc.cls} cx="44" cy="44" r={radius} className={`inventory-ring-arc ${arc.cls}${hovered === arc.cls ? ' is-hovered' : ''}`}
                 strokeDasharray={`${arc.length} ${circumference - arc.length}`} strokeDashoffset={-arc.offset}
-                onPointerEnter={() => setHovered(arc.cls as 'healthy' | 'low' | 'out')} onPointerLeave={() => setHovered(null)}>
+                onPointerEnter={() => scheduleHover(arc.cls as 'healthy' | 'low' | 'out')} onPointerLeave={() => scheduleHover(null)}>
                 <title>{`${arc.cls === 'healthy' ? 'موجودی مناسب' : arc.cls === 'low' ? 'موجودی کم' : 'ناموجود'}: ${faNum(arc.value)} واریانت`}</title>
               </circle>
             ))}
@@ -38,11 +43,13 @@ export function InventoryDonut({ total, low, out }: { total: number; low: number
           <span><b>{safeTotal ? faNum(safeTotal) : '—'}</b><small>واریانت</small></span>
         </div>
         <div className="inventory-legend">
-          <div onPointerEnter={() => setHovered('healthy')} onPointerLeave={() => setHovered(null)}><i className="healthy"/><span>موجودی مناسب</span><b>{faNum(healthy)}</b></div>
-          <div onPointerEnter={() => setHovered('low')} onPointerLeave={() => setHovered(null)}><i className="low"/><span>موجودی کم</span><b>{faNum(safeLow)}</b></div>
-          <div onPointerEnter={() => setHovered('out')} onPointerLeave={() => setHovered(null)}><i className="out"/><span>ناموجود</span><b>{faNum(safeOut)}</b></div>
-          {hovered && <div className="inventory-hover-tip" aria-live="polite">{hovered === 'healthy' ? 'موجودی مناسب' : hovered === 'low' ? 'موجودی کم' : 'ناموجود'}: {faNum(hovered === 'healthy' ? healthy : hovered === 'low' ? safeLow : safeOut)} واریانت</div>}
+          <div onPointerEnter={() => scheduleHover('healthy')} onPointerLeave={() => scheduleHover(null)}><i className="healthy"/><span>موجودی مناسب</span><b>{faNum(healthy)}</b></div>
+          <div onPointerEnter={() => scheduleHover('low')} onPointerLeave={() => scheduleHover(null)}><i className="low"/><span>موجودی کم</span><b>{faNum(safeLow)}</b></div>
+          <div onPointerEnter={() => scheduleHover('out')} onPointerLeave={() => scheduleHover(null)}><i className="out"/><span>ناموجود</span><b>{faNum(safeOut)}</b></div>
         </div>
+      </div>
+      <div className={`inventory-hover-tip${hovered ? ' active' : ''}`} aria-live="polite" aria-hidden={!hovered}>
+        {hovered ? <><span>{hovered === 'healthy' ? 'موجودی مناسب' : hovered === 'low' ? 'موجودی کم' : 'ناموجود'}</span><b>{faNum(hovered === 'healthy' ? healthy : hovered === 'low' ? safeLow : safeOut)} <small>واریانت</small></b></> : <span className="inventory-tip-hint">برای دیدن جزئیات، روی نمودار یا برچسب‌ها مکث کنید</span>}
       </div>
     </div>
   );
