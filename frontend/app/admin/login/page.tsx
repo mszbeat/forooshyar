@@ -5,6 +5,8 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi, adminToken, AdminError } from '@/lib/admin';
 import { Field, Spinner } from '@/components/ui';
+import Link from 'next/link';
+import { ThemeToggle } from '@/components/theme';
 import { IconAlertCircle, IconArrowLeft, IconCheckCircle, IconEye, IconShield } from '@/components/icons';
 
 const CHECKS = [
@@ -52,6 +54,7 @@ export default function AdminLoginPage() {
 
   return (
     <div className="adm-login">
+      <div className="authx-page-tools"><Link href="/" className="authx-home" aria-label="رفتن به صفحهٔ اصلی سایت"><span>صفحهٔ اصلی</span></Link><ThemeToggle /></div>
       <aside className="adm-login-side">
         <div className="adm-brand" style={{ borderBottom: '1px solid rgba(255,255,255,0.12)', paddingBottom: 16 }}>
           <span className="glyph"><IconShield size={19} /></span>
