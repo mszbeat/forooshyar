@@ -7,6 +7,7 @@ import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
 import { readTelegramConfig, TelegramClient } from '../telegram/telegram.client';
 import { SettingsService } from './settings.service';
+import { databaseUrl } from '../config';
 import { listModels } from './model-catalog';
 
 export type AdminIdentity = { id: string; email: string; name: string };
@@ -270,8 +271,13 @@ export class AdminService implements OnModuleInit {
    * می‌تواند وصل شود؛ کلاینت موقت بلافاصله بسته می‌شود.
    */
   async probeDatabase(url: string) {
-    const candidate = url.trim() || this.settings.databaseUrl();
-    const client = new PrismaClient({ datasources: { db: { url: candidate } }, log: [] });
+    const requested = url.trim();
+    const candidate = requested || this.settings.databaseUrl();
+    // ورودی خالی یعنی آزمون اتصال واقعاً فعال (همان pool سرویس)، نه بازکردن pool تازه.
+    // برای آدرس صریح نیز اگر دقیقاً همان env زمان اجرای Prisma باشد، pool مشترک را استفاده کن.
+    // PrismaClient موقت برای هر probe در poolerهای محدود می‌توانست max clients بدهد.
+    const usesCurrentPool = !requested || candidate === databaseUrl(process.env);
+    const client = usesCurrentPool ? this.db : new PrismaClient({ datasources: { db: { url: candidate } }, log: [] });
     const started = Date.now();
     try {
       const [row] = await Promise.race([
@@ -292,7 +298,7 @@ export class AdminService implements OnModuleInit {
     } catch (error) {
       return { ok: false, latencyMs: Date.now() - started, error: error instanceof Error ? error.message.slice(0, 300) : 'خطای نامشخص' };
     } finally {
-      await client.$disconnect().catch(() => undefined);
+      if (!usesCurrentPool) await client.$disconnect().catch(() => undefined);
     }
   }
 

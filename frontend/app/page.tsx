@@ -123,6 +123,7 @@ const bento = [
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -404,8 +405,8 @@ export default function LandingPage() {
           </div>
           <div className="faq">
             {faqs.map((faq, index) => (
-              <details key={faq.q} open={index === 0}>
-                <summary>
+              <details key={faq.q} open={openFaq === index}>
+                <summary onClick={event => { event.preventDefault(); setOpenFaq(current => current === index ? null : index); }}>
                   {faq.q}
                   <span className="sign" aria-hidden="true" />
                 </summary>

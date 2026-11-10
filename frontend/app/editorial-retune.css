@@ -144,3 +144,26 @@ html[data-theme='dark'] { --chart-blue:#8da3ff;--chart-teal:#62e7d4; }
 .inventory-legend>div {display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;gap:7px;font-size:10px;color:rgba(238,243,255,.74)}
 .inventory-legend i {width:7px;height:7px;border-radius:50%}.inventory-legend i.healthy{background:#4fe0c4}.inventory-legend i.low{background:#f3bd68}.inventory-legend i.out{background:#ff7686}.inventory-legend b{font-size:10px;color:#fff;font-weight:700}
 @media(max-width:600px){.inventory-health{padding:11px}.inventory-health-body{gap:13px}.inventory-ring{flex-basis:86px;width:86px;height:86px}}
+
+/* Final usability polish from review screenshots. */
+.adm-nav-toggle{display:none!important}
+.sales-chart-tooltip{position:absolute;z-index:3;transform:translate(-50%,-115%);display:grid;gap:2px;min-width:116px;padding:9px 11px;border:1px solid rgba(190,207,255,.28);border-radius:10px;background:#091426;color:#f5f8ff;box-shadow:0 10px 26px rgba(0,0,0,.32);font-size:11px;pointer-events:none;white-space:nowrap}
+.sales-chart-tooltip b{color:#83e8d7;font-size:10px}.sales-chart-tooltip small{color:#bdcbe0;font-size:9px}
+.sales-hover-target{cursor:crosshair;outline:none}.sales-hover-target:focus{stroke:#fff;stroke-width:2}
+.inventory-ring-arc{cursor:pointer}.inventory-ring-arc.is-hovered{stroke-width:11}
+.inventory-legend>div{cursor:pointer}.inventory-hover-tip{grid-column:1/-1;color:#baf5e8!important;background:rgba(3,15,28,.72);padding:5px 8px;border-radius:6px;font-weight:700}
+@media(max-width:760px){
+ .land .bento{grid-template-columns:minmax(0,1fr)!important}
+ .land .bento>.tile,.land .bento>.tile.wide,.land .bento>.tile.span-3{grid-column:auto!important;min-width:0}
+ .land .tile h3,.land .tile-text{overflow-wrap:anywhere;word-break:normal}
+ .land .cta .btn-ghost{color:#f5f8ff!important;border-color:rgba(245,248,255,.55)!important}
+ .land .cta .btn-ghost:hover{background:rgba(255,255,255,.12)!important;color:#fff!important}
+ .authx-page-tools{position:absolute;inset:6px 7px auto;z-index:30;width:auto;display:flex;justify-content:space-between;pointer-events:none}
+ .authx-page-tools>*{pointer-events:auto}
+ .authx-home,.authx-page-tools .theme-toggle{width:32px;height:32px;min-width:32px;padding:0;justify-content:center;border-radius:8px;background:color-mix(in srgb,var(--bg) 90%,transparent);box-shadow:0 2px 8px rgba(12,20,36,.12)}
+ .authx-home span{display:none}
+ .authx-page-tools .theme-toggle svg,.authx-home svg{width:15px;height:15px}
+}
+@media(max-width:980px){.adm-nav-toggle{display:inline-flex!important}}
+.land .cta .btn-ghost{color:#f5f8ff!important;border-color:rgba(245,248,255,.55)!important;background:rgba(7,18,34,.28)}
+.land .cta .btn-ghost:hover{background:rgba(255,255,255,.13)!important;color:#fff!important}

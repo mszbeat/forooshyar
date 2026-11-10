@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import type { Summary } from '@/lib/api';
 import { faNum, faWeekday, tomanShort } from '@/lib/format';
 
 type Metric = 'revenue' | 'units';
 
 export function SalesChart({ series, metric }: { series: Summary['sales']['series']; metric: Metric }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const W = 760, H = 270, left = 58, right = 14, top = 18, bottom = 42;
   const innerW = W - left - right, innerH = H - top - bottom;
   const values = series.map(point => metric === 'revenue' ? point.revenue : point.units);
@@ -31,8 +33,8 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
     : faNum(Math.round(max * ratio));
 
   return (
-    <div className="sales-chart" role="img" aria-label={metric === 'revenue' ? 'نمودار درآمد فروش روزانه' : 'نمودار تعداد فروش روزانه'}>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+    <div className="sales-chart" role="group" aria-label={metric === 'revenue' ? 'نمودار تعاملی درآمد فروش روزانه' : 'نمودار تعاملی تعداد فروش روزانه'}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         <defs>
           <linearGradient id="sales-area" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="var(--chart-blue)" stopOpacity=".34" />
@@ -56,15 +58,26 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
         })}
         {area && <path d={area} fill="url(#sales-area)" />}
         {line && <path d={line} fill="none" stroke="url(#sales-line)" strokeWidth="3" strokeLinecap="round" filter="url(#sales-glow)" />}
-        {points.map(({ x, y, point, value }) => (
+        {points.map(({ x, y, point, value }, index) => (
           <g key={point.date}>
             <title>{`${faWeekday(point.date)} · ${metric === 'revenue' ? tomanShort(point.revenue) + ' تومان' : faNum(point.units) + ' قلم'} · ${faNum(point.units)} قلم`}</title>
-            <circle cx={x} cy={y} r="7" className="sales-point-halo" />
-            <circle cx={x} cy={y} r="3.5" className="sales-point" />
+            <circle cx={x} cy={y} r="16" fill="transparent" className="sales-hover-target" tabIndex={0} role="button"
+              aria-label={`${faWeekday(point.date)}: ${metric === 'revenue' ? tomanShort(point.revenue) + ' تومان' : faNum(point.units) + ' قلم'}, ${faNum(point.units)} قلم`}
+              onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)}
+              onFocus={() => setHovered(index)} onBlur={() => setHovered(null)} />
+            <circle cx={x} cy={y} r={hovered === index ? 8 : 7} className="sales-point-halo" />
+            <circle cx={x} cy={y} r={hovered === index ? 4.5 : 3.5} className="sales-point" />
             <text x={x} y={H - 13} textAnchor="middle" className="sales-axis-label sales-x-label">{faWeekday(point.date)}</text>
           </g>
         ))}
       </svg>
+      {hovered !== null && points[hovered] && (
+        <div className="sales-chart-tooltip" style={{ left: `${Math.min(88, Math.max(12, (points[hovered].x / W) * 100))}%`, top: `${Math.max(25, (points[hovered].y / H) * 100)}%` }} aria-live="polite">
+          <b>{faWeekday(points[hovered].point.date)}</b>
+          <span>{metric === 'revenue' ? `${tomanShort(points[hovered].point.revenue)} تومان` : `${faNum(points[hovered].point.units)} قلم`}</span>
+          <small>{faNum(points[hovered].point.units)} قلم فروش</small>
+        </div>
+      )}
       <div className="sales-chart-legend"><i /> {metric === 'revenue' ? 'درآمد فروش' : 'تعداد اقلام فروخته‌شده'} <span>{metric === 'revenue' ? 'تومان' : 'قلم'}</span></div>
     </div>
   );
