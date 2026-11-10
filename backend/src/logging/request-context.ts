@@ -26,11 +26,12 @@ export function currentContext(): RequestContext | undefined {
 }
 
 /** Called by AuthGuard once the token is verified. */
-export function bindPrincipal(principal: { userId: string; shopId: string }): void {
+export function bindPrincipal(principal: { userId: string; shopId?: string }): void {
   const context = storage.getStore();
   if (!context) return;
   context.userId = principal.userId;
-  context.shopId = principal.shopId;
+  // ادمین پلتفرم فروشگاه ندارد؛ پس shopId فقط وقتی ست می‌شود که واقعاً باشد.
+  if (principal.shopId) context.shopId = principal.shopId;
 }
 
 let sequence = 0;

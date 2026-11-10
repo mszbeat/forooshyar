@@ -1,16 +1,19 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { discover, type CatalogProduct } from '../catalog/discovery';
 import { AiService } from '../ai/ai.service';
-import { answerWithAi } from '../ai/answer';
 import { OrdersService } from '../orders/orders.service';
 import { PaymentsService } from '../payments/payments.service';
 import { type BotButton, answerIntent, clarifyProducts, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
+import { addPersonality, resolveReply, type UnderstandResult } from '../ai/understand';
 import { MAX_CLARIFY_ROUNDS, type IntentId } from './understanding';
 import { applyInput, draftTitle, escapeHtml, fullAddress, promptFor, startDraft, type OrderDraft } from './order-flow';
 import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } from './telegram.client';
+import { actionOf, actionsKeyboard, BOT_COMMANDS, helpText, welcomeText } from './menu';
+import { isDeliveryConfirmation } from './delivery';
 
 type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
 /** پیامی که این پیام پاسخش است؛ برای «پاسخ فروشنده به مشتری» لازم است. */
@@ -75,7 +78,19 @@ export type HandleResult =
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger('Telegram');
-  private readonly client = new TelegramClient(readTelegramConfig());
+  /**
+   * کلاینت با اولین استفاده ساخته می‌شود و اگر توکن/آدرس عوض شود خودش را
+   * دوباره می‌سازد. لازم است چون پنل ادمین می‌تواند توکن بات را بدون ری‌استارت
+   * سرویس تغییر دهد و یک کلاینت ساخته‌شده با توکن قدیمی تا ابد کار نمی‌کرد.
+   */
+  private cached?: { client: TelegramClient; token: string; baseUrl: string };
+  private get client(): TelegramClient {
+    const config = readTelegramConfig();
+    if (!this.cached || this.cached.token !== config.token || this.cached.baseUrl !== config.baseUrl) {
+      this.cached = { client: new TelegramClient(config), token: config.token, baseUrl: config.baseUrl };
+    }
+    return this.cached.client;
+  }
 
   constructor(
     private readonly db: PrismaService,
@@ -84,6 +99,8 @@ export class TelegramService {
     @Inject(forwardRef(() => OrdersService)) private readonly orders: OrdersService,
     @Inject(forwardRef(() => PaymentsService)) private readonly payments: PaymentsService,
     private readonly ai: AiService,
+    // رخداد زنده برای پنل: پیام تازه، سفارش تازه، تغییر وضعیت.
+    private readonly realtime: RealtimeService,
   ) {}
 
   get configured(): boolean {
@@ -128,7 +145,7 @@ export class TelegramService {
     const text = (message.text ?? message.caption ?? '').trim();
     const forwarded = TelegramService.forwardSource(message);
 
-    const command = /^\/(start|help|link|stop|orders|reply|chat)(?:@\w+)?(?:\s+([\s\S]+))?$/u.exec(text);
+    const command = /^\/(start|help|link|stop|orders|products|reply|chat)(?:@\w+)?(?:\s+([\s\S]+))?$/u.exec(text);
 
     // دستورهای مربوط به «ورود به فروشگاه» همیشه اول: فروشنده هم باید بتواند
     // دوباره وصل شود یا گفتگو را ببندد؛ وگرنه یک‌بار که چت فروشنده ثبت شد،
@@ -143,7 +160,14 @@ export class TelegramService {
 
     if (command?.[1] === 'help') return this.help(chatId);
     if (command?.[1] === 'orders') return this.myOrders(chatId);
+    if (command?.[1] === 'products') return this.catalogMessage(chatId);
     if (text.startsWith('/')) return { status: 'ignored', reason: 'unknown_command' };
+
+    // دکمه‌های کیبورد پایین چت: تلگرام فقط متن می‌فرستد، پس اینجا به عملیات
+    // واقعی تبدیل می‌شوند (فهرست محصولات، راهنما، وصل‌شدن به فروشنده).
+    const action = actionOf(text);
+    if (action === 'catalog') return this.catalogMessage(chatId);
+    if (action === 'help') return this.help(chatId);
 
     if (!text) {
       if (!forwarded) return { status: 'ignored', reason: 'unsupported_type' };
@@ -197,9 +221,24 @@ export class TelegramService {
       create: { shopId: channel.shopId, chatId, username: message.chat.username ?? '', firstName: message.chat.first_name ?? '' },
     });
 
-    await this.send(chatId, `سلام 👋 به ${channel.shop.name} خوش آمدید.\nسؤال‌تان را بنویسید؛ درباره‌ی قیمت، موجودی و ارسال کمکتان می‌کنم.`);
+    // خوش‌آمد حرفه‌ای + کیبورد عملیات: مشتری از همان پیام اول می‌بیند بات چه
+    // می‌تواند بکند و لازم نیست چیزی تایپ کند.
+    const shop = await this.db.shop.findUniqueOrThrow({
+      where: { id: channel.shopId },
+      select: { name: true, shipping: true, payment: true, workingHours: true, returns: true },
+    });
+    const productCount = await this.db.product.count({ where: { shopId: channel.shopId, active: true } });
+    const capabilities = [
+      productCount > 0 ? `${productCount.toLocaleString('fa-IR')} محصول` : '',
+      shop.shipping.trim() ? 'ارسال' : '',
+      shop.payment.trim() ? 'پرداخت' : '',
+      shop.workingHours.trim() ? 'ساعت کاری' : '',
+    ].filter(Boolean);
+    await this.sendWithButtons(chatId, welcomeText({ name: shop.name, capabilities }), undefined, 'HTML');
+    await this.send(chatId, 'یکی از گزینه‌ها را انتخاب کنید:', actionsKeyboard());
+    this.botMenu();
     this.audit.record({ action: 'telegram.customer_start', entity: 'channel', entityId: channel.id, shopId: channel.shopId, meta: { chatId } });
-    return { status: 'handled', replies: 1, kind: 'customer_start' };
+    return { status: 'handled', replies: 2, kind: 'customer_start' };
   }
 
   // --------------------------------------------------------------- /start own_
@@ -231,17 +270,62 @@ export class TelegramService {
   }
 
   private async help(chatId: string): Promise<HandleResult> {
-    await this.send(chatId, [
-      'کارهایی که می‌توانم انجام دهم:',
-      '• قیمت و موجودی یک محصول',
-      '• پیدا کردن محصول از روی پست فوروارد‌شده',
-      '• ثبت سفارش و ساخت لینک پرداخت',
-      '• شرایط ارسال و پرداخت و ساعت کاری',
-      '',
-      'دستورها: /orders (سفارش‌های من) · /stop (بستن گفتگو)',
-      'برای موارد دیگر به فروشنده وصلتان می‌کنم.',
-    ].join('\n'));
-    return { status: 'handled', replies: 1, kind: 'help' };
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    const shop = conversation
+      ? await this.db.shop.findUnique({
+        where: { id: conversation.shopId },
+        select: { name: true, shipping: true, payment: true, workingHours: true, returns: true },
+      })
+      : null;
+    const text = shop
+      ? helpText(shop)
+      : ['<b>راهنمای بات</b>', 'برای دیدن محصولات و قیمت‌ها، لینک اختصاصی فروشگاه را باز کنید.'].join('\n');
+    await this.sendWithButtons(chatId, text, undefined, 'HTML');
+    await this.send(chatId, 'یکی از گزینه‌ها را انتخاب کنید:', actionsKeyboard());
+    return { status: 'handled', replies: 2, kind: 'help' };
+  }
+
+  /**
+   * فهرست محصولات فعال فروشگاه با دکمه‌ی هر محصول.
+   * `/products` و دکمه‌ی «محصولات و قیمت‌ها» به همین‌جا می‌رسند.
+   */
+  private async catalogMessage(chatId: string): Promise<HandleResult> {
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    if (!conversation) {
+      await this.send(chatId, 'برای دیدن محصولات، اول لینک اختصاصی فروشگاه را باز کنید.');
+      return { status: 'handled', replies: 1, kind: 'no_conversation' };
+    }
+    const products = await this.catalog(conversation.shopId);
+    if (products.length === 0) {
+      await this.send(chatId, 'فهرست محصولات هنوز خالی است؛ فروشنده به‌زودی اضافه می‌کند.');
+      return { status: 'handled', replies: 1, kind: 'catalog_empty' };
+    }
+    const reply = clarifyProducts(products, 'محصولات فروشگاه', 0);
+    await this.sendWithButtons(chatId, reply.text, reply.buttons, reply.parseMode);
+    return { status: 'handled', replies: 1, kind: 'catalog' };
+  }
+
+  /**
+   * ثبت فهرست فرمان‌ها و حالت منوی ☰ — یک‌بار برای هر توکن.
+   *
+   * عمداً fire-and-forget: اگر تلگرام در دسترس نباشد (یا توکن تازه باشد و هنوز
+   * تأیید نشده باشد)، راه‌اندازی سرویس و پاسخ‌دهی بات نباید متوقف شود.
+   */
+  private menuToken = '';
+  botMenu(): void {
+    const token = (process.env.TELEGRAM_BOT_TOKEN ?? '').trim();
+    if (!token || token === this.menuToken) return;
+    this.menuToken = token;
+    void (async () => {
+      const config = readTelegramConfig();
+      const client = new TelegramClient(config);
+      const [commands, button] = await Promise.all([
+        client.setMyCommands(BOT_COMMANDS),
+        client.setChatMenuButton(),
+      ]);
+      if (!commands.ok) this.logger.warn(`ثبت فهرست فرمان‌های بات انجام نشد: ${commands.description ?? commands.error}`);
+      if (!button.ok) this.logger.debug?.(`ثبت منوی چت انجام نشد: ${button.description ?? button.error}`);
+    })().catch(() => undefined);
   }
 
   // ---------------------------------------------------------------- مشتری
@@ -276,6 +360,7 @@ export class TelegramService {
 
     const products = await this.catalog(conversation.shopId);
     const forwardSource = message ? TelegramService.forwardSource(message) : '';
+
     // نقل‌قول: مشتری روی یک پیام (معمولاً پیام بات/فروشنده) ریپلای زده است.
     const quoted = message?.reply_to_message
       ? {
@@ -283,6 +368,14 @@ export class TelegramService {
         from: message.reply_to_message.from?.is_bot ? 'out' : 'in',
       }
       : null;
+
+    // «تحویل گرفتم» پیش از هر قاعده‌ای بررسی می‌شود.
+    // چرا اول: قاعده‌ی «ارسال و تحویل» به همین واژه می‌چسبد و قبلاً به مشتری
+    // هزینه‌ی پست را توضیح می‌داد، در حالی که منظورش تأیید دریافت بود.
+    if (isDeliveryConfirmation(text)) {
+      const confirmed = await this.confirmDelivery(conversation, chatId, text, quoted);
+      if (confirmed) return confirmed;
+    }
     // چند پیام نامفهوم پشت‌سرهم؟ تا ۳ بار سؤال می‌پرسیم، بعد از آن ارجاع.
     const round = TelegramService.clarifyRound(conversation.clarify);
     let reply = composeReply(text, shop as BrainShop, products, { round });
@@ -291,22 +384,56 @@ export class TelegramService {
     // شانس دارد. سفارش و پرداخت هرگز به مدل سپرده نمی‌شوند؛ فقط پاسخ‌دادن.
     // مدل زبانی وقتی کمک می‌کند که قاعده‌ها «نفهمیدم» یا «داده‌اش را ندارم» بدهند.
     // پاسخ روشنِ قاعده‌محور و مسیر سفارش هرگز با مدل جایگزین نمی‌شود.
-    const aiWanted = this.ai.enabled
-      && reply.kind === 'clarify'
-      && /^(unclear|no_data)/.test(reply.reason ?? '');
-    if (aiWanted) {
+    // فقط وقتی قاعده‌محور مطمئن نیست. `resolveReply` خودش تشخیص می‌دهد
+    // «پیدا نشد» یعنی محصول نبوده یا مشتری با واژه‌ی دیگری گفته است.
+    // بودجه‌ی زمانی مدل: پاسخ باید سریع برسد (درخواست کاربر).
+    // بدون این سقف، یک مدل کند تا AI_TIMEOUT_MS (۱۲ ثانیه) مشتری را منتظر
+    // نگه می‌داشت. با سقف ۴ ثانیه، بدترین حالت هم پاسخ قاعده‌محورِ آماده است.
+    if (this.ai.enabled && reply.kind !== 'order') {
+      const budget = Number(process.env.AI_REPLY_BUDGET_MS ?? 4000);
       const history = await this.recentMessages(conversation.shopId, chatId, 8);
-      const answer = await answerWithAi(this.ai, { shop: shop as BrainShop, products, history }, text);
-      if (answer.ok) {
-        reply = { kind: 'answer', reason: 'ai_answer', text: answer.text };
+      const resolved = await this.withBudget(
+        resolveReply({ ai: this.ai, shop: shop as BrainShop, products, text, rule: reply, history }),
+        budget,
+        reply,
+      ) as UnderstandResult;
+      // لایه‌ی دوم: همان پاسخ (قاعده‌محور، تطبیق محصول، یا پاسخ مدل) با لحن
+      // فروشگاه بازنویسی می‌شود؛ داده و ساختار با نگهبان قفل است. مسیر سفارش و
+      // ارجاع از این لایه بیرون‌اند.
+      // بازنویسی لحن (همان قابلیتِ «پاسخ با لحن فروشگاه») ولی با سقف زمانی:
+      // اگر مدل دیر کند، متن آماده **همین حالا** می‌رود. مسیر سفارش و ارجاع
+      // از این لایه بیرون‌اند تا داده و مرحله دست‌نخورده بماند.
+      const understood = resolved.kind === 'order' || resolved.kind === 'handoff'
+        ? resolved
+        : await this.withBudget(
+          addPersonality(this.ai, shop as BrainShop, resolved, text),
+          Math.max(1200, budget - 2500),
+          resolved,
+        ) as UnderstandResult;
+
+      if (understood.source !== 'rules') {
+        // `parseMode` باید همراه پاسخ بماند؛ اگر جا بیفتد، تگ‌های <b>/<i>/<code>
+        // عیناً در تلگرام نمایش داده می‌شوند (باگ گزارش‌شده).
+        reply = {
+          kind: understood.kind,
+          reason: understood.reason,
+          text: understood.text,
+          buttons: understood.buttons,
+          parseMode: understood.parseMode ?? reply.parseMode,
+        };
         this.audit.record({
-          action: 'telegram.ai_answer', entity: 'conversation', entityId: conversation.id,
-          shopId: conversation.shopId, meta: { model: this.ai.model, productsInContext: answer.included },
+          action: understood.source === 'ai_match'
+            ? 'telegram.ai_match'
+            : understood.source === 'ai_polished'
+              ? 'telegram.ai_polished'
+              : 'telegram.ai_answer',
+          entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId,
+          meta: { model: this.ai.model, match: understood.ai?.match, keywords: understood.ai?.keywords, query: text.slice(0, 120) },
         });
-      } else {
+      } else if (understood.ai?.skip) {
         this.audit.record({
           action: 'telegram.ai_skipped', entity: 'conversation', entityId: conversation.id,
-          shopId: conversation.shopId, meta: { reason: answer.reason },
+          shopId: conversation.shopId, meta: { reason: understood.ai.skip },
         });
       }
     }
@@ -341,7 +468,13 @@ export class TelegramService {
     if (forwardSource && reply.kind === 'handoff') {
       lines.unshift(`این پست از «${forwardSource}» است، ولی محصولش را در کاتالوگ فروشگاه پیدا نکردم.`);
     }
-    if (await this.sendWithButtons(chatId, lines.join('\n'), reply.buttons, reply.parseMode)) replies += 1;
+    const outbound = lines.join('\n');
+    if (await this.sendWithButtons(chatId, outbound, reply.buttons, reply.parseMode)) {
+      replies += 1;
+      // پاسخ بات هم در تاریخچه می‌نشیند؛ وگرنه پنل فقط نیمی از گفتگو را نشان
+      // می‌داد و فروشنده نمی‌دانست بات چه گفته است (درخواست کاربر).
+      await this.logOutbound(conversation.shopId, chatId, outbound, 'bot');
+    }
 
     if (reply.kind === 'handoff') {
       const code = TelegramService.conversationCode(conversation.id);
@@ -405,16 +538,105 @@ export class TelegramService {
    */
   private async logInbound(shopId: string, chatId: string, text: string, reply?: { text: string; from: string } | null): Promise<void> {
     try {
-      await this.db.chatMessage.create({
+      const saved = await this.db.chatMessage.create({
         data: {
-          shopId, chatId, direction: 'in', text: text.slice(0, 4000),
+          shopId, chatId, direction: 'in', author: 'customer', text: text.slice(0, 4000),
           replyText: (reply?.text ?? '').slice(0, 300),
           replyFrom: (reply?.from ?? '').slice(0, 8),
         },
+        select: { id: true },
       });
+      this.realtime.emitShop(shopId, 'chat', { chatId, messageId: saved.id, author: 'customer' });
+      this.realtime.emitAdmin('chat', { shopId, chatId });
     } catch (error) {
       this.logger.warn(`ثبت پیام مشتری ناموفق: ${error instanceof Error ? error.message : 'unknown'}`);
     }
+  }
+
+  /**
+   * اجرای یک کار اختیاری با بودجه‌ی زمانی.
+   *
+   * اگر مدل دیر کند، به‌جای انتظار، `fallback` برمی‌گردد — که همیشه یک پاسخ
+   * آماده و درست است. عمداً promise را cancel نمی‌کنیم (fetch داخلی خودش
+   * AbortSignal دارد)؛ فقط دیگر منتظرش نمی‌مانیم.
+   */
+  private async withBudget<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    const guard = new Promise<T>(resolve => {
+      timer = setTimeout(() => resolve(fallback), ms);
+    });
+    try {
+      return await Promise.race([work.catch(() => fallback), guard]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * پاک‌کردن تگ‌های HTML تلگرام برای نمایش در پنل.
+   *
+   * پیام‌ها با `<b>`/`<i>`/`<code>` به تلگرام می‌روند؛ پنل متن ساده نشان می‌دهد،
+   * پس اگر همان رشتهٔ خام ذخیره شود، کاربر تگ‌ها را عیناً می‌بیند (باگ
+   * گزارش‌شده: «<b>سفارش … تحویل شد.</b>»). اینجا هم تگ حذف می‌شود و هم موجودیت‌های
+   * HTML رمزگشایی می‌شوند تا متن گفتگو همان چیزی باشد که مشتری دیده است.
+   */
+  private static plainForPanel(text: string): string {
+    return text
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div)>/gi, '\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
+  /** ثبت پاسخ فروشگاه (بات یا فروشنده) در تاریخچهٔ گفتگو + رخداد زنده. */
+  private async logOutbound(shopId: string, chatId: string, text: string, author: 'bot' | 'seller'): Promise<void> {
+    try {
+      const saved = await this.db.chatMessage.create({
+        data: { shopId, chatId, direction: 'out', author, text: TelegramService.plainForPanel(text).slice(0, 4000) },
+        select: { id: true },
+      });
+      this.realtime.emitShop(shopId, 'chat', { chatId, messageId: saved.id, author });
+      this.realtime.emitAdmin('chat', { shopId, chatId });
+    } catch (error) {
+      this.logger.warn(`ثبت پاسخ فروشگاه ناموفق: ${error instanceof Error ? error.message : 'unknown'}`);
+    }
+  }
+
+  /**
+   * تأیید تحویل توسط مشتری.
+   *
+   * سفارش «ارسال‌شده» همان چت به «تحویل‌شده» می‌رود، به فروشنده اعلان می‌رسد و
+   * مشتری یک پیام تشکر می‌گیرد. اگر سفارشی در وضعیت ارسال‌شده نباشد، `null`
+   * برمی‌گردد تا مسیر پاسخ عادی ادامه پیدا کند (بات بی‌دلیل «تحویل شد» نمی‌گوید).
+   */
+  private async confirmDelivery(
+    conversation: { id: string; shopId: string; firstName: string },
+    chatId: string,
+    text: string,
+    quoted: { text: string; from: string } | null,
+  ): Promise<HandleResult | null> {
+    const order = await this.orders.confirmDeliveryByCustomer(conversation.shopId, chatId);
+    if (!order) return null;
+
+    await this.logInbound(conversation.shopId, chatId, text, quoted);
+    const message = [
+      `✅ <b>سفارش ${escapeHtml(order.code)} تحویل شد.</b>`,
+      'ممنون که تحویلش را تأیید کردید 🌿',
+      'اگر دوست داشتید، نظرتان درباره‌ی خرید را همین‌جا بنویسید تا بقیه هم ببینند.',
+    ].join('\n');
+    const sent = await this.send(chatId, message, undefined, 'HTML');
+    // فقط پیام واقعاً ارسال‌شده در تاریخچه ثبت می‌شود؛ همان قاعده‌ای که در پاسخ
+    // فروشنده هم رعایت شده تا پنل هیچ‌وقت پیامی را که مشتری ندیده نشان ندهد.
+    if (sent) await this.logOutbound(conversation.shopId, chatId, message, 'bot');
+    this.audit.record({
+      action: 'telegram.delivery_confirmed', entity: 'order', entityId: order.id,
+      shopId: conversation.shopId, meta: { code: order.code, chatId },
+    });
+    return { status: 'handled', replies: sent ? 1 : 0, kind: 'delivery_confirmed' };
   }
 
   /** کاتالوگ فعال فروشگاه؛ سقف ۵۰۰ محصول مثل مسیر داشبورد. */
@@ -949,12 +1171,15 @@ export class TelegramService {
     if (sent) {
       await this.db.chatMessage.create({
         data: {
-          shopId: channel.shopId, chatId: customerChat, direction: 'out', text: body, orderId: orderId ?? null,
+          shopId: channel.shopId, chatId: customerChat, direction: 'out', author: 'seller', text: body,
+          orderId: orderId ?? null,
           replyToId: reply?.id ?? null,
           replyText: quotedText.slice(0, 300),
           replyFrom: quotedFrom,
         },
+        select: { id: true },
       });
+      this.realtime.emitShop(channel.shopId, 'chat', { chatId: customerChat, author: 'seller' });
       this.audit.record({
         action: 'telegram.seller_reply',
         entity: 'conversation',
@@ -1033,16 +1258,8 @@ export class TelegramService {
     const parts = splitMessage(text);
     let allOk = true;
     for (const [index, part] of parts.entries()) {
-      const result = await this.client.sendMessage({
-        chat_id: chatId,
-        text: part,
-        ...(parseMode ? { parse_mode: parseMode } : {}),
-        ...(index === parts.length - 1 ? { reply_markup: { inline_keyboard } } : {}),
-      });
-      if (!result.ok) {
-        allOk = false;
-        this.logger.warn(`sendMessage به ${chatId} ناموفق: ${result.error}${result.description ? ` (${result.description})` : ''}`);
-      }
+      const ok = await this.sendPart(chatId, part, parseMode, index === parts.length - 1 ? { inline_keyboard } : undefined);
+      if (!ok) allOk = false;
     }
     return allOk;
   }
@@ -1065,18 +1282,68 @@ export class TelegramService {
     let allOk = true;
     const parts = splitMessage(text);
     for (const [index, part] of parts.entries()) {
-      const result = await this.client.sendMessage({
-        chat_id: chatId,
-        text: part,
-        ...(parseMode ? { parse_mode: parseMode } : {}),
-        ...(replyMarkup && index === parts.length - 1 ? { reply_markup: replyMarkup } : {}),
-      });
-      if (!result.ok) {
-        allOk = false;
-        this.logger.warn(`sendMessage به ${chatId} ناموفق: ${result.error}${result.description ? ` (${result.description})` : ''}`);
-      }
+      const result = await this.sendPart(chatId, part, parseMode, index === parts.length - 1 ? replyMarkup : undefined);
+      if (!result) allOk = false;
     }
     return allOk;
+  }
+
+  /**
+   * ارسال یک تکه با محافظِ قالب‌بندی.
+   *
+   * سه لایه‌ی محافظ، چون نمایش تگ خام برای مشتری بدتر از نبودِ بولد است:
+   *  ۱. اگر متن تگ HTML دارد و `parseMode` داده نشده، خودمان HTML می‌فرستیم
+   *     (تا هرگز `<b>` به‌صورت متن دیده نشود).
+   *  ۲. اگر تلگرام تگ را نامعتبر بداند (`can't parse entities`)، همان متن بدون
+   *     تگ فرستاده می‌شود؛ مشتری پیام خوانا می‌بیند، نه تگ خام.
+   *  ۳. هر خطای دیگر فقط لاگ می‌شود.
+   */
+  /**
+   * حالت متنِ خروجی.
+   *
+   * اگر متن تگ HTML دارد، همان لحظه HTML اعلام می‌شود — حتی اگر لایه‌ی بالاتر
+   * فراموش کرده باشد. ریشه‌ی باگ «مشتری تگ‌های `<b>` را می‌دید» همین بود:
+   * پاسخ قاعده‌محور تگ داشت ولی parse_mode همراهش نبود.
+   */
+  static parseModeOf(text: string, explicit?: 'HTML'): 'HTML' | undefined {
+    if (explicit) return explicit;
+    return /<(b|i|u|s|code|pre|a)[\s>]/i.test(text) ? 'HTML' : undefined;
+  }
+
+  private async sendPart(chatId: string, text: string, parseMode?: 'HTML', replyMarkup?: ReplyMarkup): Promise<boolean> {
+    const mode = TelegramService.parseModeOf(text, parseMode);
+    const body = { chat_id: chatId, text, ...(mode ? { parse_mode: mode } : {}) };
+
+    let result = await this.client.sendMessage({
+      ...body,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    });
+
+    const unparsable = !result.ok && /can't parse entities|unsupported start tag|can't find end tag/i.test(result.description ?? '');
+    if (unparsable) {
+      this.logger.warn(`قالب‌بندی پیام برای ${chatId} پذیرفته نشد؛ نسخه‌ی بدون تگ فرستاده شد.`);
+      result = await this.client.sendMessage({
+        chat_id: chatId,
+        text: TelegramService.stripTags(text),
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      });
+    }
+
+    if (!result.ok) {
+      this.logger.warn(`sendMessage به ${chatId} ناموفق: ${result.error}${result.description ? ` (${result.description})` : ''}`);
+      return false;
+    }
+    return true;
+  }
+
+  /** حذف تگ‌های قالب‌بندی تلگرام و برگرداندن متن قابل‌خواندن. */
+  static stripTags(text: string): string {
+    return text
+      .replace(/<\/?(b|i|u|s|code|pre)>/gi, '')
+      .replace(/<a\s+href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '$2 ($1)')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
   }
 
   /** برای اسکریپت راه‌اندازی و پنل. */

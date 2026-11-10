@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api, ApiError, type Product, type Variant } from '@/lib/api';
 import { faDateTime, faNum, relativeTime, statusOfStock, toman, variantLabel } from '@/lib/format';
+import { useRealtime } from '@/lib/realtime';
 import { EmptyState, Field, Modal, PageHeader, Segmented, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import {
   IconAlertCircle, IconBox, IconChevronDown, IconClock, IconEdit, IconMinus,
-  IconPackage, IconPlus, IconSearch, IconTag, IconTrash, IconUpload,
+  IconPackage, IconPlus, IconRefresh, IconSearch, IconTag, IconTrash, IconUpload,
 } from '@/components/icons';
 import Link from 'next/link';
 
@@ -22,6 +23,7 @@ export default function ProductsPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const [newOpen, setNewOpen] = useState(false);
@@ -42,13 +44,32 @@ export default function ProductsPage() {
     }
   }, [toast]);
 
-  useEffect(() => { void load(); }, [load]);
+    // رخداد زنده: هر تغییر سمت سرور (سفارش، پیام، موجودی، محصول) همین‌جا
+  // بدون رفرش بازخوانی می‌شود. فعل و انفعال پنل با خودش هم بی‌ضرر است.
+  useRealtime(['product', 'stock'], () => { void load(); });
+
+useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('new') === '1') setNewOpen(true);
     if (params.get('filter') === 'attention') setFilter('attention');
+    // اعلان «موجودی کم» پیوند مستقیم به همان محصول می‌دهد: باز و هایلایت می‌شود.
+    const product = params.get('product');
+    if (product) {
+      setExpanded(product);
+      setFlash(product);
+      window.setTimeout(() => {
+        document.getElementById(`product-${product}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 120);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!flash) return;
+    const timer = window.setTimeout(() => setFlash(null), 2600);
+    return () => window.clearTimeout(timer);
+  }, [flash]);
 
   const stockOf = (product: Product) => product.variants.filter(variant => variant.active).reduce((sum, variant) => sum + variant.stock, 0);
   const priceRange = (variants: Variant[]) => {
@@ -226,7 +247,12 @@ export default function ProductsPage() {
             const stock = stockOf(product);
             const isOpen = expanded === product.id;
             return (
-              <article className="row-item" key={product.id} style={{ opacity: product.active ? 1 : 0.72 }}>
+              <article
+                className={`row-item ${flash === product.id ? 'row-flash' : ''}`}
+                key={product.id}
+                id={`product-${product.id}`}
+                style={{ opacity: product.active ? 1 : 0.72 }}
+              >
                 <div className="row-item-in">
                   <button
                     className="btn btn-ghost btn-icon btn-sm"
@@ -237,12 +263,14 @@ export default function ProductsPage() {
                     <IconChevronDown size={16} style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform .2s' }} />
                   </button>
 
-                  <span className="avatar avatar-brand" style={{ width: 34, height: 34 }}>
-                    <IconTag size={16} />
+                  <span className="avatar avatar-brand" style={{ width: 32, height: 32 }}>
+                    <IconTag size={15} />
                   </span>
 
-                  <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-                    <div className="row" style={{ gap: 8 }}>
+                  {/* نام و موجودی کنارِ هم؛ قبلاً بلوکِ نام تمام فضای خالی را
+                      می‌گرفت و عدد موجودی به انتهای ردیف پرت می‌شد. */}
+                  <div className="row-name">
+                    <div className="row" style={{ gap: 7 }}>
                       <strong style={{ fontSize: 'var(--fs-md)', fontWeight: 500 }}>{product.title}</strong>
                       {!product.active && <span className="badge b-gray">غیرفعال</span>}
                       {product.active && stock === 0 && <span className="badge b-red">ناموجود</span>}
@@ -253,7 +281,7 @@ export default function ProductsPage() {
                       {activeVariants.length > 0 && ` · ${priceRange(activeVariants)}`}
                     </div>
                     {activeVariants.length > 0 && (
-                      <div className="row" style={{ gap: 5, marginTop: 7 }}>
+                      <div className="row" style={{ gap: 5, marginTop: 6 }}>
                         {activeVariants.slice(0, 5).map(variant => (
                           <span key={variant.id} className={`badge ${variant.stock === 0 ? 'b-red' : variant.stock <= 3 ? 'b-amber' : 'b-gray'}`} style={{ fontWeight: 500 }}>
                             {variantLabel(variant)} · {faNum(variant.stock)}
@@ -264,10 +292,12 @@ export default function ProductsPage() {
                     )}
                   </div>
 
-                  <div style={{ textAlign: 'center', minWidth: 78 }}>
-                    <div className="num" style={{ fontWeight: 300, fontSize: 22 }}>{faNum(stock)}</div>
-                    <div className="small muted">عدد موجودی</div>
+                  <div className="row-stat">
+                    <span className="row-stat-num">{faNum(stock)}</span>
+                    <span className="small muted">عدد</span>
                   </div>
+
+                  <div className="row-spacer" />
 
                   <div className="row" style={{ gap: 6 }}>
                     <button className="btn btn-outline btn-sm" onClick={() => setEditProduct(product)} disabled={busyId === product.id}>
@@ -276,6 +306,26 @@ export default function ProductsPage() {
                     <button className="btn btn-soft btn-sm" onClick={() => setVariantFor(product)} disabled={busyId === product.id}>
                       <IconPlus size={14} />سایز / رنگ
                     </button>
+                    {product.active ? (
+                      <button
+                        className="btn btn-ghost btn-sm btn-icon" style={{ color: 'var(--danger)' }}
+                        onClick={() => setConfirmArchive({ kind: 'product', product })}
+                        disabled={busyId === product.id}
+                        aria-label="غیرفعال‌سازی محصول" title="غیرفعال‌سازی محصول"
+                      >
+                        <IconTrash size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => void run(product.id, () => api.updateProduct(product.id, { active: true }), 'محصول دوباره فعال شد.')}
+                        disabled={busyId === product.id}
+                        title="فعال‌سازی محصول"
+                      >
+                        {busyId === product.id ? <Spinner size={13} /> : <IconRefresh size={14} />}
+                        فعال‌سازی
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -361,12 +411,23 @@ export default function ProductsPage() {
                     </table>
                     <div className="card-foot row-between" style={{ borderTop: '1px solid var(--line)' }}>
                       <span className="small muted">{product.description || 'بدون توضیح'}</span>
-                      <button
-                        className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
-                        onClick={() => setConfirmArchive({ kind: 'product', product })}
-                      >
-                        <IconTrash size={14} />غیرفعال‌سازی محصول
-                      </button>
+                      {product.active ? (
+                        <button
+                          className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
+                          onClick={() => setConfirmArchive({ kind: 'product', product })}
+                        >
+                          <IconTrash size={14} />غیرفعال‌سازی محصول
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={() => void run(product.id, () => api.updateProduct(product.id, { active: true }), 'محصول دوباره فعال شد.')}
+                          disabled={busyId === product.id}
+                        >
+                          {busyId === product.id ? <Spinner size={13} /> : <IconRefresh size={14} />}
+                          فعال‌سازی محصول
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

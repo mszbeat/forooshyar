@@ -8,7 +8,8 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
-import { CacheService, createCacheService } from './cache/cache.service';
+import { CacheModule } from './cache/cache.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { CatalogController } from './catalog/catalog.controller';
 import { CatalogService } from './catalog/catalog.service';
 import { loadConfig } from './config';
@@ -26,6 +27,7 @@ import { ReportsService } from './reports/reports.service';
 import { TelegramModule } from './telegram/telegram.module';
 import { OrdersModule } from './orders/orders.module';
 import { AiModule } from './ai/ai.module';
+import { AdminModule } from './admin/admin.module';
 
 // پیام پیش‌فرض Throttler انگلیسی است و پنل همان را به کاربر نشان می‌دهد.
 @Injectable()
@@ -56,9 +58,9 @@ class HealthController {
   @Get() health() { return { status: 'ok' }; }
 }
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), DatabaseModule, LoggingModule, JwtModule.registerAsync({ global: true, useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]), AiModule, TelegramModule, OrdersModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), RealtimeModule, CacheModule, DatabaseModule, LoggingModule, JwtModule.registerAsync({ global: true, useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]), AiModule, AdminModule, TelegramModule, OrdersModule],
   controllers: [RootController, HealthController, AuthController, ShopController, CatalogController, ImportController, FreshController, ReportsController],
-  providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }, PrismaService, AuthGuard, AuthService, CatalogService, ImportService, ReportsService, { provide: CacheService, useFactory: () => createCacheService(loadConfig(process.env)) }, { provide: APP_GUARD, useClass: PersianThrottlerGuard }],
+  providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }, PrismaService, AuthGuard, AuthService, CatalogService, ImportService, ReportsService, { provide: APP_GUARD, useClass: PersianThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

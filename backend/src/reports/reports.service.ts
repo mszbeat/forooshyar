@@ -19,9 +19,28 @@ export class ReportsService {
     const weekStart = new Date(startOfToday.getTime() - 6 * DAY);
     const staleBefore = new Date(now.getTime() - STALE_AFTER_DAYS * DAY);
 
-    const [products, variants, sales, recent] = await Promise.all([
+    /**
+     * «فروش» از دو منبع ساخته می‌شود، چون در این سامانه دو نوع فروش داریم:
+     *   ۱) سفارشی که مشتری در تلگرام داده و پرداخت کرده → جدول `Order`.
+     *   ۲) فروش دستیِ فروشنده از پنل (`catalog.sell`) → حرکت موجودی با دلیل `sale`.
+     *
+     * باگ گزارش‌شده: قبلاً فقط منبع دوم شمرده می‌شد و سفارش‌های واقعی — همان‌هایی
+     * که مشتری پولش را داده — در «فروش امروز» و نمودار هفته دیده نمی‌شدند؛ چون
+     * ثبت سفارش، حرکت موجودی را با دلیل `order` می‌نویسد نه `sale`.
+     *
+     * مبنا برای تاریخِ فروش، `paidAt` است (لحظه‌ی پرداخت) و اگر نبود `createdAt`؛
+     * سفارش‌های لغوشده و پرداخت‌نشده هیچ‌وقت شمرده نمی‌شوند.
+     */
+    const [products, variants, orderSales, manualSales, recent] = await Promise.all([
       this.db.product.findMany({ where: { shopId }, select: { id: true, active: true, createdAt: true } }),
       this.db.variant.findMany({ where: { shopId }, select: { id: true, price: true, stock: true, active: true, stockUpdatedAt: true, productId: true } }),
+      this.db.order.findMany({
+        where: {
+          shopId,
+          status: { in: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.COMPLETED] },
+        },
+        select: { total: true, paidAt: true, createdAt: true, items: { select: { quantity: true } } },
+      }),
       this.db.stockMovement.findMany({ where: { shopId, reason: 'sale', createdAt: { gte: weekStart } }, select: { delta: true, createdAt: true, variant: { select: { price: true } } } }),
       this.recentMovements(shopId, 8),
     ]);
@@ -44,13 +63,25 @@ export class ReportsService {
     const seriesIndex = new Map(series.map(point => [point.date, point]));
     let unitsToday = 0;
     let revenueToday = 0;
-    for (const movement of sales) {
-      const units = -movement.delta;
-      const revenue = units * movement.variant.price;
-      const key = new Date(movement.createdAt.getFullYear(), movement.createdAt.getMonth(), movement.createdAt.getDate()).toISOString().slice(0, 10);
+
+    /** یک روز فروش را هم روی نمودار هفته و هم روی «امروز» اضافه می‌کند. */
+    const addSale = (at: Date, units: number, revenue: number) => {
+      const key = new Date(at.getFullYear(), at.getMonth(), at.getDate()).toISOString().slice(0, 10);
       const point = seriesIndex.get(key);
       if (point) { point.units += units; point.revenue += revenue; }
-      if (movement.createdAt >= startOfToday) { unitsToday += units; revenueToday += revenue; }
+      if (at >= startOfToday) { unitsToday += units; revenueToday += revenue; }
+    };
+
+    // ۱) سفارش‌های پرداخت‌شده
+    for (const order of orderSales) {
+      const at = order.paidAt ?? order.createdAt;
+      const units = order.items.reduce((sum, item) => sum + item.quantity, 0);
+      if (units > 0) addSale(at, units, order.total);
+    }
+    // ۲) فروش دستی از پنل (`catalog.sell`)
+    for (const movement of manualSales) {
+      const units = -movement.delta;
+      addSale(movement.createdAt, units, units * movement.variant.price);
     }
     const unitsWeek = series.reduce((sum, point) => sum + point.units, 0);
     const revenueWeek = series.reduce((sum, point) => sum + point.revenue, 0);
@@ -126,7 +157,8 @@ export class ReportsService {
         title: awaiting ? `سفارش ${order.code} منتظر پرداخت است` : `پرداخت سفارش ${order.code} انجام شد`,
         body: `${order.customerName || 'مشتری'} · ${order.total.toLocaleString('fa-IR')} تومان`,
         at: order.createdAt.toISOString(),
-        href: '/app/orders',
+        // پیوند مستقیم به همان سفارش؛ پنل آن را هایلایت و اسکرول می‌کند.
+        href: `/app/orders?order=${order.id}`,
         tone: awaiting ? 'amber' : 'brand',
       });
     }
@@ -143,7 +175,8 @@ export class ReportsService {
         title: 'پیام بی‌پاسخ مشتری',
         body: message.text.slice(0, 90),
         at: message.createdAt.toISOString(),
-        href: '/app/orders',
+        // گفتگوی همان مشتری، اسکرول‌شده روی همان پیام.
+        href: `/app/conversations?chat=${encodeURIComponent(message.chatId)}&msg=${message.id}`,
         tone: 'brand',
       });
     }
@@ -155,7 +188,7 @@ export class ReportsService {
         title: variant.stock === 0 ? 'موجودی تمام شد' : `فقط ${variant.stock.toLocaleString('fa-IR')} عدد مانده`,
         body: [variant.product.title, variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join(' · '),
         at: variant.stockUpdatedAt.toISOString(),
-        href: '/app/products',
+        href: `/app/products?product=${variant.product.id}`,
         tone: variant.stock === 0 ? 'danger' : 'amber',
       });
     }
@@ -175,7 +208,7 @@ export class ReportsService {
           title: `${count.toLocaleString('fa-IR')} مشتری منتظر شارژ`,
           body: byId.get(row.productId) ?? 'محصول',
           at: now.toISOString(),
-          href: '/app/products',
+          href: `/app/products?product=${row.productId}`,
           tone: 'amber',
         });
       }

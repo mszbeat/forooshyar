@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, forwardRef, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 
@@ -55,6 +56,8 @@ export class OrdersService {
     private readonly audit: AuditService,
     // چرخه با TelegramModule؛ بدون forwardRef این‌جا، Nest نمی‌تواند بسازد.
     @Inject(forwardRef(() => TelegramService)) private readonly telegram: TelegramService,
+    // رخداد زنده: پنل باز بدون رفرش می‌فهمد سفارشی ثبت/تغییر شد.
+    private readonly realtime: RealtimeService,
   ) {}
 
   // ------------------------------------------------------------------ ایجاد
@@ -126,6 +129,10 @@ export class OrdersService {
       shopId,
       meta: { code: created.code, total: created.total, items: created.items.length, chatId: input.chatId ?? null },
     });
+    // پنل باز، سفارش تازه را بدون رفرش می‌بیند؛ موجودی هم عوض شده است.
+    this.realtime.emitShop(shopId, 'order', { id: created.id, code: created.code, status: created.status, reason: 'created' });
+    this.realtime.emitShop(shopId, 'stock', { reason: 'order', orderId: created.id });
+    this.realtime.emitAdmin('order', { shopId, status: created.status });
     return created;
   }
 
@@ -356,13 +363,17 @@ export class OrdersService {
   /** برای کارت داشبورد. */
   async summary(shopId: string) {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const [awaiting, paidToday, recent] = await Promise.all([
+    const [awaiting, paidToday, cancelled, cancelledLast24h, recent] = await Promise.all([
       this.db.order.count({ where: { shopId, status: OrderStatus.AWAITING_PAYMENT } }),
       this.db.order.aggregate({
         where: { shopId, status: { in: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.COMPLETED] }, paidAt: { gte: dayAgo } },
         _sum: { total: true },
         _count: true,
       }),
+      // لغوشده‌ها: هم مجموع (برای این‌که فروشنده حجم لغو را ببیند) و هم ۲۴ ساعت
+      // گذشته (برای این‌که اگر امروز چند سفارش لغو شده، فوراً به چشم بیاید).
+      this.db.order.count({ where: { shopId, status: OrderStatus.CANCELLED } }),
+      this.db.order.count({ where: { shopId, status: OrderStatus.CANCELLED, createdAt: { gte: dayAgo } } }),
       this.db.order.findMany({
         where: { shopId, status: { in: [OrderStatus.PAID, OrderStatus.SHIPPED] } },
         orderBy: { createdAt: 'desc' },
@@ -374,6 +385,8 @@ export class OrdersService {
       awaitingPayment: awaiting,
       paidLast24h: paidToday._count,
       revenueLast24h: paidToday._sum.total ?? 0,
+      cancelled,
+      cancelledLast24h,
       recent,
     };
   }
@@ -440,6 +453,46 @@ export class OrdersService {
     }
   }
 
+  /**
+   * تأیید تحویل از طرف مشتری.
+   *
+   * چرا از سمت سرور و با تاریخچه: مشتری در چت می‌نویسد «تحویل گرفتم»؛ درست است
+   * که همان لحظه وضعیت به COMPLETED برود و فروشنده هم خبردار شود — نه اینکه
+   * منتظر بماند تا کسی در پنل دکمه را بزند.
+   *
+   * فقط آخرین سفارش «ارسال‌شده»ی همان چت انتخاب می‌شود؛ اگر چنین سفارشی نباشد
+   * `null` برمی‌گردد و هیچ چیز تغییر نمی‌کند (تأیید بی‌مبنا، وضعیت را عوض نمی‌کند).
+   */
+  async confirmDeliveryByCustomer(shopId: string, chatId: string) {
+    const order = await this.db.order.findFirst({
+      where: { shopId, chatId, status: OrderStatus.SHIPPED },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, code: true, status: true, chatId: true, customerName: true },
+    });
+    if (!order) return null;
+
+    const updated = await this.db.order.update({
+      where: { id: order.id },
+      data: { status: OrderStatus.COMPLETED },
+      include: { items: true },
+    });
+    this.audit.record({
+      action: 'order.delivery_confirmed',
+      entity: 'order', entityId: order.id, shopId,
+      meta: { code: order.code, from: order.status, to: OrderStatus.COMPLETED, by: 'customer' },
+    });
+
+    // اعلان برای فروشنده: این تغییر را مشتری زده، نه پنل؛ باید بداند.
+    void this.telegram.notifyOwner(shopId, [
+      `✅ <b>مشتری تحویل سفارش را تأیید کرد</b>`,
+      `سفارش ${order.code} — ${order.customerName || 'مشتری'}`,
+      `وضعیت به «تحویل‌شده» تغییر کرد.`,
+    ].join('\n')).catch(() => undefined);
+    this.realtime.emitShop(shopId, 'order', { id: order.id, code: order.code, status: OrderStatus.COMPLETED, reason: 'delivery_confirmed' });
+    this.realtime.emitAdmin('order', { shopId, status: OrderStatus.COMPLETED });
+    return updated;
+  }
+
   /** تغییر وضعیت توسط فروشنده: PAID → SHIPPED → COMPLETED. */
   async setStatus(shopId: string, orderId: string, status: OrderStatus) {
     const order = await this.db.order.findFirst({ where: { shopId, id: orderId }, select: { id: true, status: true, code: true, chatId: true } });
@@ -462,6 +515,8 @@ export class OrdersService {
       shopId,
       meta: { code: order.code, from: order.status, to: status },
     });
+    this.realtime.emitShop(shopId, 'order', { id: orderId, code: order.code, status, reason: 'seller' });
+    this.realtime.emitAdmin('order', { shopId, status });
     if (order.chatId) {
       const text = status === OrderStatus.SHIPPED
         ? `📦 سفارش ${order.code} ارسال شد.`

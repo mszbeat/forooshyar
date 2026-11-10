@@ -1,23 +1,9 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'crypto';
-import { promisify } from 'util';
 import { AuditService } from '../logging/audit.service';
 import { PrismaService } from '../database/prisma.service';
-
-const scrypt = promisify(scryptCallback);
-async function hashPassword(password: string, salt = randomBytes(16).toString('hex')): Promise<string> {
-  const key = await scrypt(password, salt, 64) as Buffer;
-  return `${salt}:${key.toString('hex')}`;
-}
-async function verifyPassword(password: string, encoded: string): Promise<boolean> {
-  const [salt, hex] = encoded.split(':');
-  if (!salt || !hex) return false;
-  const key = await scrypt(password, salt, 64) as Buffer;
-  const expected = Buffer.from(hex, 'hex');
-  return expected.length === key.length && timingSafeEqual(key, expected);
-}
+import { hashPassword, verifyPassword } from './password';
 
 @Injectable()
 export class AuthService {

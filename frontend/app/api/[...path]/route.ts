@@ -66,10 +66,20 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path?: s
     cache: 'no-store',
   };
 
+  /**
+   * جریان زنده (`/events`, Server-Sent Events) نباید تایم‌اوت بخورد.
+   * `AbortSignal.timeout` هر درخواست را بعد از ۴۵ ثانیه می‌بست و اتصال زنده
+   * مرتب قطع/وصل می‌شد — یعنی «به‌روزرسانی زنده» عملاً هر ۴۵ ثانیه ری‌استارت.
+   */
+  const streaming = segments[segments.length - 1] === 'events'
+    || (request.headers.get('accept') ?? '').includes('text/event-stream');
+
   // Render free سرویس‌ها بعد از ۱۵ دقیقه بی‌کاری خواب می‌روند و بیدار شدنشان تا
   // حدود یک دقیقه طول می‌کشد. بدون تایم‌اوت، کاربر پنل تا ابد منتظر می‌ماند.
-  const timeoutMs = Number(process.env.API_PROXY_TIMEOUT_MS ?? 45000);
-  init.signal = AbortSignal.timeout(timeoutMs);
+  if (!streaming) {
+    const timeoutMs = Number(process.env.API_PROXY_TIMEOUT_MS ?? 45000);
+    init.signal = AbortSignal.timeout(timeoutMs);
+  }
 
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     // Stream the body straight through: uploads (CSV/XLSX) never hit memory twice.
@@ -101,6 +111,14 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path?: s
   // The API already decides caching for its own payloads; never let a CDN keep
   // authenticated shop data.
   if (!headers.has('cache-control')) headers.set('cache-control', 'no-store');
+
+  // جریان زنده: هیچ لایه‌ای (پروکسی Render، CDN، Next) اجازه‌ی بافر ندارد،
+  // وگرنه رخدادها تا پر شدن بافر نمی‌رسند و پنل «زنده» به نظر نمی‌رسد.
+  if ((upstream.headers.get('content-type') ?? '').includes('text/event-stream')) {
+    headers.set('cache-control', 'no-cache, no-transform');
+    headers.set('connection', 'keep-alive');
+    headers.set('x-accel-buffering', 'no');
+  }
 
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers });
 }

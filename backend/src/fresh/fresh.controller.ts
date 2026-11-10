@@ -4,8 +4,9 @@ import { AuthGuard, Principal } from '../auth/auth.guard';
 import { parse } from '../common/validation';
 import { PrismaService } from '../database/prisma.service';
 import { composeReply, type BrainShop } from '../telegram/brain';
+import { addPersonality, resolveReply } from '../ai/understand';
+import { TelegramService } from '../telegram/telegram.service';
 import { AiService } from '../ai/ai.service';
-import { answerWithAi } from '../ai/answer';
 
 const input = z.object({ message: z.string().trim().min(1).max(2000) }).strict();
 
@@ -49,12 +50,21 @@ export class FreshController {
       return { kind: 'handoff', text: shop.handoffMessage.trim() || 'برای پاسخ دقیق‌تر با فروشنده هماهنگ می‌کنم.' };
     }
     const reply = composeReply(message, shop as BrainShop, products);
-    const aiWanted = this.ai.enabled && reply.kind === 'clarify' && /^(unclear|no_data)/.test(reply.reason ?? '');
-    if (aiWanted) {
-      const answer = await answerWithAi(this.ai, { shop: shop as BrainShop, products }, message);
-      if (answer.ok) return { kind: 'answer', reason: 'ai_answer', text: answer.text, source: 'ai' };
-      return { kind: reply.kind, reason: reply.reason, text: reply.text, source: 'rules', aiSkipped: answer.reason };
-    }
-    return { kind: reply.kind, reason: reply.reason, text: reply.text, source: 'rules' };
+    const resolved = await resolveReply({ ai: this.ai, shop: shop as BrainShop, products, text: message, rule: reply });
+    // پیش‌نمایش پنل باید دقیقاً همان چیزی را نشان دهد که مشتری در تلگرام
+    // می‌بیند — از جمله بازنویسی لحن.
+    const understood = resolved.kind === 'order' || resolved.kind === 'handoff'
+      ? resolved
+      : await addPersonality(this.ai, shop as BrainShop, resolved, message);
+    return {
+      kind: understood.kind,
+      reason: understood.reason,
+      text: understood.text,
+      buttons: understood.buttons ?? [],
+      source: understood.source,
+      // همان قاعده‌ای که هنگام ارسال اعمال می‌شود، تا پیش‌نمایش با تلگرام یکی باشد.
+      parseMode: TelegramService.parseModeOf(understood.text, understood.parseMode) ?? null,
+      ai: understood.ai ?? null,
+    };
   }
 }

@@ -62,3 +62,5 @@ export const IconList = make('IconList', <><path d="M8 6h13M8 12h13M8 18h13" /><
 export const IconEye = make('IconEye', <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></>);
 export const IconInfo = make('IconInfo', <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>);
 export const IconLogo = make('IconLogo', <><path d="M4 18V9.5C4 6.5 6.2 4 9 4c1.7 0 3 .8 3.8 2 .8-1.2 2.1-2 3.8-2 2.8 0 5 2.5 5 5.5V18" /><path d="M8 21h8" /><path d="M12 12v6" /></>);
+export const IconSun = make('IconSun', <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" /></>);
+export const IconMoon = make('IconMoon', <><path d="M20.5 13.6A8.6 8.6 0 0 1 10.4 3.5a1 1 0 0 0-1.3-1.2A9.9 9.9 0 1 0 21.7 14.9a1 1 0 0 0-1.2-1.3Z" /></>);

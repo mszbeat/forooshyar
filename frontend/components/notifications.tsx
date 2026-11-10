@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { api, ApiError, type NotificationItem } from '@/lib/api';
+import { useRealtime } from '@/lib/realtime';
 import { relativeTime } from '@/lib/format';
 import { IconBell, IconBox, IconChat, IconRefresh, IconWallet, IconX } from '@/components/icons';
 
@@ -13,13 +14,18 @@ import { IconBell, IconBox, IconChat, IconRefresh, IconWallet, IconX } from '@/c
  * می‌شوند: سفارش‌های منتظر پرداخت، پیام‌های بی‌پاسخ مشتری، و موجودی رو به
  * اتمام. هیچ اعلان ساختگی در کار نیست.
  *
- * «خوانده‌شده» فقط در مرورگر نگه داشته می‌شود (شناسه‌ی آخرین اعلان‌های دیده‌شده)؛
- * چرا: اعلان‌ها وضعیت واقعی سیستم‌اند و «خواندن» یک ترجیح کاربر است، پس لازم
- * نیست سطر دیتابیس برایش ساخته شود.
+ * «خوانده‌شده» در مرورگر نگه داشته می‌شود؛ اما **کلیک روی هر اعلان هم همان
+ * لحظه آن را خوانده می‌کند** (قبلاً فقط دکمه‌ی «همه را خوانده‌شده کن» این کار
+ * را می‌کرد و کاربر بعد از باز کردن یک اعلان، همچنان شمارنده‌ی خوانده‌نشده
+ * می‌دید).
+ *
+ * هر اعلان به مقصد دقیق خودش می‌رود: پیام مشتری → گفتگوی همان مشتری و اسکرول
+ * روی همان پیام، سفارش → همان سفارش، موجودی کم → همان محصول.
  */
 const SEEN_KEY = 'forooshyar.seenNotifications';
 
 export function NotificationBell() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,10 +55,17 @@ export function NotificationBell() {
     }
   }, []);
 
-  // اولین بار در پس‌زمینه، بعد هر ۶۰ ثانیه و هر بار باز شدن پنل.
+  /**
+   * رخداد زنده: پیام تازه، سفارش تازه یا تغییر وضعیت، زنگ را همان لحظه
+   * به‌روز می‌کند. بازخوانی دوره‌ای هم می‌ماند (شبکه‌ی ناپایدار، تب خواب‌رفته)
+   * ولی فاصله‌اش بیشتر شده چون دیگر مسیر اصلی نیست.
+   */
+  useRealtime(['chat', 'order', 'stock', 'product'], () => { void load(); });
+
+  // اولین بار در پس‌زمینه، بعد هر ۹۰ ثانیه و هر بار باز شدن پنل.
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 60_000);
+    const timer = window.setInterval(() => void load(), 90_000);
     return () => window.clearInterval(timer);
   }, [load]);
 
@@ -72,10 +85,20 @@ export function NotificationBell() {
 
   const unread = items.filter(item => !seen.includes(item.id));
 
+  function persist(next: string[]) {
+    setSeen(next);
+    try { window.localStorage.setItem(SEEN_KEY, JSON.stringify(next)); } catch { /* حالت خصوصی مرورگر */ }
+  }
+
   function markAllSeen() {
-    const ids = items.map(item => item.id);
-    setSeen(ids);
-    try { window.localStorage.setItem(SEEN_KEY, JSON.stringify(ids)); } catch { /* حالت خصوصی مرورگر */ }
+    persist(items.map(item => item.id));
+  }
+
+  /** خواندنِ تک‌اعلان + رفتن به مقصد. */
+  function openItem(item: NotificationItem) {
+    if (!seen.includes(item.id)) persist([...seen, item.id]);
+    setOpen(false);
+    router.push(item.href);
   }
 
   const iconFor = (kind: NotificationItem['kind']) =>
@@ -127,11 +150,11 @@ export function NotificationBell() {
             {items.map(item => {
               const isNew = !seen.includes(item.id);
               return (
-                <Link
+                <button
                   key={item.id}
-                  href={item.href}
+                  type="button"
                   className={`notif-item ${isNew ? 'unread' : ''}`}
-                  onClick={() => setOpen(false)}
+                  onClick={() => openItem(item)}
                 >
                   <span className={`notif-ico tone-${item.tone}`}>{iconFor(item.kind)}</span>
                   <span className="notif-main">
@@ -140,7 +163,7 @@ export function NotificationBell() {
                     <span className="notif-item-time">{relativeTime(item.at)}</span>
                   </span>
                   {isNew && <span className="notif-unread-dot" aria-label="خوانده‌نشده" />}
-                </Link>
+                </button>
               );
             })}
           </div>
@@ -149,9 +172,9 @@ export function NotificationBell() {
             <button type="button" className="notif-link" onClick={markAllSeen} disabled={!unread.length}>
               همه را خوانده‌شده کن
             </button>
-            <Link href="/app/orders" className="notif-link" onClick={() => setOpen(false)}>
-              همه‌ی سفارش‌ها
-            </Link>
+            <button type="button" className="notif-link" onClick={() => { setOpen(false); router.push('/app/conversations'); }}>
+              همه‌ی گفتگوها
+            </button>
           </div>
         </div>
       )}

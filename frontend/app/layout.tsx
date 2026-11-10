@@ -22,6 +22,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="fa" dir="rtl">
+      <head>
+        {/* اعمال تم پیش از رنگ‌آمیزی اول — جلوگیری از پرشِ سفید به تیره */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('forooshyar.theme');if(t!=='dark'&&t!=='light'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'light';}document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>

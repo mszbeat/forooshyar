@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
 import { NotificationBell } from '@/components/notifications';
+import { ThemeToggle } from '@/components/theme';
 import {
   IconBox, IconChat, IconDashboard, IconLogo, IconLogout, IconMenu, IconWallet,
   IconSettings, IconSparkles, IconStore, IconUpload, IconUsers, IconX,
@@ -16,19 +17,18 @@ const NAV = [
   { href: '/app', label: 'داشبورد', icon: IconDashboard, exact: true },
   { href: '/app/products', label: 'محصولات و موجودی', icon: IconBox },
   { href: '/app/orders', label: 'سفارش‌ها', icon: IconWallet },
+  { href: '/app/conversations', label: 'گفت‌وگوها', icon: IconChat },
+  { href: '/app/customers', label: 'مشتریان', icon: IconUsers },
   { href: '/app/import', label: 'ورود کاتالوگ', icon: IconUpload },
   { href: '/app/assistant', label: 'دستیار پاسخ‌گو', icon: IconSparkles },
   { href: '/app/settings', label: 'تنظیمات فروشگاه', icon: IconSettings },
 ];
 
-const SOON = [
-  { label: 'گفتگوها', icon: IconChat, note: 'به‌زودی' },
-  { label: 'مشتریان', icon: IconUsers, note: 'به‌زودی' },
-];
-
 const TITLES: Record<string, { title: string; sub: string }> = {
   '/app': { title: 'داشبورد', sub: 'تصویر کلی فروشگاه در یک نگاه' },
   '/app/products': { title: 'محصولات و موجودی', sub: 'کاتالوگ، واریانت‌ها و دفتر گردش' },
+  '/app/conversations': { title: 'گفت‌وگوها', sub: 'همه‌ی چت‌های تلگرام، بی‌واسطه و از همین‌جا' },
+  '/app/customers': { title: 'مشتریان', sub: 'هر کسی که یک بار با فروشگاه شما حرف زده' },
   '/app/import': { title: 'ورود کاتالوگ', sub: 'بارگذاری گروهی از فایل اکسل یا CSV' },
   '/app/assistant': { title: 'دستیار پاسخ‌گو', sub: 'آزمایش پاسخ فروش‌یار پیش از انتشار' },
   '/app/settings': { title: 'تنظیمات فروشگاه', sub: 'لحن، ارسال، پرداخت و پیام ارجاع' },
@@ -87,17 +87,6 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
         ))}
       </div>
 
-      <div className="nav-group">
-        <div className="nav-label">به‌زودی</div>
-        {SOON.map(item => (
-          <span key={item.label} className="nav-item disabled" aria-disabled="true">
-            <item.icon className="nav-icon" />
-            <span>{item.label}</span>
-            <span className="nav-badge">{item.note}</span>
-          </span>
-        ))}
-      </div>
-
       <div className="sidebar-foot">
         <div className="side-card">
           <strong><IconStore size={13} style={{ display: 'inline', verticalAlign: '-2px', marginInlineEnd: 4 }} />{shop?.name ?? 'فروشگاه شما'}</strong>
@@ -137,6 +126,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
               <IconSparkles size={15} />
               تست پاسخ
             </Link>
+            <ThemeToggle className="hide-sm" />
             <NotificationBell />
             <span className="topbar-divider hide-sm" aria-hidden="true" />
             <button

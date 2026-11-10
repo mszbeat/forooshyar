@@ -47,13 +47,23 @@ export class AuditService {
   private readonly logger = new Logger('Audit');
   private writeFailures = 0;
 
-  private readonly logReads: boolean;
+  private readonly bootLogReads: boolean;
 
   constructor(
     private readonly db: PrismaService,
     @Optional() @Inject(AUDIT_LOG_READS) logReads?: boolean,
   ) {
-    this.logReads = logReads ?? process.env.AUDIT_LOG_READS === 'true';
+    this.bootLogReads = logReads ?? process.env.AUDIT_LOG_READS === 'true';
+  }
+
+  /**
+   * مقدار از env در هر نوشتن خوانده می‌شود تا تغییرش در پنل ادمین بدون
+   * ری‌استارت سرویس اثر کند.
+   */
+  private get logReads(): boolean {
+    const flag = (process.env.AUDIT_LOG_READS ?? '').trim();
+    if (flag === 'true' || flag === 'false') return flag === 'true';
+    return this.bootLogReads;
   }
 
   /** Domain-level event from inside a service (has request context automatically). */
