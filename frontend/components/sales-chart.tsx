@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { Summary } from '@/lib/api';
 import { faNum, faWeekday, tomanShort } from '@/lib/format';
 
@@ -8,6 +8,8 @@ type Metric = 'revenue' | 'units';
 
 export function SalesChart({ series, metric }: { series: Summary['sales']['series']; metric: Metric }) {
   const [hovered, setHovered] = useState<number | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPoint = (index: number) => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
@@ -27,6 +29,29 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
     point,
     value: values[index] ?? 0,
   }));
+  useLayoutEffect(() => {
+    if (hovered === null) return;
+    const chart = chartRef.current;
+    const tooltip = tooltipRef.current;
+    const svg = chart?.querySelector('svg');
+    const point = points[hovered];
+    if (!chart || !tooltip || !svg || !point) return;
+
+    const placeTooltip = () => {
+      const chartRect = chart.getBoundingClientRect();
+      const svgRect = svg.getBoundingClientRect();
+      const pointX = svgRect.left - chartRect.left - chart.clientLeft + (point.x / W) * svgRect.width;
+      const half = tooltip.offsetWidth / 2;
+      const min = half + 8;
+      const max = chart.clientWidth - half - 8;
+      tooltip.style.left = `${Math.max(min, Math.min(max, pointX))}px`;
+    };
+
+    placeTooltip();
+    window.addEventListener('resize', placeTooltip);
+    return () => window.removeEventListener('resize', placeTooltip);
+  }, [hovered, points, W]);
+
   const line = points.length
     ? points.reduce((path, point, i) => {
         if (i === 0) return `M ${point.x} ${point.y}`;
@@ -42,7 +67,7 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
     : faNum(Math.round(max * ratio));
 
   return (
-    <div className="sales-chart" role="group" aria-label={metric === 'revenue' ? 'نمودار تعاملی درآمد فروش روزانه' : 'نمودار تعاملی تعداد فروش روزانه'}>
+    <div ref={chartRef} className="sales-chart" role="group" aria-label={metric === 'revenue' ? 'نمودار تعاملی درآمد فروش روزانه' : 'نمودار تعاملی تعداد فروش روزانه'}>
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
         <defs>
           <linearGradient id="sales-area" x1="0" x2="0" y1="0" y2="1">
@@ -81,7 +106,7 @@ export function SalesChart({ series, metric }: { series: Summary['sales']['serie
         ))}
       </svg>
       {hovered !== null && points[hovered] && (
-        <div className="sales-chart-tooltip" style={{ left: `${Math.min(88, Math.max(12, (points[hovered].x / W) * 100))}%`, top: `${Math.max(25, (points[hovered].y / H) * 100)}%` }} aria-live="polite">
+        <div ref={tooltipRef} className="sales-chart-tooltip" style={{ left: '50%', top: `${Math.max(25, (points[hovered].y / H) * 100)}%` }} aria-live="polite">
           <b>{faWeekday(points[hovered].point.date)}</b>
           <span>{metric === 'revenue' ? `${tomanShort(points[hovered].point.revenue)} تومان` : `${faNum(points[hovered].point.units)} قلم`}</span>
           <small>{faNum(points[hovered].point.units)} قلم فروش</small>
