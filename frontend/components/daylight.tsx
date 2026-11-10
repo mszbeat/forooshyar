@@ -8,9 +8,9 @@ import { IconMoon, IconSun } from '@/components/icons';
  * ---------------------------------------------------------------------------
  * ایده از سایت مرجع: یک نوار ساعت را جابه‌جا می‌کند و کل پالت صفحه تدریجی از
  * سپیده به غروب و شب می‌رود. اینجا همان کار با پنج فاز انجام می‌شود، چون
- * پنل باید در هر ساعت هم خوانا بماند: به‌جای درهم‌آمیختن دو رنگ در نقطه‌ای با
- * کنتراست پایین، پالت به نزدیک‌ترین فازِ سنجیده‌شده می‌چسبد و CSS انتقال نرم
- * انجام می‌دهد (۰٫۵۵ ثانیه). رنگ‌ها در app/design-v3.css هستند.
+ * پالت هر فاز سنجیده شده است و رنگ‌های آن میان دو فاز به‌صورت پیوسته
+ * درون‌یابی می‌شوند؛ بنابراین هر تغییر دقیقه‌ای نوار، رنگ صفحه را جلو می‌برد.
+ * رنگ‌های پایه در app/design-v3.css تعریف شده‌اند.
  *
  * چرا localStorage: انتخاب فروشنده باید بین بازدیدها بماند و در هر دو پنل
  * یکی باشد. اگر چیزی ذخیره نشده باشد، ساعتِ خودِ دستگاه مبنا است؛ یعنی
@@ -64,16 +64,75 @@ function storedMinutes(): number | null {
 
 /** پالت را روی <html> می‌نشاند؛ `data-theme` هم هم‌گام می‌شود تا قواعد کهنه‌ی
  *  تیره (که هنوز در globals.css هستند) با «شب» یکی بمانند. */
+const COLOR_TOKENS = [
+  '--bg', '--bg-deep', '--surface', '--surface-2', '--surface-3', '--line', '--line-strong',
+  '--ink', '--ink-2', '--ink-3', '--ink-4', '--brand', '--brand-600', '--brand-400',
+  '--brand-50', '--brand-100', '--brand-200', '--brand-ink', '--saffron', '--amber',
+  '--amber-soft', '--amber-line', '--danger', '--danger-soft', '--danger-line', '--ok',
+  '--ok-soft', '--info', '--info-soft',
+];
+const PALETTE_STOPS: { at: number; key: PhaseKey }[] = [
+  { at: 0, key: 'night' }, { at: 300, key: 'dawn' }, { at: 420, key: 'morning' },
+  { at: 600, key: 'midday' }, { at: 930, key: 'glow' }, { at: 1110, key: 'night' },
+  { at: 1440, key: 'night' },
+];
+let paletteCache: Record<PhaseKey, Record<string, string>> | null = null;
+
+function readPalettes() {
+  if (paletteCache) return paletteCache;
+  const root = document.documentElement;
+  const oldPhase = root.dataset.phase;
+  const oldTheme = root.dataset.theme;
+  const palettes = {} as Record<PhaseKey, Record<string, string>>;
+  for (const key of ['night', 'dawn', 'morning', 'midday', 'glow'] as PhaseKey[]) {
+    root.dataset.phase = key;
+    root.dataset.theme = key === 'night' ? 'dark' : 'light';
+    const css = getComputedStyle(root);
+    palettes[key] = Object.fromEntries(COLOR_TOKENS.map(token => [token, css.getPropertyValue(token).trim()]));
+  }
+  if (oldPhase) root.dataset.phase = oldPhase; else delete root.dataset.phase;
+  if (oldTheme) root.dataset.theme = oldTheme; else delete root.dataset.theme;
+  return (paletteCache = palettes);
+}
+
+function rgbValue(value: string): [number, number, number] | null {
+  const hex = value.match(/^#([\da-f]{3}|[\da-f]{6})$/i);
+  if (hex) {
+    const raw = hex[1].length === 3 ? [...hex[1]].map(c => c + c).join('') : hex[1];
+    const n = Number.parseInt(raw, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const rgb = value.match(/rgba?\((\d+(?:\.\d+)?)[, ]+\s*(\d+(?:\.\d+)?)[, ]+\s*(\d+(?:\.\d+)?)/i);
+  return rgb ? [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])] : null;
+}
+function blendColor(from: string, to: string, amount: number) {
+  const a = rgbValue(from), b = rgbValue(to);
+  if (!a || !b) return amount < 0.5 ? from : to;
+  const channels = a.map((value, i) => Math.round(value + (b[i] - value) * amount));
+  return `rgb(${channels[0]} ${channels[1]} ${channels[2]})`;
+}
+
 function apply(minutes: number) {
   activeMinutes = minutes;
   const phase = phaseFor(minutes);
   const root = document.documentElement;
   root.dataset.phase = phase.key;
   root.dataset.theme = phase.key === 'night' ? 'dark' : 'light';
+
+  // پالت هر فاز بین توقف‌های ساعت به‌صورت پیوسته ترکیب می‌شود؛ هر دقیقه و
+  // هر حرکت کوچک نوار، واقعاً رنگ متغیرهای سایت را جلو می‌برد.
+  const rightIndex = PALETTE_STOPS.findIndex(stop => stop.at > minutes);
+  const right = PALETTE_STOPS[Math.max(1, rightIndex)];
+  const left = PALETTE_STOPS[Math.max(0, rightIndex - 1)];
+  const amount = Math.max(0, Math.min(1, (minutes - left.at) / (right.at - left.at)));
+  const palettes = readPalettes();
+  for (const token of COLOR_TOKENS) {
+    root.style.setProperty(token, blendColor(palettes[left.key][token], palettes[right.key][token], amount));
+  }
+
   root.style.colorScheme = phase.key === 'night' ? 'dark' : 'light';
   root.querySelector('meta[name="theme-color"]')?.setAttribute(
-    'content',
-    phase.key === 'night' ? '#0b0d11' : '#f4f1e9',
+    'content', phase.key === 'night' ? '#0b0d11' : '#f4f1e9',
   );
   return phase;
 }
@@ -172,7 +231,6 @@ export function DayLightScrubber({ className = '' }: { className?: string }) {
           type="range"
           min={0}
           max={1439}
-          step={5}
           value={minutes}
           onChange={event => set(Number(event.target.value))}
           aria-label="ساعت روز؛ تغییر پالت پنل"
@@ -215,7 +273,6 @@ export function DayLightHero({ className = '' }: { className?: string }) {
           type="range"
           min={0}
           max={1439}
-          step={5}
           value={minutes}
           onChange={event => choose(Number(event.target.value))}
           aria-label="ساعت روز؛ تغییر پالت صفحه"
