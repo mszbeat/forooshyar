@@ -7,6 +7,8 @@ import { api, ApiError, type AttentionItem, type Summary } from '@/lib/api';
 import { faDate, faNum, faWeekday, relativeTime, toman, tomanShort, variantLabel } from '@/lib/format';
 import { useRealtime } from '@/lib/realtime';
 import { EmptyState, SkeletonBlock, SkeletonRows, StatCard, useToast } from '@/components/ui';
+import { SalesChart } from '@/components/sales-chart';
+import { InventoryDonut } from '@/components/inventory-donut';
 import {
   IconAlert, IconArrowLeft, IconBolt, IconBox, IconCheckCircle, IconClock,
   IconMoney, IconPackage, IconPlus, IconSparkles, IconTrendUp, IconUpload, IconWallet,
@@ -24,6 +26,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tested, setTested] = useState(false);
+  const [chartMetric, setChartMetric] = useState<'revenue' | 'units'>('revenue');
 
   const load = useCallback(async () => {
     try {
@@ -44,8 +47,6 @@ export default function DashboardPage() {
 
 useEffect(() => { void load(); }, [load]);
   useEffect(() => { setTested(window.localStorage.getItem('forooshyar.botTested') === '1'); }, []);
-
-  const maxUnits = useMemo(() => Math.max(1, ...(summary?.sales.series.map(point => point.units) ?? [1])), [summary]);
 
   const checklist = useMemo(() => {
     const steps = [
@@ -87,6 +88,7 @@ useEffect(() => { void load(); }, [load]);
   }
 
   const sales = summary!.sales;
+  const chartTotal = chartMetric === 'revenue' ? sales.week.revenue : sales.week.units;
   const empty = summary!.products.total === 0;
 
   return (
@@ -178,28 +180,20 @@ useEffect(() => { void load(); }, [load]);
               <div className="card-title">روند فروش هفت روز</div>
               <div className="card-desc">بر اساس دفتر گردش موجودی، فقط تراکنش‌های فروش</div>
             </div>
-            <span className="badge b-brand"><span className="dot" />۷ روز</span>
+            <div className="chart-switch" role="group" aria-label="نوع نمودار">
+              <button type="button" aria-pressed={chartMetric === 'revenue'} className={chartMetric === 'revenue' ? 'on' : ''} onClick={() => setChartMetric('revenue')}>درآمد</button>
+              <button type="button" aria-pressed={chartMetric === 'units'} className={chartMetric === 'units' ? 'on' : ''} onClick={() => setChartMetric('units')}>تعداد</button>
+            </div>
           </div>
           <div className="card-body">
-            {sales.week.units === 0 ? (
+            {chartTotal === 0 ? (
               <EmptyState
                 icon={<IconTrendUp />}
                 title="در این هفته فروشی ثبت نشده"
-                description="وقتی با دکمه «فروخته شد» فروشی ثبت کنید، نمودار و آمار همین‌جا به‌روز می‌شود."
+                description="با ثبت اولین فروش، نمودار درآمد و تعداد اقلام اینجا به‌روز می‌شود."
                 action={<Link href="/app/products" className="btn btn-soft">رفتن به محصولات</Link>}
               />
-            ) : (
-              <div className="chart">
-                {sales.series.map(point => (
-                  <div className="chart-col" key={point.date} title={`${faDate(point.date)} — ${faNum(point.units)} قلم`}>
-                    <div className="chart-bar-track">
-                      <div className="chart-bar" style={{ height: `${Math.max(6, (point.units / maxUnits) * 100)}%` }} />
-                    </div>
-                    <span className="chart-x">{faWeekday(point.date)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            ) : <SalesChart series={sales.series} metric={chartMetric} />}
           </div>
           <div className="card-foot row-between">
             <span className="small muted">مجموع هفته: <strong className="strong" style={{ color: 'var(--ink)' }}>{toman(sales.week.revenue)}</strong></span>
@@ -217,6 +211,7 @@ useEffect(() => { void load(); }, [load]);
           </div>
           <div className="card-body" style={{ paddingBottom: 12 }}>
             <div className="progress"><span style={{ width: `${checklist.percent}%` }} /></div>
+            <InventoryDonut total={summary!.variants.total} low={summary!.variants.lowStock} out={summary!.variants.outOfStock} />
             <ul className="mt-4" style={{ display: 'grid', gap: 10 }}>
               {checklist.steps.map(step => (
                 <li key={step.label}>

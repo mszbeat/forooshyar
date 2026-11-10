@@ -166,7 +166,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       <main className="adm-main">
         <header className="adm-top">
-          <div>
+          <button
+            type="button" className="adm-mobile-menu btn btn-ghost btn-icon btn-sm"
+            aria-label="باز کردن منوی ادمین" aria-expanded={navOpen}
+            onClick={() => setNavOpen(open => !open)}
+          >
+            {navOpen ? <IconX size={17} /> : <IconMenu size={17} />}
+          </button>
+          <div className="adm-top-title">
             <div className="crumbs">{meta.crumb}</div>
             <h1>{meta.title}</h1>
           </div>
