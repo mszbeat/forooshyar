@@ -123,7 +123,7 @@ export function describeProduct(product: CatalogProduct, query: string): BotRepl
         '',
         available.length ? `<b>گزینه‌های ثبت‌شده:</b>\n${available.map(item => `• ${escapeHtml(item)}`).join('\n')}` : 'هنوز سایز و رنگی برای این محصول ثبت نشده است.',
       ].join('\n'),
-      buttons: orderButtons(product),
+      buttons: orderButtons(product).length ? orderButtons(product) : [[{ text: '🔔 اگر موجود شد خبرم کن', data: `watch:${product.id}` }]],
     };
   }
 
@@ -139,14 +139,19 @@ export function describeProduct(product: CatalogProduct, query: string): BotRepl
     const stock = variant.stock > 0 ? `✅ ${variant.stock.toLocaleString('fa-IR')} عدد` : '❌ ناموجود';
     lines.push(`• ${escapeHtml(spec)} — <b>${toman(variant.price)}</b> · ${stock}`);
   }
-  if (wantsPrice || wantsStock) lines.push('', '👇 برای ثبت سفارش یکی از دکمه‌های زیر را بزنید.');
+  const choices = orderButtons(product);
+  if (wantsPrice || wantsStock) {
+    lines.push('', choices.length
+      ? '👇 برای ثبت سفارش یکی از گزینه‌های موجود را انتخاب کنید.'
+      : '😔 فعلاً هیچ‌کدام از گزینه‌های این محصول موجود نیست. برای اینکه هنگام شارژ خبرتان کنیم، «خبرم کن» بنویسید.');
+  }
 
   return {
-    kind: 'answer',
-    reason: wantsPrice ? 'price' : wantsStock ? 'stock' : 'product',
+    kind: choices.length ? 'answer' : 'clarify',
+    reason: choices.length ? (wantsPrice ? 'price' : wantsStock ? 'stock' : 'product') : 'out_of_stock',
     parseMode: 'HTML',
     text: lines.join('\n'),
-    buttons: orderButtons(product),
+    buttons: choices.length ? choices : [[{ text: '🔔 اگر موجود شد خبرم کن', data: `watch:${product.id}` }]],
   };
 }
 

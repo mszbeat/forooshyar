@@ -178,6 +178,17 @@ describe('پاسخ بات', () => {
     assert.match(rows[0][0].text, /سفارش/);
   });
 
+  it('وقتی هیچ واریانتی موجود نیست، دکمه‌ی سفارشِ بی‌پشتوانه وعده نمی‌دهد و خبرم‌کن دارد', () => {
+    const soldOut = { id: 'eeeeee55-1111-1111-1111-111111111111', title: 'کفش چرمی', variants: [
+      { id: 'v-out', size: '39', color: 'مشکی', price: 1_650_000, stock: 0 },
+    ] };
+    const reply = describeProduct(soldOut, 'قیمت');
+    assert.equal(reply.kind, 'clarify');
+    assert.match(reply.text, /هیچ‌کدام.*موجود نیست/);
+    assert.doesNotMatch(reply.text, /برای ثبت سفارش.*دکمه/);
+    assert.equal(reply.buttons?.[0]?.[0]?.data, 'watch:eeeeee55-1111-1111-1111-111111111111');
+  });
+
   it('سایز ناموجود → گزینه‌های واقعی نشان داده می‌شود، حدس زده نمی‌شود', () => {
     const reply = describeProduct(PRODUCTS[0], 'قیمت کت چرم مشکی سایز XL چنده');
     assert.equal(reply.kind, 'clarify');
