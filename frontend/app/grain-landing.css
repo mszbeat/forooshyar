@@ -104,3 +104,14 @@ html[data-theme='dark'] .land .night-sec { background:#151517; color:var(--ink);
   .land .sec-title { font-size:clamp(28px,8vw,40px); }
 }
 @media (prefers-reduced-motion:reduce) { .land .phone, .land .float-card { animation:none !important; transform:none !important; } }
+
+/* Gentle color atmosphere on the marketing page—never competes with Persian copy. */
+.land .hero::before {content:'';display:block;position:absolute;inset:-90px -8% auto;height:610px;z-index:-1;background:radial-gradient(520px 340px at 78% 18%,color-mix(in srgb,var(--brand) 12%,transparent),transparent 72%),radial-gradient(420px 280px at 18% 4%,color-mix(in srgb,var(--ok) 10%,transparent),transparent 72%);filter:blur(8px)}
+.land .night-sec {background:radial-gradient(70% 90% at 92% 0%,color-mix(in srgb,var(--brand) 12%,transparent),transparent 70%),radial-gradient(60% 80% at 0% 100%,color-mix(in srgb,var(--ok) 10%,transparent),transparent 72%),var(--surface-2);border-block:1px solid var(--line)}
+html[data-theme='dark'] .land .night-sec {background:radial-gradient(70% 90% at 92% 0%,rgba(93,115,235,.16),transparent 70%),radial-gradient(60% 80% at 0% 100%,rgba(34,184,165,.12),transparent 72%),var(--surface-2)}
+.land .rule {background:color-mix(in srgb,var(--surface) 84%,var(--brand-50));border-color:var(--line);box-shadow:0 8px 24px -22px rgba(26,40,90,.35)}
+.land .rule:nth-child(2) {background:color-mix(in srgb,var(--surface) 88%,var(--ok-soft))}
+.land .rule .n {color:var(--brand)}.land .rule h3 {color:var(--ink)}.land .rule p {color:var(--ink-2)}
+.land .cta {background:radial-gradient(520px 300px at 88% 8%,rgba(93,115,235,.4),transparent 68%),radial-gradient(560px 360px at 6% 100%,rgba(34,184,165,.2),transparent 70%),linear-gradient(135deg,#121a35,#14263b 68%,#103b3b);border-radius:16px}
+html[data-theme='dark'] .land .cta {background:radial-gradient(520px 300px at 88% 8%,rgba(93,115,235,.4),transparent 68%),radial-gradient(560px 360px at 6% 100%,rgba(34,184,165,.2),transparent 70%),linear-gradient(135deg,#121a35,#14263b 68%,#103b3b)}
+.land .fact:nth-child(1) .fact-v {color:var(--brand)}.land .fact:nth-child(2) .fact-v {color:var(--ok)}.land .fact:nth-child(3) .fact-v {color:var(--amber)}.land .fact:nth-child(4) .fact-v {color:var(--info)}

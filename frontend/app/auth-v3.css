@@ -173,3 +173,30 @@
   border-radius: 0;
   background: color-mix(in srgb, var(--brand-400) 78%, transparent);
 }
+
+/* Stable split layout: the earlier sliding absolute poster could cover the form
+   during the login/register transition. Keep both columns visible; only copy swaps. */
+.authx {
+  direction:ltr;
+  width:100%;max-width:1480px;min-height:100dvh;margin-inline:auto;
+  padding:clamp(14px,3vw,40px);gap:clamp(22px,4vw,58px);
+  grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);align-items:stretch;
+}
+.authx-visual {
+  position:relative;inset:auto;grid-column:1;width:auto;height:auto;min-width:0;min-height:min(820px,calc(100dvh - 80px));
+  transform:none!important;border-radius:24px;direction:rtl;
+}
+.authx-form-side {
+  grid-column:2;width:auto;min-width:0;min-height:calc(100dvh - 2 * clamp(14px,3vw,40px));
+  padding:clamp(22px,4vw,62px);transform:none!important;direction:rtl;
+}
+.authx-form-card {width:min(100%,460px);margin:auto}
+.authx.register .authx-visual,.authx.register .authx-form-side {transform:none!important}
+.authx-visual-inner {direction:rtl}
+@media(max-width:920px){
+ .authx{grid-template-columns:minmax(0,1fr);gap:0;padding:14px;min-height:100dvh}
+ .authx-visual{grid-column:1;min-height:auto;height:auto;width:auto;max-width:none;border-radius:20px}
+ .authx-form-side{grid-column:1;min-height:0;width:auto;padding:28px clamp(4px,4vw,18px) 42px}
+ .authx-form-card{width:min(100%,500px)}
+ .authx.register .authx-visual,.authx.register .authx-form-side{transform:none!important}
+}

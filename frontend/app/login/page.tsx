@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import './../auth.css';
+import './../auth-v3.css';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { Field, Spinner, useToast } from '@/components/ui';
@@ -190,7 +191,7 @@ export default function LoginPage() {
                   <input
                     id="shopName" className="input" name="shopName" required maxLength={200}
                     placeholder="مثلاً بوتیک نیلا" value={values.shopName} onChange={set('shopName')}
-                    autoComplete="organization" autoFocus
+                    autoComplete="organization"
                   />
                 </Field>
               )}
