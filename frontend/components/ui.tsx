@@ -233,7 +233,6 @@ export function Switch({ checked, onChange, label, id, hideLabel }: {
         className="switch-input"
       />
       {!hideLabel && <span>{label}</span>}
-      <style>{`.switch-input::after{content:'';position:absolute;top:3px;inset-inline-end:${checked ? '19px' : '3px'};width:16px;height:16px;border-radius:50%;background:#fff;transition:inset-inline-end .18s var(--ease);box-shadow:0 1px 2px rgba(0,0,0,.2)}`}</style>
     </label>
   );
 }

@@ -14,6 +14,7 @@ import {
 
 const NAV = [
   { href: '/admin', label: 'نمای کلی', icon: IconDashboard, exact: true, note: 'overview' },
+  { href: '/admin/shops', label: 'فروشگاه‌ها', icon: IconStore, note: 'shops' },
   { href: '/admin/ai', label: 'هوش مصنوعی', icon: IconSparkles, note: 'ai' },
   { href: '/admin/telegram', label: 'تلگرام و ربات', icon: IconBolt, note: 'telegram' },
   { href: '/admin/payments', label: 'پرداخت', icon: IconWallet, note: 'payments' },
@@ -24,6 +25,7 @@ const NAV = [
 
 const TITLES: Record<string, { title: string; crumb: string }> = {
   '/admin': { title: 'نمای کلی پلتفرم', crumb: 'CONTROL ROOM' },
+  '/admin/shops': { title: 'مدیریت فروشگاه‌ها', crumb: 'SHOPS · ACCOUNTS' },
   '/admin/ai': { title: 'مدل هوش مصنوعی', crumb: 'AI · MODEL ROUTING' },
   '/admin/telegram': { title: 'تلگرام و ربات', crumb: 'BOT · WEBHOOK' },
   '/admin/payments': { title: 'درگاه پرداخت', crumb: 'PAYMENTS' },

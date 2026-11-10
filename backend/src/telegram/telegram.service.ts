@@ -201,7 +201,7 @@ export class TelegramService {
     if (payload.startsWith('own_')) return this.linkOwner(chatId, message, payload.slice(4));
 
     const channel = payload
-      ? await this.db.channel.findFirst({ where: { code: payload, active: true }, include: { shop: { select: { id: true, name: true, handoffMessage: true } } } })
+      ? await this.db.channel.findFirst({ where: { code: payload, active: true, shop: { is: { active: true } } }, include: { shop: { select: { id: true, name: true, handoffMessage: true } } } })
       : null;
 
     if (!channel) {
@@ -247,7 +247,7 @@ export class TelegramService {
       await this.send(chatId, 'کد اتصال را از پنل فروشیار (تنظیمات → اتصال تلگرام) بگیرید و به شکل /link CODE بفرستید.');
       return { status: 'handled', replies: 1, kind: 'owner_code_missing' };
     }
-    const channel = await this.db.channel.findFirst({ where: { ownerCode: code }, include: { shop: { select: { id: true, name: true } } } });
+    const channel = await this.db.channel.findFirst({ where: { ownerCode: code, shop: { is: { active: true } } }, include: { shop: { select: { id: true, name: true } } } });
     if (!channel) {
       await this.send(chatId, 'این کد معتبر یا منقضی شده است. از پنل یک کد تازه بگیرید.');
       return { status: 'handled', replies: 1, kind: 'owner_code_invalid' };
@@ -270,7 +270,7 @@ export class TelegramService {
   }
 
   private async help(chatId: string): Promise<HandleResult> {
-    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId, shop: { is: { active: true } } }, orderBy: { lastSeenAt: 'desc' } });
     const shop = conversation
       ? await this.db.shop.findUnique({
         where: { id: conversation.shopId },
@@ -290,7 +290,7 @@ export class TelegramService {
    * `/products` و دکمه‌ی «محصولات و قیمت‌ها» به همین‌جا می‌رسند.
    */
   private async catalogMessage(chatId: string): Promise<HandleResult> {
-    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId, shop: { is: { active: true } } }, orderBy: { lastSeenAt: 'desc' } });
     if (!conversation) {
       await this.send(chatId, 'برای دیدن محصولات، اول لینک اختصاصی فروشگاه را باز کنید.');
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
@@ -330,7 +330,7 @@ export class TelegramService {
 
   // ---------------------------------------------------------------- مشتری
   private async customerMessage(chatId: string, text: string, message?: IncomingMessage): Promise<HandleResult> {
-    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId, shop: { is: { active: true } } }, orderBy: { lastSeenAt: 'desc' } });
     if (!conversation) {
       await this.send(chatId, 'برای شروع، لینک اختصاصی فروشگاه را باز کنید.');
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
@@ -672,7 +672,7 @@ export class TelegramService {
     // بدون این، چرخ‌لودینگ دکمه در گوشی مشتری گیر می‌کند.
     await this.client.answerCallbackQuery(callback.id).catch(() => undefined);
 
-    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId, shop: { is: { active: true } } }, orderBy: { lastSeenAt: 'desc' } });
     if (!conversation) {
       await this.send(chatId, 'برای شروع، لینک اختصاصی فروشگاه را باز کنید.');
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
@@ -922,7 +922,7 @@ export class TelegramService {
 
   /** /orders — سفارش‌های همین چت. */
   private async myOrders(chatId: string): Promise<HandleResult> {
-    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId }, orderBy: { lastSeenAt: 'desc' } });
+    const conversation = await this.db.telegramConversation.findFirst({ where: { chatId, shop: { is: { active: true } } }, orderBy: { lastSeenAt: 'desc' } });
     if (!conversation) {
       await this.send(chatId, 'برای شروع، لینک اختصاصی فروشگاه را باز کنید.');
       return { status: 'handled', replies: 1, kind: 'no_conversation' };

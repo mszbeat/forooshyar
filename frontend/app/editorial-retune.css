@@ -186,3 +186,62 @@ html[data-theme='dark'] .adm-note.ok{background:#12372f!important;border-color:#
 html[data-theme='dark'] .adm-note.ok .small,html[data-theme='dark'] .adm-note.ok .muted{color:#a8f3d9!important}
 html[data-theme='dark'] .adm-note.bad{background:#3a2025!important;border-color:#83404a!important;color:#ffb9bd!important}
 html[data-theme='dark'] .adm-note.bad .small,html[data-theme='dark'] .adm-note.bad .muted{color:#ffb9bd!important}
+
+/* Theme-safe contrast for every semantic notice, including nested muted text. */
+.adm-note.ok,.adm-note.ok *{color:#07563d!important}
+.adm-note.warn,.adm-note.warn *{color:#663700!important}
+.adm-note.bad,.adm-note.bad *{color:#75201b!important}
+html[data-theme='dark'] .adm-note.ok,html[data-theme='dark'] .adm-note.ok *{color:#b8ffe1!important}
+html[data-theme='dark'] .adm-note.ok{background:#12372f!important;border-color:#26715b!important}
+html[data-theme='dark'] .adm-note.warn,html[data-theme='dark'] .adm-note.warn *{color:#ffda9c!important}
+html[data-theme='dark'] .adm-note.warn{background:#352713!important;border-color:#815c2d!important}
+html[data-theme='dark'] .adm-note.bad,html[data-theme='dark'] .adm-note.bad *{color:#ffb9bd!important}
+html[data-theme='dark'] .adm-note.bad{background:#3a2025!important;border-color:#83404a!important}
+.adm-note.probe-result.ok,.adm-note.probe-result.bad{background:var(--surface-2)!important;border-color:var(--line-strong)!important}
+html[data-theme='dark'] .adm-note.probe-result.ok{background:#12372f!important;border-color:#26715b!important}
+html[data-theme='dark'] .adm-note.probe-result.bad{background:#3a2025!important;border-color:#83404a!important}
+html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-cell .k,html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-title{color:#b8ffe1!important}
+html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-cell .v{color:#e7fff5!important}
+html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-cell .k,html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-title{color:#ffb9bd!important}
+html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-cell .v{color:#fff0f1!important}
+/* All switch knobs use the native checked state; no per-instance style tags,
+   so several settings toggles cannot overwrite each other's position. */
+.switch-input::after{content:'';position:absolute;top:3px;inset-inline-end:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:inset-inline-end .18s var(--ease);box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch-input:checked::after{inset-inline-end:19px}
+/* Use the whole AI settings column: the old 713px cap left a blank gutter. */
+.ai-route{width:100%;max-width:none}
+.ai-page-col-form>.ai-route,.ai-page-col-form>.adm-sec{width:100%;max-width:none}
+
+/* Admin shop management screen. */
+.shop-admin-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:18px}
+.shop-admin-form .field{display:grid;gap:6px;font-size:12px;font-weight:700;color:var(--ink-2)}
+.shop-admin-form .field input{min-width:0}
+.shop-admin-form-actions{grid-column:1/-1;justify-content:flex-start;gap:8px;padding-top:4px}
+.shop-list-tools{align-items:flex-start;gap:14px;flex-wrap:wrap}
+.shop-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-inline-start:auto}
+.shop-search{display:flex;align-items:center;gap:8px;min-width:min(260px,100%);height:36px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink-3)}
+.shop-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:12px}
+.shop-table-wrap{overflow:auto}
+.shop-table{min-width:800px}
+.shop-table th{white-space:nowrap}
+.shop-row-actions{gap:5px;flex-wrap:nowrap}
+.shop-row-actions .btn{white-space:nowrap}
+@media(max-width:850px){.shop-admin-form{grid-template-columns:1fr 1fr}.shop-admin-form-actions{grid-column:1/-1}}
+@media(max-width:560px){.shop-admin-form{grid-template-columns:1fr}.shop-admin-form-actions{grid-column:1}.shop-filters{width:100%;margin-inline-start:0}.shop-search{flex:1;min-width:150px}.shop-list-tools{display:grid}.shop-row-actions{flex-wrap:wrap}}
+.adm-note.ok{background:#e2f8ef!important;border-color:#69bf9b!important}
+.adm-note.warn{background:#fff3d8!important;border-color:#d8a54f!important}
+.adm-note.bad{background:#fdebed!important;border-color:#dc8f98!important}
+html[data-theme='dark'] .adm-note.ok{background:#12372f!important;border-color:#43a982!important}
+html[data-theme='dark'] .adm-note.warn{background:#352713!important;border-color:#c18a37!important}
+html[data-theme='dark'] .adm-note.bad{background:#3a2025!important;border-color:#bd626d!important}
+/* Keep diagnostic result panels tinted yet legible, not the inherited washed-out green. */
+.adm-note.probe-result.ok{background:#e2f8ef!important;border-color:#69bf9b!important}
+.adm-note.probe-result.bad{background:#fdebed!important;border-color:#dc8f98!important}
+.adm-note.probe-result.ok .probe-result-title,.adm-note.probe-result.ok .probe-result-cell .k{color:#07563d!important}
+.adm-note.probe-result.ok .probe-result-cell .v{color:#123f31!important}
+.adm-note.probe-result.bad .probe-result-title,.adm-note.probe-result.bad .probe-result-cell .k{color:#75201b!important}
+.adm-note.probe-result.bad .probe-result-cell .v{color:#521916!important}
+html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-title,html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-cell .k{color:#b8ffe1!important}
+html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-cell .v{color:#e7fff5!important}
+html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-title,html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-cell .k{color:#ffb9bd!important}
+html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-cell .v{color:#fff0f1!important}

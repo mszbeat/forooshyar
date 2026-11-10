@@ -69,6 +69,7 @@ async function call<T>(path: string, options: { method?: string; body?: unknown;
 }
 
 export type AdminIdentity = { id: string; email: string; name: string; lastLoginAt: string | null; createdAt: string };
+export type ManagedShop = { id: string; name: string; email: string; active: boolean; createdAt: string; products: number; orders: number };
 
 export type SettingKind = 'bool' | 'text' | 'secret' | 'number' | 'url' | 'choice';
 
@@ -174,6 +175,13 @@ export const adminApi = {
     call<{ ok: true }>('/admin/auth/password', { method: 'POST', body: { current, next } }),
 
   overview: () => call<Overview>('/admin/overview'),
+  shops: () => call<ManagedShop[]>('/admin/shops'),
+  createShop: (input: { name: string; email: string; password: string }) =>
+    call<ManagedShop>('/admin/shops', { method: 'POST', body: input }),
+  updateShop: (id: string, input: { name?: string; email?: string; password?: string; active?: boolean }) =>
+    call<ManagedShop>(`/admin/shops/${encodeURIComponent(id)}`, { method: 'PATCH', body: input }),
+  deleteShop: (id: string) =>
+    call<{ ok: true }>(`/admin/shops/${encodeURIComponent(id)}`, { method: 'DELETE', body: { confirm: true } }),
   settings: () => call<SettingsPayload>('/admin/settings'),
   save: (values: Record<string, string>) =>
     call<{ saved: string[]; skipped: string[]; restartRequired: string[]; appliedLive?: string[] }>(
