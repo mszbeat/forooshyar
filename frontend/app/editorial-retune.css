@@ -245,3 +245,36 @@ html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-title,html[data-
 html[data-theme='dark'] .adm-note.probe-result.ok .probe-result-cell .v{color:#e7fff5!important}
 html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-title,html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-cell .k{color:#ffb9bd!important}
 html[data-theme='dark'] .adm-note.probe-result.bad .probe-result-cell .v{color:#fff0f1!important}
+
+/* Mobile fixes: keep the notification popover inside the viewport and make
+   the order summary/filter controls reflow instead of widening the page. */
+@media (max-width: 640px) {
+  .notif-panel {
+    position: fixed;
+    inset-inline: 12px;
+    inset-block-start: calc(var(--topbar-h, 62px) + env(safe-area-inset-top, 0px) + 8px);
+    width: auto;
+    max-height: calc(100dvh - var(--topbar-h, 62px) - env(safe-area-inset-top, 0px) - 20px);
+    display: flex;
+    flex-direction: column;
+  }
+  .notif-head,.notif-foot { flex: 0 0 auto; }
+  .notif-body { min-height: 0; max-height: none; flex: 1 1 auto; overflow-y: auto; }
+
+  .orders-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .orders-filter { display: flex; min-width: 0; width: 100%; }
+  .orders-filter .segmented { width: 100%; max-width: 100%; flex-wrap: wrap; justify-content: stretch; }
+  .orders-filter .segmented button {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.55;
+    padding: 7px 8px;
+  }
+  .orders-modal-body { min-width: 0; }
+  .orders-modal-body .table-wrap { width: 100%; max-width: 100%; overflow-x: auto; }
+}
+
+@media (max-width: 420px) {
+  .orders-kpi-grid { grid-template-columns: minmax(0, 1fr); }
+}
