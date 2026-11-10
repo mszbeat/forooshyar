@@ -292,14 +292,13 @@ useEffect(() => { void load(); }, [load]);
                     )}
                   </div>
 
-                  <div className="row-stat">
-                    <span className="row-stat-num">{faNum(stock)}</span>
-                    <span className="small muted">عدد</span>
-                  </div>
-
                   <div className="row-spacer" />
 
-                  <div className="row" style={{ gap: 6 }}>
+                  <div className="row product-row-actions" style={{ gap: 6 }}>
+                    <div className="row-stat product-stock-total" aria-label={`موجودی کل ${faNum(stock)} عدد`}>
+                      <span className="row-stat-num">{faNum(stock)}</span>
+                      <span className="small muted">عدد</span>
+                    </div>
                     <button className="btn btn-outline btn-sm" onClick={() => setEditProduct(product)} disabled={busyId === product.id}>
                       <IconEdit size={14} />ویرایش
                     </button>

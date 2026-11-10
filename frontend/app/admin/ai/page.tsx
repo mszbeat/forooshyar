@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { adminApi } from '@/lib/admin';
 import { SettingsPanel } from '@/components/admin/settings-panel';
 import { ModelRoute } from '@/components/admin/model-route';
-import { ProbeResultPanel, ServiceCard, splitProviderError, type ProbeResult } from '@/components/admin/probe';
+import { ServiceCard, splitProviderError, type ProbeResult } from '@/components/admin/probe';
 import { IconSparkles } from '@/components/icons';
 
 /**
@@ -27,8 +26,6 @@ import { IconSparkles } from '@/components/icons';
  * `AiService` مقدارها را در هر درخواست از env می‌خواند.
  */
 export default function AdminAiPage() {
-  const [result, setResult] = useState<ProbeResult | null>(null);
-
   return (
     <div className="ai-page">
       <div className="ai-page-split">
@@ -53,7 +50,6 @@ export default function AdminAiPage() {
               { label: 'مسیر جایگزین', value: '/app/assistant' },
             ]}
             probeLabel="ارسال درخواست آزمایشی"
-            onResult={setResult}
             onProbe={async () => {
               const probe = await adminApi.probeAi();
               const split = probe.ok ? null : splitProviderError(probe.error ?? '');
@@ -73,12 +69,6 @@ export default function AdminAiPage() {
           />
         </div>
 
-        {/* ردیف نتیجه: فقط وقتی آزمونی اجرا شده باشد. */}
-        {result && (
-          <div className="ai-page-result">
-            <ProbeResultPanel result={result} title="نتیجه‌ی آزمون اتصال" />
-          </div>
-        )}
       </div>
     </div>
   );
