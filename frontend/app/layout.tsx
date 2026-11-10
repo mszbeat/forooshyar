@@ -7,7 +7,6 @@ import './globals.css';
 import './design-v3.css';
 import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/components/ui';
-import { DayLightBoot } from '@/components/daylight';
 import { MotionBoot } from '@/components/reveal';
 
 export const metadata: Metadata = {
@@ -36,7 +35,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        <DayLightBoot />
         <MotionBoot />
         <AuthProvider>
           <ToastProvider>{children}</ToastProvider>
