@@ -1,6 +1,6 @@
-import { Injectable, Logger, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 import { hashPassword, verifyPassword } from '../auth/password';
 import { PrismaService } from '../database/prisma.service';
@@ -238,6 +238,97 @@ export class AdminService implements OnModuleInit {
         meta: row.meta as Record<string, unknown> | null,
       })),
     };
+  }
+
+  /** فهرست فروشگاه‌ها برای مدیریت ادمین. */
+  listShops() {
+    return this.db.shop.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, name: true, active: true, createdAt: true,
+        owner: { select: { email: true } },
+        _count: { select: { products: true, orders: true } },
+      },
+    }).then(rows => rows.map(shop => ({
+      id: shop.id, name: shop.name, email: shop.owner.email, active: shop.active,
+      createdAt: shop.createdAt.toISOString(), products: shop._count.products, orders: shop._count.orders,
+    })));
+  }
+
+  /** ایجاد مالک و فروشگاه در یک تراکنش؛ رمز هرگز در لاگ ثبت نمی‌شود. */
+  async createShop(input: { name: string; email: string; password: string }, admin: AdminIdentity) {
+    const email = input.email.trim().toLowerCase();
+    try {
+      const user = await this.db.user.create({
+        data: {
+          email, passwordHash: await hashPassword(input.password),
+          shop: { create: { name: input.name.trim() } },
+        },
+        include: { shop: true },
+      });
+      const shop = user.shop!;
+      this.audit.record({ action: 'admin.shop_create', entity: 'shop', entityId: shop.id, meta: { email, name: shop.name, adminId: admin.id } });
+      return { id: shop.id, name: shop.name, email, active: shop.active, createdAt: shop.createdAt.toISOString(), products: 0, orders: 0 };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('این ایمیل قبلاً برای حساب دیگری ثبت شده است.');
+      }
+      throw error;
+    }
+  }
+
+  /** ویرایش اطلاعات مالک/فروشگاه، وضعیت فعال و در صورت نیاز رمز تازه. */
+  async updateShop(id: string, input: { name?: string; email?: string; active?: boolean; password?: string }, admin: AdminIdentity) {
+    const current = await this.db.shop.findUnique({ where: { id }, select: { id: true, ownerId: true } });
+    if (!current) throw new NotFoundException('فروشگاه پیدا نشد.');
+    const email = input.email?.trim().toLowerCase();
+    try {
+      await this.db.$transaction(async tx => {
+        if (input.name !== undefined || input.active !== undefined) {
+          await tx.shop.update({ where: { id }, data: {
+            ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+            ...(input.active !== undefined ? { active: input.active } : {}),
+          } });
+        }
+        if (email !== undefined || input.password) {
+          await tx.user.update({ where: { id: current.ownerId }, data: {
+            ...(email !== undefined ? { email } : {}),
+            ...(input.password ? { passwordHash: await hashPassword(input.password) } : {}),
+          } });
+        }
+      });
+      this.audit.record({ action: input.active === undefined ? 'admin.shop_update' : 'admin.shop_status', entity: 'shop', entityId: id, meta: { email, active: input.active, adminId: admin.id } });
+      return this.db.shop.findUniqueOrThrow({
+        where: { id }, select: { id: true, name: true, active: true, createdAt: true, owner: { select: { email: true } }, _count: { select: { products: true, orders: true } } },
+      }).then(shop => ({ id: shop.id, name: shop.name, email: shop.owner.email, active: shop.active, createdAt: shop.createdAt.toISOString(), products: shop._count.products, orders: shop._count.orders }));
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('این ایمیل قبلاً برای حساب دیگری ثبت شده است.');
+      }
+      throw error;
+    }
+  }
+
+  /** حذف قطعی فروشگاه و داده‌های وابسته با تأیید صریح؛ رویداد ممیزی باقی می‌ماند. */
+  async deleteShop(id: string, admin: AdminIdentity) {
+    const shop = await this.db.shop.findUnique({ where: { id }, select: { id: true, name: true, ownerId: true } });
+    if (!shop) throw new NotFoundException('فروشگاه پیدا نشد.');
+    await this.db.$transaction(async tx => {
+      await tx.stockAlert.deleteMany({ where: { shopId: id } });
+      await tx.orderItem.deleteMany({ where: { shopId: id } });
+      await tx.stockMovement.deleteMany({ where: { shopId: id } });
+      await tx.stockOperation.deleteMany({ where: { shopId: id } });
+      await tx.chatMessage.deleteMany({ where: { shopId: id } });
+      await tx.order.deleteMany({ where: { shopId: id } });
+      await tx.variant.deleteMany({ where: { shopId: id } });
+      await tx.product.deleteMany({ where: { shopId: id } });
+      await tx.channel.deleteMany({ where: { shopId: id } });
+      await tx.telegramConversation.deleteMany({ where: { shopId: id } });
+      await tx.shop.delete({ where: { id } });
+      await tx.user.delete({ where: { id: shop.ownerId } });
+    }, { timeout: 30_000 });
+    this.audit.record({ action: 'admin.shop_delete', entity: 'shop', entityId: id, meta: { name: shop.name, adminId: admin.id } });
+    return { ok: true };
   }
 
   /** وضعیت دیتابیس: نسخه، حجم، تأخیر و مهاجرت‌های اعمال‌شده. */

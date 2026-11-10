@@ -537,8 +537,8 @@ export class InstagramService {
    */
   private async resolveShop(accountId: string): Promise<string | null> {
     if (!accountId) return null;
-    const channel = await this.db.channel.findUnique({
-      where: { instagramAccountId: accountId },
+    const channel = await this.db.channel.findFirst({
+      where: { instagramAccountId: accountId, shop: { is: { active: true } } },
       select: { shopId: true, active: true },
     });
     return channel?.active ? channel.shopId : null;

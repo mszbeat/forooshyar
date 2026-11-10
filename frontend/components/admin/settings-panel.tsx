@@ -216,7 +216,7 @@ function Control({ setting, value, onChange }: { setting: SettingView; value: st
     // چیزی که عوض می‌شود رنگ و کلمه است، نه چیدمان.
     const on = value === 'true';
     return (
-      <div className="ctl-switch">
+      <div className={`ctl-switch${on ? ' is-on' : ''}`}>
         <Switch
           checked={on}
           onChange={next => onChange(next ? 'true' : 'false')}

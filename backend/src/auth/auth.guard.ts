@@ -24,7 +24,7 @@ export class AuthGuard implements CanActivate {
     try {
       const payload = await this.jwt.verifyAsync(match[1], { algorithms: ['HS256'] });
       const parsed = z.object({ sub: z.string().uuid(), shopId: z.string().uuid() }).parse(payload);
-      const shop = await this.db.shop.findFirst({ where: { id: parsed.shopId, ownerId: parsed.sub }, select: { id: true } });
+      const shop = await this.db.shop.findFirst({ where: { id: parsed.shopId, ownerId: parsed.sub, active: true }, select: { id: true } });
       if (!shop) throw new UnauthorizedException();
       request.principal = { userId: parsed.sub, shopId: parsed.shopId };
       bindPrincipal(request.principal);

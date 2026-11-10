@@ -28,8 +28,8 @@ export class AuthService {
   }
   async login(email: string, password: string) {
     const user = await this.db.user.findUnique({ where: { email }, include: { shop: true } });
-    if (!user || !user.shop || !(await verifyPassword(password, user.passwordHash))) {
-      this.audit.record({ action: 'auth.login_failed', entity: 'user', meta: { email, reason: !user ? 'unknown_email' : !user.shop ? 'no_shop' : 'bad_password' } });
+    if (!user || !user.shop || !user.shop.active || !(await verifyPassword(password, user.passwordHash))) {
+      this.audit.record({ action: 'auth.login_failed', entity: 'user', meta: { email, reason: !user ? 'unknown_email' : !user.shop ? 'no_shop' : !user.shop.active ? 'inactive_shop' : 'bad_password' } });
       throw new UnauthorizedException('ایمیل یا رمز عبور نادرست است.');
     }
     this.audit.record({ action: 'auth.login', entity: 'user', entityId: user.id, shopId: user.shop.id, userId: user.id, meta: { email } });

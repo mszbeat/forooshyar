@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Put, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import type { AdminIdentity } from './admin.service';
 import { AdminGuard } from './admin.guard';
@@ -58,6 +58,41 @@ export class AdminController {
   @Get('overview')
   overview() {
     return this.admin.overview();
+  }
+
+  @Get('shops')
+  shops() { return this.admin.listShops(); }
+
+  @Post('shops')
+  createShop(@Req() request: AuthedRequest, @Body() body: unknown) {
+    const parsed = z.object({
+      name: z.string().trim().min(2).max(200),
+      email: z.string().trim().email().max(200),
+      password: z.string().min(10).max(200),
+    }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'اطلاعات فروشگاه معتبر نیست.');
+    return this.admin.createShop(parsed.data, AdminController.who(request));
+  }
+
+  @Patch('shops/:id')
+  updateShop(@Req() request: AuthedRequest, @Param('id') id: string, @Body() body: unknown) {
+    if (!z.string().uuid().safeParse(id).success) throw new BadRequestException('شناسهٔ فروشگاه معتبر نیست.');
+    const parsed = z.object({
+      name: z.string().trim().min(2).max(200).optional(),
+      email: z.string().trim().email().max(200).optional(),
+      password: z.string().min(10).max(200).optional(),
+      active: z.boolean().optional(),
+    }).refine(value => Object.keys(value).length > 0, 'تغییری برای ذخیره ارسال نشده است.').safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'اطلاعات فروشگاه معتبر نیست.');
+    return this.admin.updateShop(id, parsed.data, AdminController.who(request));
+  }
+
+  @Delete('shops/:id')
+  deleteShop(@Req() request: AuthedRequest, @Param('id') id: string, @Body() body: unknown) {
+    if (!z.string().uuid().safeParse(id).success) throw new BadRequestException('شناسهٔ فروشگاه معتبر نیست.');
+    const parsed = z.object({ confirm: z.literal(true) }).safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException('برای حذف دائمی، تأیید صریح الزامی است.');
+    return this.admin.deleteShop(id, AdminController.who(request));
   }
 
   @Get('settings')
