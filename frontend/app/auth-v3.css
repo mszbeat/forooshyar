@@ -174,29 +174,41 @@
   background: color-mix(in srgb, var(--brand-400) 78%, transparent);
 }
 
-/* Stable split layout: the earlier sliding absolute poster could cover the form
-   during the login/register transition. Keep both columns visible; only copy swaps. */
+/* Split-card transition: the poster and form exchange places on mode change. */
 .authx {
-  direction:ltr;
-  width:100%;max-width:1480px;min-height:100dvh;margin-inline:auto;
+  direction:ltr;position:relative;width:100%;max-width:1480px;min-height:100dvh;margin-inline:auto;
   padding:clamp(14px,3vw,40px);gap:clamp(22px,4vw,58px);
-  grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);align-items:stretch;
+  grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);align-items:stretch;overflow:hidden;
 }
 .authx-visual {
   position:relative;inset:auto;grid-column:1;width:auto;height:auto;min-width:0;min-height:min(820px,calc(100dvh - 80px));
-  transform:none!important;border-radius:24px;direction:rtl;
+  transform:translateX(0);border-radius:24px;direction:rtl;
+  transition:transform .78s cubic-bezier(.76,0,.24,1);
 }
 .authx-form-side {
   grid-column:2;width:auto;min-width:0;min-height:calc(100dvh - 2 * clamp(14px,3vw,40px));
-  padding:clamp(22px,4vw,62px);transform:none!important;direction:rtl;
+  padding:clamp(22px,4vw,62px);transform:translateX(0);direction:rtl;
+  transition:transform .78s cubic-bezier(.76,0,.24,1);
 }
 .authx-form-card {width:min(100%,460px);margin:auto}
-.authx.register .authx-visual,.authx.register .authx-form-side {transform:none!important}
+.authx.register .authx-visual {transform:translateX(calc(100% + clamp(22px,4vw,58px)))}
+.authx.register .authx-form-side {transform:translateX(calc(-100% - clamp(22px,4vw,58px)))}
 .authx-visual-inner {direction:rtl}
+/* Keep poster copy legible regardless of the user's light/dark theme. */
+.authx-visual{background:radial-gradient(100% 80% at 85% 5%,#315b9b 0%,transparent 60%),linear-gradient(145deg,#132946 0%,#102b43 55%,#063c3a 100%);color:#f6f8ff}
+.authx-visual-inner,.authx-visual .authx-brand .name,.authx-visual .authx-feat b{color:#f6f8ff}
+.authx-visual .authx-brand .role,.authx-visual .authx-copy .kick,.authx-visual .authx-feat,.authx-visual .authx-foot{color:#d5e2f3}
+.authx-visual .authx-brand .mark{background:rgba(4,15,30,.55);color:#fff;border-color:rgba(255,255,255,.28)}
+.authx-visual .authx-bubble.in{color:#f6f8ff;background:rgba(255,255,255,.12)}
+.authx-visual .authx-bubble.out{color:#102038;background:#f5f8ff}
+.authx-page-tools{position:fixed;z-index:20;inset-block-start:14px;inset-inline-end:16px;display:flex;align-items:center;gap:8px}
+.authx-home{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);color:var(--ink);text-decoration:none;font-size:12px}
+.authx-page-tools .theme-toggle{background:var(--surface);border:1px solid var(--line-strong);color:var(--ink)}
 @media(max-width:920px){
  .authx{grid-template-columns:minmax(0,1fr);gap:0;padding:14px;min-height:100dvh}
  .authx-visual{grid-column:1;min-height:auto;height:auto;width:auto;max-width:none;border-radius:20px}
- .authx-form-side{grid-column:1;min-height:0;width:auto;padding:28px clamp(4px,4vw,18px) 42px}
+ .authx-form-side{grid-column:1;min-height:0;width:auto;padding:60px clamp(4px,4vw,18px) 42px}
  .authx-form-card{width:min(100%,500px)}
- .authx.register .authx-visual,.authx.register .authx-form-side{transform:none!important}
+ .authx.register .authx-visual,.authx.register .authx-form-side{transform:none}
 }
+@media(prefers-reduced-motion:reduce){.authx-visual,.authx-form-side{transition-duration:.01ms}}

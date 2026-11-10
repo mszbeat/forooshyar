@@ -9,6 +9,7 @@ import './../auth-v3.css';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { Field, Spinner, useToast } from '@/components/ui';
+import { ThemeToggle } from '@/components/theme';
 import { IconAlertCircle, IconArrowLeft, IconCheck, IconEye, IconLogo, IconShield } from '@/components/icons';
 
 /**
@@ -88,6 +89,7 @@ export default function LoginPage() {
 
   return (
     <div className={`authx ${isRegister ? 'register' : 'login'}`}>
+      <div className="authx-page-tools"><Link href="/" className="authx-home" aria-label="رفتن به صفحهٔ اصلی سایت"><IconLogo size={17} /><span>صفحهٔ اصلی</span></Link><ThemeToggle /></div>
       <span className="authx-seam" aria-hidden="true" />
 
       {/* نیمه‌ی روایت — با تغییر حالت جابه‌جا می‌شود */}

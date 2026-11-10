@@ -25,14 +25,22 @@ export default function DashboardPage() {
   const [attention, setAttention] = useState<AttentionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [attentionError, setAttentionError] = useState(false);
   const [tested, setTested] = useState(false);
   const [chartMetric, setChartMetric] = useState<'revenue' | 'units'>('revenue');
 
   const load = useCallback(async () => {
     try {
-      const [data, items] = await Promise.all([api.summary(), api.attention()]);
-      setSummary(data);
-      setAttention(items);
+      const [summaryResult, attentionResult] = await Promise.allSettled([api.summary(), api.attention()]);
+      if (summaryResult.status === 'rejected') throw summaryResult.reason;
+      setSummary(summaryResult.value);
+      if (attentionResult.status === 'fulfilled') {
+        setAttention(attentionResult.value);
+        setAttentionError(false);
+      } else {
+        setAttention([]);
+        setAttentionError(true);
+      }
       setError('');
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : 'بارگذاری اطلاعات انجام نشد.');
@@ -77,13 +85,18 @@ useEffect(() => { void load(); }, [load]);
 
   if (error) {
     return (
-      <div className="alert alert-error">
-        <IconAlert />
-        <div>
-          <strong>بارگذاری داشبورد انجام نشد</strong>
-          <div className="small">{error}</div>
+      <section className="card card-pad" role="alert" style={{ display: 'grid', gap: 14, justifyItems: 'start' }}>
+        <div className="row" style={{ gap: 10, color: 'var(--danger)' }}>
+          <IconAlert />
+          <strong>بارگذاری اطلاعات داشبورد انجام نشد</strong>
         </div>
-      </div>
+        <p className="small muted" style={{ margin: 0 }}>{error}</p>
+        <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-primary" onClick={() => { setLoading(true); void load(); }}>تلاش دوباره</button>
+          <Link href="/app/products" className="btn btn-outline">رفتن به محصولات</Link>
+        </div>
+        <p className="small muted" style={{ margin: 0 }}>دادهٔ نمونه نمایش داده نمی‌شود؛ پس از وصل‌شدن سرور، خلاصهٔ واقعی فروشگاه بارگذاری خواهد شد.</p>
+      </section>
     );
   }
 
@@ -246,7 +259,9 @@ useEffect(() => { void load(); }, [load]);
             </div>
             <Link href="/app/products?filter=attention" className="btn btn-ghost btn-sm">همه</Link>
           </div>
-          {attention.length === 0 ? (
+          {attentionError ? (
+            <div className="card-body small muted" role="status">فهرست نیازمند رسیدگی از سرور دریافت نشد؛ آمار دیگر داشبورد بر اساس دادهٔ واقعی نمایش داده می‌شود.</div>
+          ) : attention.length === 0 ? (
             <EmptyState icon={<IconCheckCircle />} title="همه‌چیز مرتب است" description="واریانتی با موجودی کم یا ناموجود پیدا نشد." />
           ) : (
             <div className="list">

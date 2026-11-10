@@ -62,20 +62,13 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <aside className={`sidebar ${drawer ? 'open' : ''}`}>
-      <div className="brand">
+      <Link href="/" className="brand" aria-label="فروش‌یار — رفتن به صفحهٔ اصلی">
         <span className="brand-mark"><IconLogo size={20} /></span>
         <div>
           <div className="brand-name">فروش‌یار</div>
-          <div className="brand-sub">پنل فروشنده</div>
+          <div className="brand-sub">رفتن به سایت اصلی</div>
         </div>
-        <button
-          type="button" className="btn btn-ghost btn-icon btn-sm hide-sm"
-          style={{ marginInlineStart: 'auto', display: 'none' }}
-          onClick={() => setDrawer(false)} aria-label="بستن منو"
-        >
-          <IconX size={16} />
-        </button>
-      </div>
+      </Link>
 
       <div className="nav-group">
         <div className="nav-label">فروشگاه</div>
