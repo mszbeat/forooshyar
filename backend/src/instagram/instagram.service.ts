@@ -614,8 +614,9 @@ export class InstagramService {
     const products = await this.catalog(conversation.shopId);
     if (products.length === 0) return null;
 
-    const state = (conversation.clarify ?? {}) as { picks?: string[] };
+    const state = (conversation.clarify ?? {}) as { picks?: string[]; orderVariants?: string[] };
     const picks = Array.isArray(state.picks) ? state.picks : [];
+    const orderVariants = Array.isArray(state.orderVariants) ? state.orderVariants : [];
 
     // شماره‌ی گزینه: ارقام فارسی/عربی هم پذیرفته می‌شوند.
     const digits = text.replace(/[۰-۹]/gu, char => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(char)))
@@ -627,6 +628,11 @@ export class InstagramService {
       // تنها نباید به‌صورت تصادفی یک محصول را باز کند.
       const index = Number.parseInt(digits, 10);
       if (index < 1) return null;
+      const variantId = orderVariants[index - 1];
+      if (variantId) {
+        await this.logInbound(conversation, rawText);
+        return this.startOrder(conversation, variantId);
+      }
       if (picks.length > 0) {
         // دقیق‌ترین حالت: همان ترتیبی که مشتری در پیام دیده.
         const id = picks[index - 1];
@@ -641,13 +647,44 @@ export class InstagramService {
     }
     if (!product) return null;
 
+    return this.sendProductDetails(conversation, product, rawText, /^\d/u.test(digits) ? 'number' : 'code');
+  }
+
+  /** توضیح محصول و انتخاب واریانت؛ متن شماره‌دار جایگزین مطمئن quick reply است. */
+  private async sendProductDetails(
+    conversation: Conversation,
+    product: CatalogProduct,
+    sourceText: string,
+    via: 'number' | 'code' | 'button',
+  ): Promise<InstagramHandleResult> {
     const reply = describeProduct(product, 'قیمت');
-    await this.logInbound(conversation, rawText);
-    const sent = await this.send(conversation, reply.text, reply.buttons);
-    if (sent) await this.logOutbound(conversation, toPlainText(reply.text), 'bot');
+    const variantChoices = (reply.buttons ?? []).flat().flatMap(button =>
+      button.data?.startsWith('ord:') ? [button.data.slice(4)] : [],
+    );
+    let message = reply.text;
+    if (variantChoices.length > 0) {
+      const optionLines = variantChoices.map((id, index) => {
+        const variant = product.variants.find(item => item.id === id);
+        if (!variant) return '';
+        const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ') || 'بدون مشخصه';
+        return `${(index + 1).toLocaleString('fa-IR')}) ${spec} · ${variant.price.toLocaleString('fa-IR')} تومان`;
+      }).filter(Boolean);
+      message += `\n\nبرای شروع سفارش، شماره‌ی گزینه‌ی موجود را بفرستید:\n${optionLines.join('\n')}`;
+    }
+    await this.db.telegramConversation.update({
+      where: { id: conversation.id },
+      data: { clarify: variantChoices.length
+        ? { round: 0, orderVariants: variantChoices }
+        : reply.buttons?.flat().some(button => button.data?.startsWith('watch:'))
+          ? { round: 0, watchProductId: product.id }
+          : Prisma.DbNull },
+    });
+    await this.logInbound(conversation, sourceText);
+    const sent = await this.send(conversation, message, reply.buttons);
+    if (sent) await this.logOutbound(conversation, toPlainText(message), 'bot');
     this.audit.record({
       action: 'instagram.product_pick', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId,
-      meta: { via: /^\d/u.test(digits) ? 'number' : 'code', productId: product.id, title: product.title },
+      meta: { via, productId: product.id, title: product.title },
     });
     return { status: 'handled', replies: sent ? 1 : 0, kind: 'product_pick' };
   }
@@ -668,6 +705,11 @@ export class InstagramService {
       const escape = draft.step !== 'confirm' && /^(قیمت|موجودی|ارسال|ساعت)\b/u.test(rawText);
       if (escape) await this.clearDraft(conversation.id);
       else return this.continueOrder(conversation, draft, { text: rawText });
+    }
+
+    const watchState = (conversation.clarify ?? {}) as { watchProductId?: string };
+    if (watchState.watchProductId && /^(خبرم کن|به من خبر بده|موجود شد خبرم کن)$/u.test(rawText.trim())) {
+      return this.watchProduct(conversation, watchState.watchProductId);
     }
 
     // ۱.۵) انتخاب با شماره یا کد محصول.
@@ -836,6 +878,25 @@ export class InstagramService {
     return { status: 'handled', replies: sent ? 1 : 0, kind: 'stop' };
   }
 
+  private async watchProduct(conversation: Conversation, productId: string): Promise<InstagramHandleResult> {
+    const product = await this.db.product.findFirst({
+      where: { shopId: conversation.shopId, id: productId, active: true },
+      select: { id: true, title: true },
+    });
+    if (!product) {
+      const sent = await this.send(conversation, 'این محصول دیگر در کاتالوگ نیست.');
+      return { status: 'handled', replies: sent ? 1 : 0, kind: 'watch_gone' };
+    }
+    await this.db.stockAlert.upsert({
+      where: { shopId_chatId_productId: { shopId: conversation.shopId, chatId: conversation.chatId, productId } },
+      create: { shopId: conversation.shopId, productId, chatId: conversation.chatId, firstName: conversation.firstName },
+      update: { notifiedAt: null },
+    });
+    await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { clarify: Prisma.DbNull } });
+    const sent = await this.send(conversation, `🔔 ثبت شد. به‌محض شارژ شدن «${product.title}» همین‌جا خبرتان می‌کنم.`);
+    return { status: 'handled', replies: sent ? 1 : 0, kind: 'stock_watch' };
+  }
+
   // ------------------------------------------------------------- دکمه‌ها
   /**
    * دکمه‌های بات در اینستاگرام به‌صورت postback برمی‌گردند. همان پیشوندهایی که
@@ -888,10 +949,7 @@ export class InstagramService {
         const sent = await this.send(conversation, 'این محصول دیگر موجود نیست. با نوشتن «محصولات» فهرست را ببینید.');
         return { status: 'handled', replies: sent ? 1 : 0, kind: 'product_gone' };
       }
-      const reply = describeProduct(product, 'قیمت');
-      const sent = await this.send(conversation, reply.text, reply.buttons);
-      this.audit.record({ action: 'instagram.product_pick', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { productId, title: product.title } });
-      return { status: 'handled', replies: sent ? 1 : 0, kind: 'product_pick' };
+      return this.sendProductDetails(conversation, product, 'انتخاب محصول', 'button');
     }
 
     if (payload.startsWith('ord:')) return this.startOrder(conversation, payload.slice(4));
@@ -905,24 +963,7 @@ export class InstagramService {
       return this.continueOrder(conversation, draft, { data: payload });
     }
 
-    if (payload.startsWith('watch:')) {
-      const productId = payload.slice(6);
-      const product = await this.db.product.findFirst({
-        where: { shopId: conversation.shopId, id: productId, active: true },
-        select: { id: true, title: true },
-      });
-      if (!product) {
-        const sent = await this.send(conversation, 'این محصول دیگر در کاتالوگ نیست.');
-        return { status: 'handled', replies: sent ? 1 : 0, kind: 'watch_gone' };
-      }
-      await this.db.stockAlert.upsert({
-        where: { shopId_chatId_productId: { shopId: conversation.shopId, chatId: conversation.chatId, productId } },
-        create: { shopId: conversation.shopId, productId, chatId: conversation.chatId, firstName: conversation.firstName },
-        update: { notifiedAt: null },
-      });
-      const sent = await this.send(conversation, `🔔 ثبت شد. به‌محض شارژ شدن «${product.title}» همین‌جا خبرتان می‌کنم.`);
-      return { status: 'handled', replies: sent ? 1 : 0, kind: 'stock_watch' };
-    }
+    if (payload.startsWith('watch:')) return this.watchProduct(conversation, payload.slice(6));
 
     this.audit.record({ action: 'instagram.payload_ignored', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { payload: payload.slice(0, 80) } });
     return { status: 'ignored', reason: 'unknown_payload' };
@@ -974,7 +1015,11 @@ export class InstagramService {
     if (outcome.kind === 'ready') return this.finishOrder(conversation, outcome.draft);
 
     await this.saveDraft(conversation.id, outcome.draft);
-    const sent = await this.send(conversation, outcome.reply.text, outcome.reply.buttons);
+    const textFallback = outcome.draft.step === 'confirm'
+      ? '\n\nاگر دکمه‌ها را نمی‌بینید، برای ثبت نهایی «تأیید» و برای لغو «لغو» بنویسید.'
+      : '\n\nاگر گزینه‌های پایین پیام در اینستاگرام نمایش داده نشدند، پاسخ همین مرحله را با نوشتن متن یا عدد بفرستید.';
+    const message = `${outcome.reply.text}${textFallback}`;
+    const sent = await this.send(conversation, message, outcome.reply.buttons);
     return { status: 'handled', replies: sent ? 1 : 0, kind: outcome.kind === 'invalid' ? 'order_invalid' : 'order_step' };
   }
 
