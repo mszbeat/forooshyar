@@ -7,7 +7,7 @@ import {
   IconArrowLeft, IconBolt, IconChat, IconCheckCircle, IconLogo, IconPackage,
   IconShield, IconSparkles, IconStore, IconTrendUp, IconUpload, IconClock,
 } from '@/components/icons';
-import { DayLightHero } from '@/components/daylight';
+import { ThemeToggle } from '@/components/theme';
 
 const facts = [
   { v: '۱۱ مرحله', l: 'سفارش‌گیری مرحله‌به‌مرحله در بات' },
@@ -149,6 +149,7 @@ export default function LandingPage() {
             <a href="#faq">پرسش‌ها</a>
           </div>
           <div className="land-nav-actions">
+            <ThemeToggle />
             <Link className="btn btn-ghost btn-sm" href="/login">ورود</Link>
             <span className="sep" />
             <Link className="btn btn-primary btn-sm" href="/login?mode=register">
@@ -189,10 +190,6 @@ export default function LandingPage() {
               </Link>
               <Link className="btn btn-outline btn-lg" href="/login">ورود به پنل</Link>
             </div>
-
-            {/* نوار روز/شب: همان موتوری که پالت پنل را عوض می‌کند، اینجا
-                قابل امتحان است — کاربر پیش از ثبت‌نام اثرش را می‌بیند. */}
-            <DayLightHero className="hero-daylight" />
 
             <div className="hero-proof">
               <span><IconCheckCircle size={15} /> بدون کارت بانکی</span>
