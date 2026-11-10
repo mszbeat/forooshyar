@@ -188,7 +188,7 @@ export default function OrdersPage() {
       />
 
       <div className="card mt-4">
-        <div className="grid g-5 kpi-orders">
+        <div className="grid g-5 kpi-orders orders-kpi-grid">
           <StatCard
             icon={<IconClock size={15} />}
             label="در انتظار پرداخت"
@@ -238,7 +238,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="row-between mt-4" style={{ gap: 10, flexWrap: 'wrap' }}>
+      <div className="orders-filter mt-4" style={{ gap: 10, flexWrap: 'wrap' }}>
         <Segmented<Filter>
           ariaLabel="فیلتر وضعیت سفارش"
           value={filter}
@@ -340,7 +340,7 @@ export default function OrdersPage() {
 
       <Modal open={Boolean(open)} onClose={() => setOpen(null)} title={open ? `سفارش ${open.code}` : ''}>
         {open && (
-          <div className="stack" style={{ gap: 16 }}>
+          <div className="stack orders-modal-body" style={{ gap: 16 }}>
             <div className="row-between">
               <span className={`badge ${STATUS[open.status].tone}`}><span className="dot" />{STATUS[open.status].label}</span>
               <span className="small muted">{faDateTime(open.createdAt)}</span>
