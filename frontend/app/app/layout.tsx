@@ -126,8 +126,8 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
               <IconSparkles size={15} />
               تست پاسخ
             </Link>
-            <ThemeToggle className="hide-sm" />
             <NotificationBell />
+            <ThemeToggle />
             <span className="topbar-divider hide-sm" aria-hidden="true" />
             <button
               type="button"
