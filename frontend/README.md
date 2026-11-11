@@ -34,14 +34,19 @@ public origin; in that case the backend must allow the panel's exact origin in
 
 `NEXT_PUBLIC_*` values are public — never put a secret there.
 
-## Design system
+## Design system (v4 «Aurora»)
 
 - `app/globals.css` — tokens (surfaces, ink, brand, radius, elevation, type,
   spacing), reset, components (card, button, field, badge, table, modal, toast,
-  chart, chat, dropzone), utilities and responsive rules.
-- `app/landing.css` — landing and auth-only styles.
-- `app/fonts.css` + `public/fonts/*.woff2` — Vazirmatn self-hosted (no CDN, so
-  the panel renders correctly offline and in sandboxed previews).
+  chart, chat, dropzone), seller + admin shells, conversations, customers,
+  utilities and responsive rules. Dark-first premium (Linear-inspired),
+  Persian RTL, content width 1240px.
+- `app/landing.css` — landing page (gradient-mesh hero, glass phone, bento,
+  compare, flow, rules, FAQ, CTA, footer).
+- `app/auth.css` — login/register split screen with gradient visual panel.
+- `app/fonts.css` + `public/fonts/*.woff2` — Vazirmatn (text) + Estedad
+  (display), self-hosted (no CDN, so the panel renders correctly offline
+  and in sandboxed previews).
 - `components/icons.tsx` — inline SVG icon set (no icon dependency).
 - `components/ui.tsx` — `Modal`, `Field`, `StatCard`, `EmptyState`, `Skeleton`,
   `Spinner`, `Segmented`, `Switch`, `PageHeader`, toast provider.

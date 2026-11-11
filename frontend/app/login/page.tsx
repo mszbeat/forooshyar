@@ -6,7 +6,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import './../auth.css';
-import './../auth-v3.css';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
 import { request } from '@/lib/api';

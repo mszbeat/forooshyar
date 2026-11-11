@@ -14,15 +14,36 @@ import {
   IconSettings, IconSparkles, IconStore, IconUpload, IconUsers, IconX,
 } from '@/components/icons';
 
-const NAV = [
-  { href: '/app', label: 'داشبورد', icon: IconDashboard, exact: true },
-  { href: '/app/products', label: 'محصولات و موجودی', icon: IconBox },
-  { href: '/app/orders', label: 'سفارش‌ها', icon: IconWallet },
-  { href: '/app/conversations', label: 'گفت‌وگوها', icon: IconChat },
-  { href: '/app/customers', label: 'مشتریان', icon: IconUsers },
-  { href: '/app/import', label: 'ورود کاتالوگ', icon: IconUpload },
-  { href: '/app/assistant', label: 'دستیار پاسخ‌گو', icon: IconSparkles },
-  { href: '/app/settings', label: 'تنظیمات فروشگاه', icon: IconSettings },
+type NavItem = { href: string; label: string; icon: typeof IconDashboard; exact?: boolean };
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: 'نمای کلی',
+    items: [
+      { href: '/app', label: 'داشبورد', icon: IconDashboard, exact: true },
+    ],
+  },
+  {
+    label: 'فروشگاه',
+    items: [
+      { href: '/app/products', label: 'محصولات و موجودی', icon: IconBox },
+      { href: '/app/orders', label: 'سفارش‌ها', icon: IconWallet },
+      { href: '/app/import', label: 'ورود کاتالوگ', icon: IconUpload },
+    ],
+  },
+  {
+    label: 'مشتریان',
+    items: [
+      { href: '/app/conversations', label: 'گفت‌وگوها', icon: IconChat },
+      { href: '/app/customers', label: 'مشتریان', icon: IconUsers },
+    ],
+  },
+  {
+    label: 'هوش مصنوعی',
+    items: [
+      { href: '/app/assistant', label: 'دستیار پاسخ‌گو', icon: IconSparkles },
+      { href: '/app/settings', label: 'تنظیمات فروشگاه', icon: IconSettings },
+    ],
+  },
 ];
 
 const TITLES: Record<string, { title: string; sub: string }> = {
@@ -71,15 +92,17 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
         </div>
       </Link>
 
-      <div className="nav-group">
-        <div className="nav-label">فروشگاه</div>
-        {NAV.map(item => (
-          <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href, item.exact) ? 'active' : ''}`}>
-            <item.icon className="nav-icon" />
-            <span>{item.label}</span>
-          </Link>
-        ))}
-      </div>
+      {NAV_GROUPS.map(group => (
+        <div className="nav-group" key={group.label}>
+          <div className="nav-label">{group.label}</div>
+          {group.items.map(item => (
+            <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href, item.exact) ? 'active' : ''}`}>
+              <item.icon className="nav-icon" />
+              <span>{item.label}</span>
+            </Link>
+          ))}
+        </div>
+      ))}
 
       <div className="sidebar-foot">
         <div className="side-card">

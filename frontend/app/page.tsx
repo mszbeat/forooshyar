@@ -4,7 +4,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import './landing.css';
-import './grain-landing.css';
 import {
   IconArrowLeft, IconBolt, IconChat, IconCheckCircle, IconPackage,
   IconShield, IconSparkles, IconStore, IconTrendUp, IconUpload, IconClock,
@@ -211,7 +210,7 @@ export default function LandingPage() {
           </div>
 
           {/* نمونه‌ی گفتگو با متن واقعی بات */}
-          <div className="stage">
+          <div className="stage" data-depth="0.35">
             <div className="stage-glow" aria-hidden="true" />
             <div className="float-card a">
               <span className="ico-box"><IconTrendUp size={14} /></span>

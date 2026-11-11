@@ -65,3 +65,7 @@ export const IconInfo = make('IconInfo', <><circle cx="12" cy="12" r="9" /><path
 export const IconLogo = make('IconLogo', <><path d="M4 18V9.5C4 6.5 6.2 4 9 4c1.7 0 3 .8 3.8 2 .8-1.2 2.1-2 3.8-2 2.8 0 5 2.5 5 5.5V18" /><path d="M8 21h8" /><path d="M12 12v6" /></>);
 export const IconSun = make('IconSun', <><circle cx="12" cy="12" r="4.2" /><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6" /></>);
 export const IconMoon = make('IconMoon', <><path d="M20.5 13.6A8.6 8.6 0 0 1 10.4 3.5a1 1 0 0 0-1.3-1.2A9.9 9.9 0 1 0 21.7 14.9a1 1 0 0 0-1.2-1.3Z" /></>);
+export const IconArrowUpRight = make('IconArrowUpRight', <><path d="M7 17 17 7" /><path d="M8 7h9v9" /></>);
+export const IconLayers = make('IconLayers', <><path d="m12 2 9 4.9-9 4.9-9-4.9L12 2Z" /><path d="m3 12 9 4.9 9-4.9" /><path d="m3 17 9 4.9 9-4.9" /></>);
+export const IconCommand = make('IconCommand', <><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3Z" /></>);
+export const IconStar = make('IconStar', <><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21 7 14.2 2 9.3l6.9-1L12 2Z" /></>);

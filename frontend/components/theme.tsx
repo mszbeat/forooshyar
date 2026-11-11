@@ -19,14 +19,14 @@ function apply(theme: Theme) {
   const root = document.documentElement;
   root.dataset.theme = theme;
   root.style.colorScheme = theme;
-  root.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#12101a' : '#0f7a6a');
+  root.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#08090a' : '#f6f7f9');
 }
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>('light');
+  const [theme, setTheme] = useState<Theme>('dark');
 
   useEffect(() => {
-    const current = (document.documentElement.dataset.theme as Theme) || 'light';
+    const current = (document.documentElement.dataset.theme as Theme) || 'dark';
     setTheme(current);
   }, []);
 

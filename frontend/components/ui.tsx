@@ -117,7 +117,7 @@ export function StatCard({
       ? { background: 'var(--danger-soft)', color: 'var(--danger)', borderColor: 'var(--danger-line)' }
       : undefined;
   return (
-    <div className="stat">
+    <div className={`stat${tone ? ` stat-tone-${tone}` : ''}`}>
       <div className="stat-top">
         <span className="stat-ico" style={style}>{icon}</span>
         <span className="stat-label">{label}</span>
