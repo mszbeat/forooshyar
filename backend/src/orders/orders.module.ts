@@ -4,6 +4,8 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PaymentsController } from './payments.controller';
+import { InstagramModule } from '../instagram/instagram.module';
+import { SmsModule } from '../sms/sms.module';
 
 /**
  * سفارش‌ها و پرداخت.
@@ -13,7 +15,7 @@ import { PaymentsController } from './payments.controller';
  * دامنه‌اش فقط همین دو سرویس است.
  */
 @Module({
-  imports: [forwardRef(() => TelegramModule)],
+  imports: [forwardRef(() => TelegramModule), forwardRef(() => InstagramModule), SmsModule],
   controllers: [OrdersController, PaymentsController],
   providers: [OrdersService, PaymentsService],
   exports: [OrdersService, PaymentsService],

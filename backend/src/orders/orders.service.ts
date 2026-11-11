@@ -4,6 +4,8 @@ import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { InstagramService } from '../instagram/instagram.service';
+import { SmsService } from '../sms/sms.service';
 
 export type NewOrderItem = { variantId: string; quantity: number };
 
@@ -58,6 +60,8 @@ export class OrdersService {
     @Inject(forwardRef(() => TelegramService)) private readonly telegram: TelegramService,
     // رخداد زنده: پنل باز بدون رفرش می‌فهمد سفارشی ثبت/تغییر شد.
     private readonly realtime: RealtimeService,
+    @Inject(forwardRef(() => InstagramService)) private readonly instagram: InstagramService,
+    private readonly sms: SmsService,
   ) {}
 
   // ------------------------------------------------------------------ ایجاد
@@ -159,7 +163,7 @@ export class OrdersService {
   async markPaid(input: { authority: string; refId?: string; provider?: string }) {
     const order = await this.db.order.findFirst({
       where: { paymentAuthority: input.authority },
-      include: { items: true, shop: { select: { id: true, name: true } } },
+      include: { items: true, shop: { select: { id: true, name: true, smsPhone: true, notifySellerBySms: true } } },
     });
     if (!order) return { ok: false as const, reason: 'order_not_found' as const };
 
@@ -199,15 +203,14 @@ export class OrdersService {
 
     // اعلان به فروشنده و مشتری؛ خطای تلگرام نباید پرداخت را بشکند.
     void this.notifySeller(paid.id).catch(error => this.logger.warn(`notifySeller: ${String(error)}`));
+    const message = [`✅ پرداخت شما تأیید شد. سفارش ${paid.code} ثبت شد.`, `${paid.items.map(item => `• ${item.title}${item.spec ? ` (${item.spec})` : ''} × ${item.quantity.toLocaleString('fa-IR')}`).join('\n')}`, `مبلغ: ${toman(paid.total)}`, '', 'فروشنده برای ارسال هماهنگ می‌کند. این کد را نگه دارید.'].join('\n');
     if (paid.chatId) {
-      void this.telegram.sendTo(paid.chatId, [
-        `✅ پرداخت شما تأیید شد. سفارش ${paid.code} ثبت شد.`,
-        `${paid.items.map(item => `• ${item.title}${item.spec ? ` (${item.spec})` : ''} × ${item.quantity.toLocaleString('fa-IR')}`).join('\n')}`,
-        `مبلغ: ${toman(paid.total)}`,
-        '',
-        'فروشنده برای ارسال هماهنگ می‌کند. این کد را نگه دارید.',
-      ].join('\n')).catch(() => undefined);
+      const send = paid.chatId.startsWith('ig:') ? this.instagram.sendOrderConfirmation(paid.shopId, paid.chatId, message) : this.telegram.sendTo(paid.chatId, message);
+      void send.catch(error => this.logger.warn(`customer payment notification failed: ${String(error)}`));
     }
+    // Required customer notification (Mock until provider selection); seller is opt-in.
+    void this.sms.send(paid.customerPhone, `پرداخت تأیید شد؛ سفارش ${paid.code} به مبلغ ${toman(paid.total)} ثبت شد.`, 'order_customer', paid.shopId).catch(error => this.logger.warn(`customer SMS failed: ${String(error)}`));
+    if (order.shop.notifySellerBySms && order.shop.smsPhone) void this.sms.send(order.shop.smsPhone, `سفارش ${paid.code} پرداخت شد. مبلغ ${toman(paid.total)}؛ مشتری ${order.customerName || '—'}.`, 'order_seller', paid.shopId).catch(error => this.logger.warn(`seller SMS failed: ${String(error)}`));
 
     return { ok: true as const, order: paid, already: false };
   }

@@ -1206,6 +1206,14 @@ export class InstagramService {
     return allOk;
   }
 
+  /** پیام نتیجه پرداخت به همان گفتگوی Instagram؛ Telegram Bot API برای IGSID معتبر نیست. */
+  async sendOrderConfirmation(shopId: string, chatId: string, text: string) {
+    if (!chatId.startsWith(InstagramService.CHAT_PREFIX)) return false;
+    const conversation = await this.db.telegramConversation.findFirst({ where: { shopId, chatId }, select: { id: true, shopId: true, chatId: true, firstName: true, username: true } });
+    if (!conversation) return false;
+    return this.send(conversation, text);
+  }
+
   /** ارسال پیام ساده از سمت پنل (پاسخ فروشنده). */
   async sendFromPanel(shopId: string, chatId: string, text: string) {
     const conversation = await this.db.telegramConversation.findFirst({

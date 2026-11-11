@@ -9,6 +9,7 @@ import './../auth.css';
 import './../auth-v3.css';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
+import { request } from '@/lib/api';
 import { Field, Spinner, useToast } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
 import { IconAlertCircle, IconArrowLeft, IconCheck, IconEye, IconLogo, IconShield } from '@/components/icons';
@@ -23,12 +24,14 @@ import { IconAlertCircle, IconArrowLeft, IconCheck, IconEye, IconLogo, IconShiel
  */
 export default function LoginPage() {
   const router = useRouter();
-  const { login, register, token, ready } = useAuth();
+  const { login, loginOtp, register, token, ready } = useAuth();
   const toast = useToast();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [remember, setRemember] = useState(false);
+  const [loginMethod,setLoginMethod]=useState<'password'|'otp'>('password');
+  const [otpPhone,setOtpPhone]=useState(''); const [otpCode,setOtpCode]=useState(''); const [otpSent,setOtpSent]=useState(false);
   const [values, setValues] = useState({ shopName: '', email: '', password: '' });
   // نمایش/پنهان‌سازی رمز؛ همان الگوی صفحهٔ ادمین تا رفتار کل سایت یکسان باشد.
   const [reveal, setReveal] = useState(false);
@@ -65,6 +68,7 @@ export default function LoginPage() {
     setError('');
     setBusy(true);
     try {
+      if (mode === 'login' && loginMethod === 'otp') { await loginOtp(otpPhone,otpCode); router.replace('/app'); return; }
       if (mode === 'register') {
         await register(values.email.trim(), values.password, values.shopName.trim());
         toast.success('فروشگاه شما ساخته شد', 'حالا کاتالوگ را کامل کنید تا پاسخ خودکار آماده شود.');
@@ -199,6 +203,12 @@ export default function LoginPage() {
                 </Field>
               )}
 
+              {!isRegister && <div className="authx-row"><button type="button" className="authx-link" onClick={()=>setLoginMethod('password')}>ورود با ایمیل و رمز</button><button type="button" className="authx-link" onClick={()=>setLoginMethod('otp')}>ورود با کد یک‌بارمصرف</button></div>}
+              {!isRegister && loginMethod === 'otp' ? <>
+                <Field label="شماره موبایل تأییدشده" required htmlFor="otpPhone"><input id="otpPhone" className="input input-ltr" dir="ltr" value={otpPhone} onChange={e=>setOtpPhone(e.target.value)} placeholder="09123456789" /></Field>
+                {otpSent && <Field label="کد یک‌بارمصرف" required htmlFor="otpCode"><input id="otpCode" className="input input-ltr" dir="ltr" inputMode="numeric" maxLength={6} value={otpCode} onChange={e=>setOtpCode(e.target.value)} /></Field>}
+                {!otpSent && <button type="button" className="btn btn-outline" disabled={busy||!otpPhone} onClick={async()=>{setBusy(true);try{await request('/auth/otp/request',{method:'POST',body:{phone:otpPhone},auth:false});setOtpSent(true);setError('در صورت تأیید بودن شماره، کد ارسال شد.');}catch(e){setError(e instanceof Error?e.message:'درخواست کد انجام نشد.');}finally{setBusy(false);}}}>ارسال کد</button>}
+              </> : <>
               <Field label="ایمیل" required htmlFor="email">
                 <input
                   id="email" ref={emailRef} className="input input-ltr" name="email" type="email" required
@@ -228,7 +238,9 @@ export default function LoginPage() {
                 </div>
               </Field>
 
-              <div className="authx-row">
+              </>}
+
+              {loginMethod !== 'otp' || isRegister ? <div className="authx-row">
                 <label className="authx-check">
                   <input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)} />
                   ایمیل من را به خاطر بسپار
@@ -236,13 +248,13 @@ export default function LoginPage() {
                 <button type="button" className="authx-link" onClick={() => switchMode(isRegister ? 'login' : 'register')}>
                   {isRegister ? 'حساب دارم، وارد شوم' : 'حساب ندارم، بسازم'}
                 </button>
-              </div>
+              </div> : null}
 
-              <button className="btn btn-primary btn-lg btn-block authx-submit" disabled={busy} type="submit">
+              {(!isRegister && loginMethod === 'otp' && otpSent) ? <button className="btn btn-primary btn-lg btn-block" disabled={busy || otpCode.length!==6} type="submit">{busy?<Spinner/>:'ورود با کد'}</button> : (isRegister || loginMethod === 'password') && <button className="btn btn-primary btn-lg btn-block authx-submit" disabled={busy} type="submit">
                 {busy ? <Spinner /> : null}
                 {isRegister ? 'ساخت فروشگاه' : 'ورود به پنل'}
                 {!busy && <IconArrowLeft size={17} />}
-              </button>
+              </button>}
             </form>
 
             {isRegister ? (

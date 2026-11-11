@@ -20,13 +20,14 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [smsPhone,setSmsPhone]=useState(''); const [smsCode,setSmsCode]=useState(''); const [smsOtpSent,setSmsOtpSent]=useState(false); const [notifySellerSms,setNotifySellerSms]=useState(true);
   const [planState, setPlanState] = useState<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string } | null } | null>(null);
 
   useEffect(() => {
     let alive = true;
     request<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string } | null }>('/subscriptions/status').then(setPlanState).catch(() => undefined);
     api.shop()
-      .then(data => { if (alive) setForm({ name: data.name, tone: data.tone, shipping: data.shipping, payment: data.payment, workingHours: data.workingHours, returns: data.returns ?? '', handoffMessage: data.handoffMessage }); })
+      .then(data => { if (alive) setForm({ name: data.name, tone: data.tone, shipping: data.shipping, payment: data.payment, workingHours: data.workingHours, returns: data.returns ?? '', handoffMessage: data.handoffMessage }); setSmsPhone(data.smsPhone ?? ''); setNotifySellerSms(data.notifySellerBySms ?? true); })
       .catch(() => { if (alive) setError('دریافت تنظیمات انجام نشد.'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -40,7 +41,7 @@ export default function SettingsPage() {
     setBusy(true);
     setError('');
     try {
-      await api.updateShop(form);
+      await api.updateShop({...form, notifySellerBySms:notifySellerSms});
       await reloadShop();
       toast.success('تنظیمات ذخیره شد', 'پاسخ‌های دستیار از این پس با همین اطلاعات ساخته می‌شوند.');
     } catch (problem) {
@@ -141,6 +142,7 @@ export default function SettingsPage() {
           </section>
 
           {error && <div className="alert alert-error"><IconAlertCircle /><span>{error}</span></div>}
+          <section className="card card-pad stack"><h2>اعلان پیامکی سفارش</h2><p className="muted">برای دریافت پیامک فروشنده، شماره موبایل را با کد یک‌بارمصرف تأیید کنید. پیامک مشتری پس از پرداخت جداگانه ارسال می‌شود.</p><Field label="شماره موبایل فروشنده" htmlFor="sellerSms"><input id="sellerSms" className="input input-ltr" dir="ltr" placeholder="09123456789" value={smsPhone} onChange={e=>setSmsPhone(e.target.value)} /></Field>{smsOtpSent && <Field label="کد تأیید" htmlFor="sellerSmsCode"><input id="sellerSmsCode" className="input input-ltr" dir="ltr" inputMode="numeric" maxLength={6} value={smsCode} onChange={e=>setSmsCode(e.target.value)} /></Field>}<div className="row"><button type="button" className="btn btn-outline" onClick={async()=>{try{await request('/auth/phone/otp/request',{method:'POST',body:{phone:smsPhone}});setSmsOtpSent(true);toast.success('کد ارسال شد','درگاه فعلی Mock است.');}catch(e){toast.error('ارسال نشد',e instanceof Error?e.message:'خطا');}}}>{smsOtpSent?'ارسال دوباره کد':'تأیید شماره'}</button>{smsOtpSent&&<button type="button" className="btn btn-primary" onClick={async()=>{try{await request('/auth/phone/otp/verify',{method:'POST',body:{phone:smsPhone,code:smsCode}});toast.success('شماره تأیید شد','شماره برای پیامک فروشنده ثبت شد.');}catch(e){toast.error('تأیید نشد',e instanceof Error?e.message:'کد نامعتبر');}}}>ثبت کد</button>}</div><label className="row"><input type="checkbox" checked={notifySellerSms} onChange={e=>setNotifySellerSms(e.target.checked)} />ارسال پیامک سفارش برای من (اختیاری)</label></section>
         </form>
 
         <div className="stack">

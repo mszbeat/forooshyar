@@ -13,7 +13,7 @@
  * هم بدون Deploy مجدد رفتار سرویس را عوض کند.
  */
 
-export type SettingGroup = 'ai' | 'telegram' | 'payments' | 'database' | 'system';
+export type SettingGroup = 'ai' | 'telegram' | 'payments' | 'otp' | 'database' | 'system';
 export type SettingKind = 'bool' | 'text' | 'secret' | 'number' | 'url' | 'choice';
 
 export type SettingDef = {
@@ -38,6 +38,7 @@ export const GROUPS: { id: SettingGroup; label: string; description: string }[] 
   { id: 'ai', label: 'مدل هوش مصنوعی', description: 'مدل زبانی که «نفهمیدم»های بات را جواب می‌دهد؛ بدون کلید، بات با موتور قاعده‌محور کار می‌کند.' },
   { id: 'telegram', label: 'تلگرام', description: 'توکن بات، سکرت webhook و آدرس عمومی سرویس.' },
   { id: 'payments', label: 'پرداخت', description: 'درگاه زرین‌پال یا حالت آزمایشی.' },
+  { id: 'otp', label: 'پیامک و OTP', description: 'تنظیمات سرویس پیامک Mock و ورود یک‌بارمصرف.' },
   { id: 'database', label: 'دیتابیس', description: 'اتصال PostgreSQL؛ تنها تنظیمی که برای اثر قطعی یک ری‌استارت سرویس لازم دارد.' },
   { id: 'system', label: 'سیستم', description: 'CORS، کش، لاگ گردش و پرچم‌های عیب‌یابی.' },
 ];
@@ -176,6 +177,9 @@ export const SETTINGS: SettingDef[] = [
     hint: 'اگر خالی باشد، پرداخت در حالت «آزمایشی» انجام می‌شود و پولی جابه‌جا نمی‌شود.',
   },
   { key: 'ZARINPAL_API_BASE', group: 'payments', label: 'آدرس API زرین‌پال', kind: 'url', fallback: 'https://api.zarinpal.com' },
+  { key: 'SMS_ENABLED', group: 'otp', label: 'فعال‌بودن SMS Mock', kind: 'bool', fallback: 'true', hint: 'پیامک واقعی ارسال نمی‌شود تا درگاه مشخص شود.' },
+  { key: 'OTP_ENABLED', group: 'otp', label: 'فعال‌بودن ورود OTP', kind: 'bool', fallback: 'false' },
+  { key: 'OTP_TTL_SECONDS', group: 'otp', label: 'اعتبار کد (ثانیه)', kind: 'number', fallback: '300', min: 60, max: 600 },
 
   // ------------------------------------------------------------------- دیتابیس
   {

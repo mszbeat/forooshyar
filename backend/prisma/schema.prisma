@@ -38,6 +38,8 @@ model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
   passwordHash String
+  phone        String?   @unique
+  phoneVerifiedAt DateTime?
   createdAt    DateTime @default(now())
   shop         Shop?
 }
@@ -58,6 +60,8 @@ model Shop {
   createdAt      DateTime               @default(now())
   trialStartedAt DateTime?
   trialEndsAt    DateTime?
+  smsPhone       String   @default("")
+  notifySellerBySms Boolean @default(true)
   subscriptions  Subscription[]
   products       Product[]
   variants       Variant[]
@@ -352,6 +356,7 @@ model TelegramUpdate {
 model SubscriptionPlan {
   id             String   @id @default(uuid()) @db.Uuid
   name           String
+  description    String   @default("")
   monthlyPrice   Int      @default(0)
   instagramLimit Int
   telegramLimit  Int
@@ -398,6 +403,20 @@ model PlatformAdmin {
 ///
 /// `secret` یعنی مقدار رمزآلود است و در خواندن ماسک می‌شود؛ مقدار خام فقط
 /// یک‌بار (هنگام ذخیره) در پاسخ برنمی‌گردد.
+model OtpChallenge {
+  id        String   @id @default(uuid()) @db.Uuid
+  phone     String
+  userId    String?  @db.Uuid
+  purpose   String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([phone, purpose, createdAt])
+  @@index([expiresAt])
+}
+
 model AppSetting {
   key       String   @id
   value     String   @default("")

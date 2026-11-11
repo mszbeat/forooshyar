@@ -10,6 +10,7 @@ import {
   IconShield, IconSparkles, IconStore, IconTrendUp, IconUpload, IconClock,
 } from '@/components/icons';
 import { ThemeToggle } from '@/components/theme';
+import { LandingPlans } from '@/components/landing-plans';
 
 const facts = [
   { v: '۱۱ مرحله', l: 'سفارش‌گیری مرحله‌به‌مرحله در بات' },
@@ -290,6 +291,7 @@ export default function LandingPage() {
       </section>
 
       {/* ------------------------------------------------------------ مشکل */}
+      <LandingPlans />
       <section className="sec" id="problem">
         <div className="land-wrap">
           <div className="sec-head center">
