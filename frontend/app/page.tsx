@@ -122,6 +122,14 @@ const bento = [
   },
 ];
 
+const robotScenes = [
+  { src: '/assistant/mascot.png', title: 'دستیار فروش', detail: 'یک همراه ثابت و هوشمند' },
+  { src: '/assistant/orders.png', title: 'سفارش‌ها', detail: 'از ثبت تا آماده‌سازی' },
+  { src: '/assistant/inventory.webp', title: 'موجودی', detail: 'کاتالوگ دقیق و به‌روز' },
+  { src: '/assistant/customer-chat.webp', title: 'گفت‌وگو', detail: 'پاسخ‌گویی به مشتری' },
+  { src: '/assistant/insights.webp', title: 'بینش فروش', detail: 'روندها در یک نگاه' },
+];
+
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -257,6 +265,29 @@ export default function LandingPage() {
           </div>
         </div>
       </header>
+
+      <section className="sec land-robot-showcase" aria-labelledby="robot-showcase-title">
+        <div className="land-wrap">
+          <div className="sec-head">
+            <span className="eyebrow">همراه هوشمند فروشگاه</span>
+            <h2 className="sec-title" id="robot-showcase-title">یک دستیار، <span className="dim">در تمام مسیر فروش</span></h2>
+            <p className="sec-lead">همان ربات در کارهای روزانهٔ فروشگاه: سفارش، موجودی، گفت‌وگو با مشتری و شناخت روند فروش.</p>
+          </div>
+          <div className="land-robot-grid">
+            {robotScenes.map(scene => (
+              <article className="land-robot-card" key={scene.src}>
+                <div className="land-robot-image">
+                  <Image src={scene.src} alt={`${scene.title} با ربات دستیار فروشیار`} width={480} height={480} />
+                </div>
+                <div className="land-robot-copy">
+                  <strong>{scene.title}</strong>
+                  <span>{scene.detail}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* ------------------------------------------------------------ مشکل */}
       <section className="sec" id="problem">
