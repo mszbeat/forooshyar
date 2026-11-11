@@ -1,0 +1,139 @@
+[
+  {
+    "id": "price-exact",
+    "input": "قیمت کفش لوفر چنده؟",
+    "category": "catalog_price",
+    "expected": "clarify",
+    "mustContain": "کفش لوفر چرم مشکی",
+    "mustNotContain": "روسری"
+  },
+  {
+    "id": "stock-exact",
+    "input": "کفش لوفر موجوده؟",
+    "category": "catalog_stock",
+    "expected": "clarify",
+    "mustContain": "کفش لوفر چرم مشکی"
+  },
+  {
+    "id": "price-colloquial",
+    "input": "قیمت کفش هاتون رو می‌خواستم",
+    "category": "colloquial_product",
+    "expected": "clarify",
+    "mustContain": "کفش لوفر چرم مشکی"
+  },
+  {
+    "id": "ambiguous-category",
+    "input": "کفش دارید؟",
+    "category": "clarification",
+    "expected": "answer",
+    "mustContain": "کفش لوفر چرم مشکی"
+  },
+  {
+    "id": "unknown-product",
+    "input": "قیمت شلوار جین چنده؟",
+    "category": "catalog_miss",
+    "expected": "clarify",
+    "mustContain": "در کاتالوگ فروشگاه نیست",
+    "mustNotContain": "روسری ابریشم"
+  },
+  {
+    "id": "variant-available",
+    "input": "قیمت کفش لوفر سایز ۴۱ چنده؟",
+    "category": "variant",
+    "expected": "clarify",
+    "mustContain": "۱٬۸۵۰٬۰۰۰"
+  },
+  {
+    "id": "variant-missing",
+    "input": "کفش لوفر سایز ۴۵ دارید؟",
+    "category": "variant_miss",
+    "expected": "clarify",
+    "mustContain": "ثبت نشده"
+  },
+  {
+    "id": "shipping-known",
+    "input": "هزینه ارسال چقدره؟",
+    "category": "shop_policy",
+    "expected": "answer",
+    "mustContain": "۲ تا ۴ روز کاری"
+  },
+  {
+    "id": "payment-known",
+    "input": "پرداخت چه جوریه؟",
+    "category": "shop_policy",
+    "expected": "answer",
+    "mustContain": "کارت به کارت"
+  },
+  {
+    "id": "hours-known",
+    "input": "ساعت کاریتون چنده؟",
+    "category": "shop_policy",
+    "expected": "answer",
+    "mustContain": "۹ تا ۲۳"
+  },
+  {
+    "id": "returns-known",
+    "input": "مرجوعی دارید؟",
+    "category": "shop_policy",
+    "expected": "answer",
+    "mustContain": "۷ روز"
+  },
+  {
+    "id": "multi-intent",
+    "input": "قیمت کفش لوفر چنده و ارسال چند روزه است؟",
+    "category": "multi_intent",
+    "expected": "clarify",
+    "mustContain": "۱٬۸۵۰٬۰۰۰"
+  },
+  {
+    "id": "greeting",
+    "input": "سلام",
+    "category": "conversation",
+    "expected": "answer",
+    "mustContain": "سلام"
+  },
+  {
+    "id": "thanks",
+    "input": "ممنون",
+    "category": "conversation",
+    "expected": "answer"
+  },
+  {
+    "id": "order-no-product",
+    "input": "می‌خوام سفارش بدم",
+    "category": "order_intent",
+    "expected": "clarify"
+  },
+  {
+    "id": "unrelated",
+    "input": "هوا فردا چطوره؟",
+    "category": "out_of_scope",
+    "expected": "clarify"
+  },
+  {
+    "id": "price-without-product",
+    "input": "قیمتش چنده؟",
+    "category": "clarification",
+    "expected": "clarify"
+  },
+  {
+    "id": "stock-zero",
+    "input": "شال نخی موجوده؟",
+    "category": "catalog_stock",
+    "expected": "clarify",
+    "mustContain": "تمام شده"
+  },
+  {
+    "id": "ambiguous-price",
+    "input": "قیمت کفش؟",
+    "category": "clarification",
+    "expected": "clarify",
+    "mustContain": "کفش لوفر چرم مشکی"
+  },
+  {
+    "id": "no-invented-policy",
+    "input": "ارسال رایگانه؟",
+    "category": "policy_unknown",
+    "expected": "handoff"
+  }
+]

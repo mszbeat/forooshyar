@@ -375,6 +375,12 @@ export function composeReply(
   const round = options.round ?? 0;
   const hits = detectIntents(text);
   if (needsHuman(hits)) return handoffReply(shop, 'human_request');
+  // سؤال مشخص درباره‌ی رایگان‌بودن ارسال را با متن کلیِ روش/زمان ارسال
+  // پاسخ نمی‌دهیم؛ مگر اینکه فروشنده صریحاً «رایگان» را در سیاستش ثبت کرده باشد.
+  const shippingFreeQuestion = /(ارسال|پست|تحویل).{0,24}رایگان|رایگان.{0,24}(ارسال|پست|تحویل)/u.test(normalizePersian(text));
+  if (shippingFreeQuestion && !/رایگان/u.test(normalizePersian(shop.shipping))) {
+    return handoffReply(shop, 'shipping_free_not_specified');
+  }
 
   // امتیاز نیم (واژه‌ی مبهم مثل «چند») به‌تنهایی دلیل پاسخ نیست.
   const intents = hits.filter(hit => hit.score >= 1).map(hit => hit.id);
