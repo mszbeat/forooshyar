@@ -1953,3 +1953,16 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-row { padding: 9px 14px; gap: 12px; }
 .adm-model { padding: 7px 10px; }
 .adm-note { padding: 10px 13px; gap: 9px; }
+
+/* پنل ورود ادمین: کنترل‌های تم/بازگشت نباید به‌عنوان سلول سوم Grid
+   ردیف تازه بسازند؛ auth-v3.css فقط روی صفحهٔ ورود فروشنده بارگذاری می‌شود. */
+.adm-login { width: 100%; min-height: 100vh; min-height: 100dvh; align-items: stretch; }
+.adm-login > .authx-page-tools {
+  position: fixed;
+  z-index: 30;
+  inset-block-start: 14px;
+  inset-inline-end: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
