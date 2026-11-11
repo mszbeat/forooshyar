@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
 import { NotificationBell } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme';
 import {
-  IconBox, IconChat, IconDashboard, IconLogo, IconLogout, IconMenu, IconWallet,
+  IconBox, IconChat, IconDashboard, IconLogout, IconMenu, IconWallet,
   IconSettings, IconSparkles, IconStore, IconUpload, IconUsers, IconX,
 } from '@/components/icons';
 
@@ -63,7 +64,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
   const sidebar = (
     <aside className={`sidebar ${drawer ? 'open' : ''}`}>
       <Link href="/" className="brand" aria-label="فروش‌یار — رفتن به صفحهٔ اصلی">
-        <span className="brand-mark"><IconLogo size={20} /></span>
+        <span className="brand-mark"><Image src="/brand/robot-face-mark.png" alt="" width={30} height={30} priority style={{ width: 30, height: 30, objectFit: 'contain' }} /></span>
         <div>
           <div className="brand-name">فروش‌یار</div>
           <div className="brand-sub">رفتن به سایت اصلی</div>
