@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import './landing.css';
 import './grain-landing.css';
 import {
-  IconArrowLeft, IconBolt, IconChat, IconCheckCircle, IconLogo, IconPackage,
+  IconArrowLeft, IconBolt, IconChat, IconCheckCircle, IconPackage,
   IconShield, IconSparkles, IconStore, IconTrendUp, IconUpload, IconClock,
 } from '@/components/icons';
 import { ThemeToggle } from '@/components/theme';
@@ -137,7 +138,7 @@ export default function LandingPage() {
       <nav className={`land-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="land-wrap land-nav-in">
           <Link className="brand" href="/">
-            <span className="brand-mark"><IconLogo size={18} /></span>
+            <span className="brand-mark"><Image src="/brand/robot-face-mark.png" alt="" width={30} height={30} priority style={{ width: 30, height: 30, objectFit: 'contain' }} /></span>
             <span>
               <span className="brand-name" style={{ display: 'block' }}>فروش‌یار</span>
               <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>
@@ -448,7 +449,7 @@ export default function LandingPage() {
           <div className="foot-cols">
             <div className="foot-brand">
               <Link className="brand" href="/">
-                <span className="brand-mark"><IconLogo size={18} /></span>
+                <span className="brand-mark"><Image src="/brand/robot-face-mark.png" alt="" width={30} height={30} priority style={{ width: 30, height: 30, objectFit: 'contain' }} /></span>
                 <span>
                   <span className="brand-name" style={{ display: 'block' }}>فروش‌یار</span>
                   <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>

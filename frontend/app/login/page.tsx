@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import './../auth.css';
 import './../auth-v3.css';
@@ -97,7 +98,7 @@ export default function LoginPage() {
         <span className="authx-glow b" />
         <div className="authx-visual-inner">
           <div className="authx-brand">
-            <span className="mark"><IconLogo size={20} /></span>
+            <span className="mark"><Image src="/brand/robot-face-mark.png" alt="" width={38} height={38} priority style={{ width: 38, height: 38, objectFit: 'contain' }} /></span>
             <div>
               <div className="name">فروش‌یار</div>
               <div className="role">دستیار پاسخ‌گوی فروش</div>

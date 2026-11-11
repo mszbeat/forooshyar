@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { api, ApiError, type AiStatus, type BotReply } from '@/lib/api';
 import { faNum } from '@/lib/format';
 import { PageHeader, Spinner, useToast } from '@/components/ui';
@@ -18,6 +19,14 @@ const SUGGESTIONS = [
   'هزینه ارسال چقدره؟',
   'می‌خوام مرجوع کنم',
   'بلابلا زیرو',
+];
+
+const ASSISTANT_VISUALS = [
+  { src: '/assistant/mascot.png', title: 'دستیار فروش', detail: 'همراه هوشمند فروشگاه' },
+  { src: '/assistant/orders.png', title: 'مدیریت سفارش', detail: 'پیگیری سفارش تا ارسال' },
+  { src: '/assistant/inventory.webp', title: 'کنترل موجودی', detail: 'بررسی دقیق کاتالوگ' },
+  { src: '/assistant/customer-chat.webp', title: 'پاسخ‌گویی به مشتری', detail: 'گفت‌وگوی سریع و دقیق' },
+  { src: '/assistant/insights.webp', title: 'تحلیل فروش', detail: 'دید بهتر نسبت به روند فروش' },
 ];
 
 const KIND_LABEL: Record<BotReply['kind'], { text: string; tone: string }> = {
@@ -187,6 +196,28 @@ export default function AssistantPage() {
           </section>
         </div>
       </div>
+
+      <section className="card assistant-visuals" aria-labelledby="assistant-visuals-title">
+        <div className="card-head">
+          <div>
+            <div className="card-title" id="assistant-visuals-title">همراه هوشمند فروشگاه شما</div>
+            <div className="card-desc">یک دستیار ثابت در مسیر سفارش، موجودی، گفت‌وگو و رشد فروش.</div>
+          </div>
+        </div>
+        <div className="assistant-visual-grid">
+          {ASSISTANT_VISUALS.map(item => (
+            <article className="assistant-visual-card" key={item.src}>
+              <div className="assistant-visual-image">
+                <Image src={item.src} alt={`${item.title} — ربات دستیار فروشیار`} width={480} height={480} />
+              </div>
+              <div className="assistant-visual-copy">
+                <strong>{item.title}</strong>
+                <span>{item.detail}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
