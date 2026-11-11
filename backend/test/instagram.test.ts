@@ -107,7 +107,8 @@ before(async () => {
   const audit = new AuditService(prisma as never, false);
   // جایگزین سرویس رخداد زنده: در تست رفتار واقعی SSE لازم نیست، فقط نباید بترکد.
   const realtimeStub = { emitShop: () => undefined, emitAdmin: () => undefined } as never;
-  const telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never, new AiService(), realtimeStub);
+const subscriptionStub = { status: async () => ({ active: true }), assertCanConnect: async () => undefined } as never;
+  const telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never, new AiService(), realtimeStub, subscriptionStub);
   const orders = new OrdersService(prisma as never, audit, telegram, realtimeStub);
   const payments = new PaymentsService(orders);
   Object.assign(telegram as unknown as Record<string, unknown>, { orders, payments });
@@ -153,7 +154,7 @@ before(async () => {
   // در حالت تک‌فروشگاهی، پیام حساب ناشناس به فروشگاه پیش‌فرض وصل می‌شود.
 
   seed = { shopId, variantId: product.variants[0].id, productId: product.id, channelCode };
-  service = new InstagramService(prisma as never, audit, realtimeStub, new AiService(), orders, payments, telegram);
+  service = new InstagramService(prisma as never, audit, realtimeStub, new AiService(), orders, payments, telegram, subscriptionStub);
 });
 
 after(async () => {

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, type Shop } from '@/lib/api';
+import { api, request, ApiError, type Shop } from '@/lib/api';
 import { Field, PageHeader, SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import { TelegramConnect } from '@/components/telegram-connect';
 import { InstagramConnect } from '@/components/instagram-connect';
@@ -20,9 +20,11 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [planState, setPlanState] = useState<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string } | null } | null>(null);
 
   useEffect(() => {
     let alive = true;
+    request<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string } | null }>('/subscriptions/status').then(setPlanState).catch(() => undefined);
     api.shop()
       .then(data => { if (alive) setForm({ name: data.name, tone: data.tone, shipping: data.shipping, payment: data.payment, workingHours: data.workingHours, returns: data.returns ?? '', handoffMessage: data.handoffMessage }); })
       .catch(() => { if (alive) setError('دریافت تنظیمات انجام نشد.'); })
@@ -166,6 +168,11 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          <section className="card card-pad stack">
+            <div className="row-between"><div><div className="card-title">وضعیت اشتراک</div><div className="small muted">{planState?.mode === 'paid' ? `پلن ${planState.subscription?.planName}` : planState?.mode === 'trial' ? 'دورهٔ آزمایشی ۶روزه' : 'اشتراک فعال ندارید'}</div></div><Link className="btn btn-outline btn-sm" href="/plans">مشاهده پلن‌ها</Link></div>
+            {planState?.trialEndsAt && planState.mode === 'trial' ? <div className="small muted">پایان دوره: {new Date(planState.trialEndsAt).toLocaleDateString('fa-IR')}</div> : null}
+            {planState?.mode === 'expired' ? <div className="alert alert-warn">بات قفل است؛ اطلاعات فروشگاه شما حذف نشده است.</div> : null}
+          </section>
           <TelegramConnect />
 
           <InstagramConnect />

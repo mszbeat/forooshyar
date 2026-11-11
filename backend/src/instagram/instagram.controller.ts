@@ -30,8 +30,8 @@ export class InstagramController {
    * فروشنده‌ی وارد‌شده و هنگام کلیک می‌گیردش. خودِ `status` هیچ لینکی ندارد.
    */
   @Get('connect-url')
-  connectUrl(@Req() req: { principal: Principal }) {
-    const url = this.instagram.connectUrl(req.principal.shopId, req.principal.userId);
+  async connectUrl(@Req() req: { principal: Principal }) {
+    const url = await this.instagram.connectUrl(req.principal.shopId, req.principal.userId);
     return url ? { ok: true as const, url } : { ok: false as const, error: 'لینک ورود اینستاگرام روی سرور تنظیم نشده است.' };
   }
 

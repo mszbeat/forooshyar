@@ -5,11 +5,12 @@ import { ChannelController } from './channel.controller';
 import { ChatController } from '../chat/chat.controller';
 import { ChatService } from '../chat/chat.service';
 import { TelegramService } from './telegram.service';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { TelegramWebhookController } from './telegram.webhook.controller';
 
 @Module({
   // چرخه با OrdersModule: بات سفارش می‌سازد و سفارش‌ها با بات اعلان می‌دهند.
-  imports: [forwardRef(() => OrdersModule), AiModule],
+  imports: [forwardRef(() => OrdersModule), AiModule, SubscriptionsModule],
   // «گفت‌وگوها و مشتریان» همان چت تلگرام است، پس در همین ماژول می‌ماند؛ اگر
   // ماژول جدا با import دوباره‌ی TelegramModule ساخته شود، چرخه‌ی
   // forwardRef با OrdersModule می‌شکند و PaymentsService دیگر OrdersService را

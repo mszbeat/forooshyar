@@ -11,7 +11,7 @@ export class AuthService {
   async register(email: string, password: string, shopName: string) {
     const passwordHash = await hashPassword(password);
     try {
-      const user = await this.db.user.create({ data: { email, passwordHash, shop: { create: { name: shopName } } }, include: { shop: true } });
+      const user = await this.db.user.create({ data: { email, passwordHash, shop: { create: { name: shopName, trialStartedAt: new Date(), trialEndsAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000) } } }, include: { shop: true } });
       this.audit.record({
         action: 'auth.register',
         entity: 'user',

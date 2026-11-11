@@ -38,6 +38,7 @@ import {
   type InstagramConfig,
 } from './instagram.config';
 import { splitInstagramMessage, toInstagramActions, toPlainText } from './format';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /**
  * webhook باکس‌ای‌پی؛ فقط فیلدهایی که استفاده می‌کنیم.
@@ -147,6 +148,7 @@ export class InstagramService {
     private readonly orders: OrdersService,
     private readonly payments: PaymentsService,
     private readonly telegram: TelegramService,
+    private readonly subscriptions: SubscriptionsService,
   ) {
     this.config = readInstagramConfig();
     this.client = new InstagramClient(this.config);
@@ -223,8 +225,9 @@ export class InstagramService {
    * درخواست احراز‌شده و هنگام کلیک برمی‌گردد. هر باز کردن، در audit ثبت می‌شود
    * تا اگر روزی پیج ناشناسی به پلتفرم وصل شد، ردش را داشته باشیم.
    */
-  connectUrl(shopId: string, userId?: string): string {
+  async connectUrl(shopId: string, userId?: string): Promise<string> {
     if (!instagramConnectable(this.config)) return '';
+    await this.subscriptions.assertCanConnect(shopId);
     this.audit.record({
       action: 'instagram.connect_link_opened', entity: 'shop', entityId: shopId, shopId, userId,
       meta: {},
@@ -290,6 +293,7 @@ export class InstagramService {
    */
   async link(shopId: string, accountId: string, userId?: string) {
     if (!this.configured) return { ok: false as const, error: 'کلید API اینستاگرام روی سرور تنظیم نشده است.' };
+    await this.subscriptions.assertCanConnect(shopId);
     const id = accountId.trim();
     if (!id) return { ok: false as const, error: 'پیجی انتخاب نشده است.' };
 
@@ -446,6 +450,10 @@ export class InstagramService {
     if (!shopId) {
       this.audit.record({ action: 'instagram.unrouted', entity: 'webhook', meta: { accountId: mask(accountId), eventType: payload.event_type ?? null } });
       return { status: 'ignored', reason: 'unrouted_account' };
+    }
+    if (!(await this.subscriptions.status(shopId)).active) {
+      this.audit.record({ action: 'instagram.subscription_expired', entity: 'webhook', shopId, meta: { eventType: payload.event_type ?? null } });
+      return { status: 'ignored', reason: 'subscription_expired' };
     }
 
     const type = (payload.event_type ?? '').trim();

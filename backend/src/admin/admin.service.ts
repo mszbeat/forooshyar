@@ -262,7 +262,7 @@ export class AdminService implements OnModuleInit {
       const user = await this.db.user.create({
         data: {
           email, passwordHash: await hashPassword(input.password),
-          shop: { create: { name: input.name.trim() } },
+          shop: { create: { name: input.name.trim(), trialStartedAt: new Date(), trialEndsAt: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000) } },
         },
         include: { shop: true },
       });

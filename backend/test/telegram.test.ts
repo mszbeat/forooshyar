@@ -36,6 +36,7 @@ let handoffUpdateId = 0;
  * نباید بترکد.
  */
 const realtimeStub = { emitShop: () => undefined, emitAdmin: () => undefined } as never;
+const subscriptionStub = { status: async () => ({ active: true }), assertCanConnect: async () => undefined } as never;
 
 const SECRET = 'test-secret-token';
 const BOT_USERNAME = 'forooshyar_test_bot';
@@ -95,7 +96,7 @@ before(async () => {
   const { AuditService } = await import('../src/logging/audit.service');
   const audit = new AuditService(prisma as never, false);
   // چرخه‌ی بات/سفارش در تست: اول بات با جای خالی، بعد سفارش، بعد وصل‌کردن.
-  telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never, new AiService(), realtimeStub);
+  telegram = new TelegramService(prisma as never, audit, undefined as never, undefined as never, new AiService(), realtimeStub, subscriptionStub);
   const orders = new OrdersService(prisma as never, audit, telegram, realtimeStub);
   payments = new PaymentsService(orders);
   Object.assign(telegram as unknown as Record<string, unknown>, { orders, payments });
@@ -213,7 +214,7 @@ describe('channel webhook registration', () => {
     const { ChannelController } = await import('../src/telegram/channel.controller');
     const { TelegramService } = await import('../src/telegram/telegram.service');
     const { AiService } = await import('../src/ai/ai.service');
-    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService(), realtimeStub), audit);
+    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService(), realtimeStub), audit, subscriptionStub);
     reset();
     const result = await controller.registerWebhook({
       host: 'forooshyar-api.onrender.com',
@@ -243,7 +244,7 @@ describe('channel webhook registration', () => {
     const { ChannelController } = await import('../src/telegram/channel.controller');
     const { TelegramService } = await import('../src/telegram/telegram.service');
     const { AiService } = await import('../src/ai/ai.service');
-    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService(), realtimeStub), audit);
+    const controller = new ChannelController(db, new TelegramService(db, audit, undefined as never, undefined as never, new AiService(), realtimeStub), audit, subscriptionStub);
     const previous = process.env.PUBLIC_API_URL;
     process.env.PUBLIC_API_URL = 'http://insecure.local';
     try {

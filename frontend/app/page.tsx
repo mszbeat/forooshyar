@@ -161,7 +161,7 @@ export default function LandingPage() {
           </div>
           <div className="land-nav-actions">
             <ThemeToggle />
-            <Link className="btn btn-ghost btn-sm" href="/login">ورود</Link>
+            <Link className="btn btn-ghost btn-sm" href="/plans">پلن‌ها</Link><Link className="btn btn-ghost btn-sm" href="/login">ورود</Link>
             <span className="sep" />
             <Link className="btn btn-primary btn-sm" href="/login?mode=register">
               ساخت فروشگاه
@@ -199,7 +199,7 @@ export default function LandingPage() {
                 شروع رایگان
                 <IconArrowLeft size={17} />
               </Link>
-              <Link className="btn btn-outline btn-lg" href="/login">ورود به پنل</Link>
+              <Link className="btn btn-outline btn-lg" href="/plans">مشاهده پلن‌ها</Link><Link className="btn btn-outline btn-lg" href="/login">ورود به پنل</Link>
             </div>
 
             <div className="hero-proof">
