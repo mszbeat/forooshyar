@@ -115,3 +115,16 @@ html[data-theme='dark'] .land .night-sec {background:radial-gradient(70% 90% at 
 .land .cta {background:radial-gradient(520px 300px at 88% 8%,rgba(93,115,235,.4),transparent 68%),radial-gradient(560px 360px at 6% 100%,rgba(34,184,165,.2),transparent 70%),linear-gradient(135deg,#121a35,#14263b 68%,#103b3b);border-radius:16px}
 html[data-theme='dark'] .land .cta {background:radial-gradient(520px 300px at 88% 8%,rgba(93,115,235,.4),transparent 68%),radial-gradient(560px 360px at 6% 100%,rgba(34,184,165,.2),transparent 70%),linear-gradient(135deg,#121a35,#14263b 68%,#103b3b)}
 .land .fact:nth-child(1) .fact-v {color:var(--brand)}.land .fact:nth-child(2) .fact-v {color:var(--ok)}.land .fact:nth-child(3) .fact-v {color:var(--amber)}.land .fact:nth-child(4) .fact-v {color:var(--info)}
+
+/* Approved robot illustrations on the main landing page. */
+.land-robot-showcase{background:var(--surface-2);border-block:1px solid var(--line)}
+.land-robot-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-top:28px}
+.land-robot-card{min-width:0;overflow:hidden;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.land-robot-image{aspect-ratio:1;overflow:hidden;background:#0c1426}
+.land-robot-image img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+.land-robot-card:hover .land-robot-image img{transform:scale(1.035)}
+.land-robot-copy{display:grid;gap:4px;padding:12px 13px}
+.land-robot-copy strong{font-size:13px;font-weight:600;color:var(--ink)}
+.land-robot-copy span{font-size:11px;color:var(--ink-3);line-height:1.7}
+@media(max-width:1050px){.land-robot-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.land-robot-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:20px}.land-robot-copy{padding:9px}.land-robot-copy strong{font-size:11.5px}.land-robot-copy span{font-size:10px}}
