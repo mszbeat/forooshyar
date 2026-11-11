@@ -3,6 +3,7 @@ import { AuthGuard, Principal } from '../auth/auth.guard';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from './telegram.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 /**
  * مدیریت اتصال تلگرام از داخل پنل. همه‌ی مسیرها با AuthGuard محافظت می‌شوند و
@@ -19,6 +20,7 @@ export class ChannelController {
     private readonly db: PrismaService,
     private readonly telegram: TelegramService,
     private readonly audit: AuditService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   @Get()
@@ -112,6 +114,7 @@ export class ChannelController {
   /** ساخت (یا فعال‌سازی) اتصال این فروشگاه به بات مشترک. */
   @Post('connect')
   async connect(@Req() req: { principal: Principal }) {
+    await this.subscriptions.assertCanConnect(req.principal.shopId);
     const identity = await this.telegram.botIdentity();
     const code = TelegramService.generateCode();
     const channel = await this.db.channel.upsert({

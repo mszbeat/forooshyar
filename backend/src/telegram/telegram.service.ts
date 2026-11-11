@@ -14,6 +14,7 @@ import { applyInput, draftTitle, escapeHtml, fullAddress, promptFor, startDraft,
 import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } from './telegram.client';
 import { actionOf, actionsKeyboard, BOT_COMMANDS, helpText, welcomeText } from './menu';
 import { isDeliveryConfirmation } from './delivery';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
 /** پیامی که این پیام پاسخش است؛ برای «پاسخ فروشنده به مشتری» لازم است. */
@@ -101,6 +102,7 @@ export class TelegramService {
     private readonly ai: AiService,
     // رخداد زنده برای پنل: پیام تازه، سفارش تازه، تغییر وضعیت.
     private readonly realtime: RealtimeService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   get configured(): boolean {
@@ -334,6 +336,10 @@ export class TelegramService {
     if (!conversation) {
       await this.send(chatId, 'برای شروع، لینک اختصاصی فروشگاه را باز کنید.');
       return { status: 'handled', replies: 1, kind: 'no_conversation' };
+    }
+    if (!(await this.subscriptions.status(conversation.shopId)).active) {
+      await this.send(chatId, 'دورهٔ آزمایشی این فروشگاه به پایان رسیده و پاسخ‌گویی موقتاً متوقف است. اطلاعات شما حفظ شده است.');
+      return { status: 'handled', replies: 1, kind: 'subscription_expired' };
     }
 
     const shop = await this.db.shop.findUniqueOrThrow({

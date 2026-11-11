@@ -56,6 +56,9 @@ model Shop {
   /// سیاست مرجوعی/تعویض؛ اگر پر باشد بات خودش جواب می‌دهد.
   returns        String                 @default("")
   createdAt      DateTime               @default(now())
+  trialStartedAt DateTime?
+  trialEndsAt    DateTime?
+  subscriptions  Subscription[]
   products       Product[]
   variants       Variant[]
   movements      StockMovement[]
@@ -346,6 +349,40 @@ model TelegramUpdate {
 /// حساب ادمین سامانه — کاملاً جدا از حساب فروشنده (`User`).
 /// ادمین فروشگاه ندارد؛ به همین دلیل AuthGuard فروشنده هرگز توکن او را قبول
 /// نمی‌کند و برعکس. رمز با scrypt ذخیره می‌شود، هرگز به‌صورت متن.
+model SubscriptionPlan {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  monthlyPrice   Int      @default(0)
+  instagramLimit Int
+  telegramLimit  Int
+  active         Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  subscriptions  Subscription[]
+
+  @@index([active, sortOrder])
+}
+
+model Subscription {
+  id             String   @id @default(uuid()) @db.Uuid
+  shopId         String   @db.Uuid
+  planId         String   @db.Uuid
+  shop           Shop     @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  plan           SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status         String   @default("PENDING")
+  months         Int
+  amount         Int
+  authority      String?  @unique
+  referenceId    String   @default("")
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([shopId, status, endsAt])
+}
+
 model PlatformAdmin {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique
