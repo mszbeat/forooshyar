@@ -56,7 +56,7 @@
 @keyframes authxBreath { 0%, 100% { transform: scale(1) translateY(0); opacity: 0.85; } 50% { transform: scale(1.14) translateY(-16px); opacity: 0.55; } }
 .authx-visual-inner { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; justify-content: space-between; gap: 26px; padding: 34px 36px 30px; }
 .authx-brand { display: flex; align-items: center; gap: 11px; }
-.authx-brand .mark { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; background: var(--grad); border: 1px solid rgba(255,255,255,.2); color: #fff; box-shadow: var(--sh-brand); }
+.authx-brand .mark { width: 44px; height: 44px; display: grid; place-items: center; background: transparent; color: #fff; }
 .authx-brand .name { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
 .authx-brand .role { font-size: 11.5px; color: rgba(247,248,248,.55); margin-top: -1px; }
 .authx-copy { animation: authxRise 0.22s cubic-bezier(0.2, 0.7, 0.2, 1) both; }

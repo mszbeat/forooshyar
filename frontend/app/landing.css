@@ -21,7 +21,7 @@
 .land-nav.scrolled { border-bottom-color: var(--line); }
 .land-nav-in { display: flex; align-items: center; gap: 18px; height: 72px; }
 .land .brand { padding: 0; color: var(--land-ink); }
-.land .brand-mark { box-shadow: var(--sh-brand); }
+.land .brand-mark { box-shadow: none; }
 .land .brand-name { font-weight: 800; font-size: 17px; }
 .land .brand-sub { color: var(--ink-3); }
 .land-links { display: flex; align-items: center; gap: 4px; margin-inline-start: 14px; }

@@ -90,7 +90,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
   const sidebar = (
     <aside className={`sidebar ${drawer ? 'open' : ''}`}>
       <Link href="/" className="brand" aria-label="فروش‌یار — رفتن به صفحهٔ اصلی">
-        <span className="brand-mark"><BrandLogo size={30} /></span>
+        <span className="brand-mark"><BrandLogo size={38} /></span>
         <div>
           <div className="brand-name">فروش‌یار</div>
           <div className="brand-sub">رفتن به سایت اصلی</div>
