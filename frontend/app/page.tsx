@@ -161,8 +161,8 @@ export default function LandingPage() {
           </div>
           <div className="land-nav-actions">
             <ThemeToggle />
-            <Link className="btn btn-ghost btn-sm" href="/plans">پلن‌ها</Link><Link className="btn btn-ghost btn-sm" href="/login">ورود</Link>
-            <span className="sep" />
+            <Link className="btn btn-ghost btn-sm land-nav-plans" href="/plans">پلن‌ها</Link><Link className="btn btn-ghost btn-sm" href="/login">ورود</Link>
+            <span className="sep land-nav-sep" />
             <Link className="btn btn-primary btn-sm" href="/login?mode=register">
               ساخت فروشگاه
               <IconArrowLeft size={14} />

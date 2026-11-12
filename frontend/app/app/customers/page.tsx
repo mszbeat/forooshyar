@@ -140,6 +140,7 @@ useEffect(() => { void load(); }, [load]);
 }
 
 function CustomerLine({ row }: { row: CustomerRow }) {
+  const isInstagram = row.chatId.startsWith('ig:');
   return (
     <div className="cust-row">
       <div className="cust-cell cust-id">
@@ -147,9 +148,12 @@ function CustomerLine({ row }: { row: CustomerRow }) {
         <span className="cust-id-main">
           <strong>{row.name}</strong>
           <span className="small muted">
-            {row.username ? `@${row.username}` : 'بدون نام کاربری'}
+            {row.username ? `@${row.username}` : isInstagram ? 'پیج اینستاگرام' : 'بدون نام کاربری'}
             {row.firstSeenAt && ` · از ${faDate(row.firstSeenAt)}`}
           </span>
+        </span>
+        <span className={`badge ${isInstagram ? 'b-brand' : 'b-gray'} cust-channel`}>
+          {isInstagram ? 'اینستاگرام' : 'تلگرام'}
         </span>
       </div>
       <div className="cust-cell hide-sm"><span className="num">{faNum(row.messageCount)}</span></div>

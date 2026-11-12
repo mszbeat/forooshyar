@@ -134,6 +134,49 @@ export class InstagramClient {
   }
 
   /**
+   * اطلاعات عمومی یک کاربر اینستاگرام از روی شناسه‌ی عددی (IGSID).
+   *
+   * مستندات BoxAPI Data API: `POST https://boxapi.ir/api/instagram/user/get_info_by_id`
+   * با بدنه‌ی `{ id }` و هدر `Authorization: Bearer <BOXAPI_DATA_TOKEN>`؛ خروجی
+   * `response.body.user` شامل `username` و `full_name` است. این توکن با کلید DM
+   * (`INSTAGRAM_API_KEY`) فرق دارد؛ اگر ست نشده باشد، نتیجه «غیرفعال» برمی‌گردد
+   * و صدا زده نمی‌شود.
+   */
+  async getUserInfoById(igsid: string): Promise<InstagramResult<{ username: string; fullName: string }>> {
+    const token = this.config.dataToken;
+    if (!token) return { ok: false, error: 'BOXAPI_DATA_TOKEN ست نشده است.' };
+    const id = igsid.trim();
+    if (!id) return { ok: false, error: 'شناسه خالی است.' };
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.config.timeoutMs);
+    try {
+      const response = await fetch('https://boxapi.ir/api/instagram/user/get_info_by_id', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: Number(id) || id }),
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      const parsed = text ? safeJson(text) : null;
+      if (!response.ok) {
+        return { ok: false, status: response.status, error: describe(parsed) || `HTTP ${response.status}` };
+      }
+      const user = pickUser(parsed);
+      if (!user) return { ok: false, error: 'پاسخ BoxAPI کاربر نداشت.' };
+      return { ok: true, data: user };
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === 'AbortError';
+      return { ok: false, error: aborted ? 'زمان پاسخ BoxAPI تمام شد.' : (error instanceof Error ? error.message : 'خطای شبکه') };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
    * فهرست پیج‌هایی که از طریق لینک ورود اختصاصی حساب باکس‌ای‌پی لاگین شده‌اند.
    *
    * چرا این متد ستون فقرات اتصال چندفروشگاهی است: `account_id` هر پیج فقط
@@ -236,6 +279,19 @@ function safeJson(text: string): unknown {
   } catch {
     return { raw: text.slice(0, 500) };
   }
+}
+
+/** `response.body.user` پاسخ get_info_by_id را به { username, fullName } درمی‌آورد. */
+function pickUser(payload: unknown): { username: string; fullName: string } | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as Record<string, unknown>;
+  const response = (record.response ?? {}) as Record<string, unknown>;
+  const body = (response.body ?? {}) as Record<string, unknown>;
+  const user = (body.user ?? record.user ?? {}) as Record<string, unknown>;
+  const username = String(user.username ?? '').trim().replace(/^@/, '');
+  const fullName = String(user.full_name ?? user.fullName ?? '').trim();
+  if (!username && !fullName) return null;
+  return { username, fullName };
 }
 
 /** پیام خطای خوانا از پاسخ BoxAPI؛ کلیدهای رایج را پوشش می‌دهد. */

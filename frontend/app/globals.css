@@ -345,6 +345,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
 .grid { display: grid; gap: var(--sp-4); align-items: start; }
+.grid > * { min-width: 0; }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .g-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -445,16 +446,32 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .stat-value small { font-size: 12px; font-weight: 500; color: var(--ink-3); margin-inline-start: 6px; letter-spacing: 0; }
 .stat-foot { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--fs-xs); color: var(--ink-3); }
 .stat-foot .ico { width: 13px; height: 13px; opacity: 0.7; }
-.kpi-orders .stat { padding: var(--sp-5) var(--sp-4); }
-.kpi-orders .stat-value { font-size: 22px; margin-top: 10px; overflow-wrap: anywhere; }
+.kpi-orders .stat { padding: var(--sp-5) var(--sp-4); min-width: 0; }
+.kpi-orders .stat-value { font-size: 22px; margin-top: 10px; overflow-wrap: break-word; }
 .kpi-orders .stat-value small { font-size: 11px; margin-inline-start: 4px; }
 .kpi-orders .stat-foot { font-size: 11px; line-height: 1.65; }
 @media (max-width: 1180px) { .kpi-orders .stat-value { font-size: 26px; } }
 @media (max-width: 760px) {
-  .kpi-orders .stat { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'top value' 'foot value'; align-items: center; column-gap: 12px; border-inline-start: 0; border-bottom: 1px solid var(--line); }
+  /* در موبایل KPIها تک‌ستونه و عمودی‌اند: برچسب بالا، عدد وسط، توضیح پایین.
+     چیدمان کنارهمِ قبلی عددهای طولانی (مثل مبلغ فروش) را می‌شکست و بیرون می‌زد. */
+  .kpi-orders { grid-template-columns: minmax(0, 1fr) !important; }
+  .kpi-orders .stat { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'top' 'value' 'foot'; align-items: start; gap: 2px; border-inline-start: 0; border-bottom: 1px solid var(--line); }
+  .kpi-orders .stat:last-child { border-bottom: 0; }
   .kpi-orders .stat-top { grid-area: top; }
-  .kpi-orders .stat-value { grid-area: value; font-size: 20px; text-align: start; margin-top: 0; }
-  .kpi-orders .stat-foot { grid-area: foot; margin-top: 2px; }
+  .kpi-orders .stat-value { grid-area: value; font-size: 22px; text-align: start; margin-top: 6px; }
+  .kpi-orders .stat-foot { grid-area: foot; margin-top: 4px; }
+}
+/* فیلتر سفارش‌ها: در عرض کم به‌جای بیرون‌زدن، افقی اسکرول می‌شود. */
+.orders-filter { display: flex; }
+.orders-filter .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.orders-filter .segmented::-webkit-scrollbar { display: none; }
+.orders-filter .segmented button { flex: 0 0 auto; }
+/* ردیف سفارش در موبایل: هر بلوک یک خطِ کامل. */
+@media (max-width: 760px) {
+  .order-id, .order-items { flex: 1 1 100% !important; max-width: none !important; }
+  .order-total { flex: 0 0 auto; }
+  .order-actions { flex: 1 1 auto; justify-content: flex-end; }
+  .order-actions .btn { flex: 1 1 auto; }
 }
 .trend-up { color: var(--ok); font-weight: 700; }
 .trend-down { color: var(--danger); font-weight: 700; }
@@ -464,6 +481,12 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .row-item:hover { background: var(--surface-2); }
 .row-item-in { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 11px var(--sp-5); }
 .row-name { min-width: 0; flex: 0 1 auto; max-width: 440px; }
+/* کارت محصول: برچسب وضعیت در خط توضیح، هم‌تراز با متن؛ همه‌ی کارت‌ها یک فرم. */
+.product-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.product-status { margin-inline-start: 2px; }
+.product-pills { min-height: 24px; }
+.product-row-actions { flex: 0 0 auto; }
+.product-stock-total { min-width: 56px; justify-content: flex-end; }
 .row-spacer { flex: 1 1 12px; min-width: 8px; }
 .row-stat { display: flex; align-items: baseline; gap: 6px; }
 .row-stat-num { font-weight: 300; font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.2; }
@@ -628,7 +651,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   .sidebar { position: fixed; inset-block: 0; inset-inline-start: 0; transform: translateX(102%); transition: transform 0.26s var(--ease); box-shadow: var(--sh-lg); width: 288px; flex-basis: 288px; border-left: 0; z-index: 40; }
   .sidebar.open { transform: none; }
   .scrim { position: fixed; inset: 0; background: rgba(8, 9, 10, 0.55); z-index: 35; animation: fade 0.2s var(--ease); backdrop-filter: blur(4px); }
-  .topbar { padding: 0 var(--sp-4); }
+  .topbar { padding: 0 var(--sp-4); gap: 8px; }
   .page, .page-tight { padding: var(--sp-5) var(--sp-4) var(--sp-10); }
   .hide-sm { display: none; }
   .topbar .topbar-user { display: none; }
@@ -637,6 +660,13 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   .page-head { flex-direction: column; align-items: flex-start; }
   .page-head-actions { width: 100%; }
   .page-head-actions .btn { flex: 1 1 auto; }
+  /* کارت محصول در موبایل: عنوان بالا، دکمه‌ها پایینِ تمام‌عرض — برای همه یکسان. */
+  .row-item-in { align-items: flex-start; padding: 12px 14px; }
+  .row-name { flex: 1 1 auto; max-width: none; }
+  .product-row-actions { flex: 1 1 100%; margin-inline-start: 0; padding-top: 4px; }
+  .product-row-actions .btn { flex: 1 1 auto; }
+  .product-stock-total { flex: 0 0 auto; }
+  .row-spacer { display: none; }
 }
 @media (max-width: 640px) {
   .g-2, .g-3, .g-4, .g-auto { grid-template-columns: minmax(0, 1fr); }
@@ -738,8 +768,43 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-code { direction: ltr; text-align: left; background: var(--night); color: #d6deeb; border: 1px solid var(--night-line); border-radius: var(--r-md); padding: 16px 18px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 2; overflow-x: auto; }
 .adm-code .c { color: #8b93a7; } .adm-code .k { color: #a99bff; } .adm-code .v { color: #6ee7c8; }
 .adm-save-dock { position: sticky; bottom: 16px; z-index: 15; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-md); }
-.adm-login { width: 100%; min-height: 100dvh; align-items: stretch; }
+.adm-login { display: grid; grid-template-columns: 1.05fr 1fr; width: 100%; min-height: 100dvh; align-items: stretch; }
 .adm-login > .authx-page-tools { position: fixed; z-index: 30; inset-block-start: 14px; inset-inline-end: 16px; display: flex; align-items: center; gap: 8px; }
+.adm-login-side {
+  position: relative; overflow: hidden; color: #f7f8f8; padding: 42px;
+  display: flex; flex-direction: column; gap: 26px;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(124, 108, 255, 0.45), transparent 62%),
+    radial-gradient(90% 70% at 0% 100%, rgba(34, 211, 238, 0.18), transparent 60%),
+    linear-gradient(160deg, #14121f, #0f1116 70%);
+}
+.adm-login-side::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(85% 70% at 65% 30%, #000 25%, transparent 75%);
+}
+.adm-login-side > * { position: relative; z-index: 1; }
+.adm-login-side h2 { font-size: clamp(24px, 2.4vw, 33px); font-weight: 800; line-height: 1.45; letter-spacing: -0.02em; }
+.adm-login-side h2 em { font-style: normal; background: linear-gradient(135deg, #a99bff, #67e8f9); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.adm-login-side p { font-size: 13px; line-height: 2; color: rgba(247, 248, 248, 0.7); max-width: 42ch; }
+.adm-login-side .adm-checks { margin-top: auto; gap: 9px; }
+.adm-login-side .adm-check {
+  padding: 9px 12px; border-radius: 11px; border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04); font-size: 12px; color: rgba(247, 248, 248, 0.72);
+}
+.adm-login-side .adm-check .mono { margin-inline-start: auto; font-family: ui-monospace, monospace; color: rgba(247, 248, 248, 0.5); font-size: 10.5px; }
+.adm-login-side .adm-check .ico { color: #9ee6c8; display: grid; place-items: center; }
+.adm-login-form { display: grid; place-items: center; padding: 32px 24px; background: var(--bg); min-width: 0; }
+.adm-login-card { width: 100%; max-width: 396px; display: grid; gap: 16px; min-width: 0; }
+.adm-login-card h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.adm-login-card .sub { font-size: 12.5px; color: var(--ink-3); line-height: 1.9; margin-top: -8px; }
+@media (max-width: 980px) {
+  .adm-login { grid-template-columns: minmax(0, 1fr); }
+  .adm-login-side { display: none; }
+  .adm-login-form { padding: 84px 20px 40px; }
+}
 .adm-modal-veil { position: fixed; inset: 0; z-index: 70; background: rgba(8,9,10,.55); backdrop-filter: blur(6px); display: grid; place-items: center; padding: 20px; animation: veil-in .2s var(--ease); }
 .adm-modal { width: min(520px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--sh-lg); animation: modal-in .24s var(--ease); overflow: hidden; }
 .adm-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 20px 0; }
@@ -769,7 +834,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   .adm-shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100dvh; }
   .adm-scrim { display: block; position: fixed; inset: 0; z-index: 89; border: 0; background: rgba(8,9,10,.55); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .22s; }
   .adm-shell.nav-open .adm-scrim { opacity: 1; pointer-events: auto; }
-  .adm-side { position: fixed; z-index: 90; inset-block: 0; inset-inline-end: 0; width: min(86vw, 320px); height: 100dvh; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 18px 16px; overflow-y: auto; transform: translateX(105%); visibility: hidden; transition: transform .25s cubic-bezier(.22,.9,.24,1), visibility .25s; }
+  /* در RTL، inset-inline-end یعنی سمت چپ؛ برای پنهان‌کردن باید به چپ برود (-105%). */
+  .adm-side { position: fixed; z-index: 90; inset-block: 0; inset-inline-end: 0; width: min(86vw, 320px); height: 100dvh; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 18px 16px; overflow-y: auto; transform: translateX(-105%); visibility: hidden; transition: transform .25s cubic-bezier(.22,.9,.24,1), visibility .25s; }
   .adm-shell.nav-open .adm-side { transform: translateX(0); visibility: visible; }
   .adm-brand { border-bottom: 1px solid var(--night-line); padding: 0 4px 14px; flex: 0 0 auto; }
   .adm-brand .rl { display: block; }
@@ -780,13 +846,26 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   .adm-nav-item .sp { display: block; }
   .adm-side-foot { display: grid; gap: 10px; margin-top: auto; }
   .adm-main { grid-column: 1; width: 100%; min-width: 0; }
-  .adm-top { min-width: 0; }
-  .adm-top .sp { gap: 6px; flex-wrap: wrap; }
+  .adm-top { min-width: 0; padding: 12px 14px; gap: 10px; }
   .adm-mobile-menu { display: inline-flex; flex: 0 0 auto; }
-  .adm-top-title { min-width: 0; } .adm-top-title h1 { font-size: 15px; }
-  .adm-top .sp { margin-inline-start: auto; flex-wrap: nowrap; }
+  .adm-top-title { min-width: 0; flex: 1 1 auto; } .adm-top-title h1 { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .adm-top .crumbs { display: none; }
+  .adm-top .sp { margin-inline-start: auto; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .adm-side .adm-nav-toggle { display: inline-flex !important; }
   .adm-row { grid-template-columns: minmax(0, 1fr); }
+  .adm-body { padding-block: 16px 40px; padding-inline: 14px; gap: 14px; }
+  .adm-body .g-2, .adm-body .g-3, .adm-body .g-4 { grid-template-columns: minmax(0, 1fr); }
+  .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-kpi { min-width: 0; }
+  .adm-kpi .vl { overflow-wrap: break-word; }
+  .adm-save-dock { flex-wrap: wrap; bottom: 12px; }
+  .adm-sec-head { flex-wrap: wrap; }
+  .adm-table .hide-sm { display: none; }
+}
+@media (max-width: 560px) {
+  .adm-top .adm-pipe { display: none; }
+  .adm-top .adm-pipe.warn { display: inline-flex; }
+  .adm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* AI page ------------------------------------------------------------------- */
@@ -898,6 +977,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .cust-id-main strong { font-size: 12.8px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cust-id-main .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cust-actions { justify-content: flex-end; }
+.cust-channel { flex: 0 0 auto; }
 .filters-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .chip-tabs { display: inline-flex; gap: 6px; }
 @media (max-width: 860px) {

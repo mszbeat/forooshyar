@@ -268,22 +268,24 @@ useEffect(() => { void load(); }, [load]);
                   </span>
 
                   {/* نام و موجودی کنارِ هم؛ قبلاً بلوکِ نام تمام فضای خالی را
-                      می‌گرفت و عدد موجودی به انتهای ردیف پرت می‌شد. */}
+                      می‌گرفت و عدد موجودی به انتهای ردیف پرت می‌شد.
+                      برچسب وضعیت (موجودی کم/ناموجود/غیرفعال) در خط توضیح است،
+                      نه کنار عنوان، تا همه‌ی کارت‌ها یک فرم داشته باشند. */}
                   <div className="row-name">
                     <div className="row" style={{ gap: 7 }}>
                       <strong style={{ fontSize: 'var(--fs-md)', fontWeight: 500 }}>{product.title}</strong>
-                      {!product.active && <span className="badge b-gray">غیرفعال</span>}
-                      {product.active && stock === 0 && <span className="badge b-red">ناموجود</span>}
-                      {product.active && stock > 0 && needsAttention(product) && <span className="badge b-amber">موجودی کم</span>}
                     </div>
-                    <div className="small muted">
+                    <div className="small muted product-meta">
                       {product.category || 'بدون دسته'} · {faNum(activeVariants.length)} واریانت
                       {activeVariants.length > 0 && ` · ${priceRange(activeVariants)}`}
+                      {!product.active && <span className="badge b-gray product-status">غیرفعال</span>}
+                      {product.active && stock === 0 && <span className="badge b-red product-status">ناموجود</span>}
+                      {product.active && stock > 0 && needsAttention(product) && <span className="badge b-amber product-status">موجودی کم</span>}
                     </div>
                     {activeVariants.length > 0 && (
-                      <div className="row" style={{ gap: 5, marginTop: 6 }}>
+                      <div className="row product-pills" style={{ gap: 5, marginTop: 6 }}>
                         {activeVariants.slice(0, 5).map(variant => (
-                          <span key={variant.id} className={`badge ${variant.stock === 0 ? 'b-red' : variant.stock <= 3 ? 'b-amber' : 'b-gray'}`} style={{ fontWeight: 500 }}>
+                          <span key={variant.id} className="badge b-gray" style={{ fontWeight: 500 }}>
                             {variantLabel(variant)} · {faNum(variant.stock)}
                           </span>
                         ))}

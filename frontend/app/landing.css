@@ -208,6 +208,13 @@
 }
 @media (max-width: 900px) {
   .land-links { display: none; }
+  /* در موبایل هدر شلوغ است: «پلن‌ها» حذف می‌شود تا «ورود» و «ساخت فروشگاه»
+     جا داشته باشند (پلن‌ها از بخش‌های پایین صفحه هم در دسترس است). */
+  .land-nav-plans, .land-nav-sep { display: none; }
+  .land-nav-in { gap: 10px; height: 64px; }
+  .land-nav-actions { gap: 6px; }
+  .land .brand-sub { display: none; }
+  .land-wrap { padding-inline: 16px; }
   .compare { grid-template-columns: 1fr; }
   .bento .tile, .bento .tile.wide, .bento .tile.span-3 { grid-column: span 12; }
   .fact-strip-in { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -79,7 +79,7 @@ export function InstagramConnect() {
           .filter(item => item.chatId.startsWith('ig:'))
           .map(item => ({
             chatId: item.chatId,
-            name: item.name || item.username || 'مشتری',
+            name: item.username ? `@${item.username.replace(/^@/, '')}` : item.name || 'مشتری اینستاگرام',
             igsid: item.chatId.slice(3),
           })),
       );

@@ -21,6 +21,12 @@ export type InstagramConfig = {
   baseUrl: string;
   /** توکن دسترسی (`X-Api-Key`). */
   apiKey: string;
+  /**
+   * توکن BoxAPI Data API برای `get_info_by_id` (نام پیج از روی IGSID).
+   * با کلید DM فرق دارد؛ اختیاری است و اگر خالی باشد، نام مشتری اینستاگرام
+   * از webhook می‌آید و در نبودش «مشتری اینستاگرام» نمایش داده می‌شود.
+   */
+  dataToken: string;
   /** سکرت webhook؛ اگر خالی باشد امضا بررسی نمی‌شود (فقط برای توسعه‌ی محلی). */
   webhookSecret: string;
   /**
@@ -39,6 +45,7 @@ export function readInstagramConfig(env: NodeJS.ProcessEnv = process.env): Insta
   return {
     baseUrl: (env.INSTAGRAM_BASE_URL ?? DEFAULT_BASE).trim().replace(/\/+$/, ''),
     apiKey: (env.INSTAGRAM_API_KEY ?? '').trim(),
+    dataToken: (env.BOXAPI_DATA_TOKEN ?? '').trim(),
     webhookSecret: (env.INSTAGRAM_WEBHOOK_SECRET ?? '').trim(),
     loginUrl: (env.INSTAGRAM_LOGIN_URL ?? '').trim(),
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 10000,

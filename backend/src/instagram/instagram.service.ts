@@ -563,7 +563,17 @@ export class InstagramService {
     if (item.sender?.id && account && item.sender.id === account.id) return { status: 'ignored', reason: 'self' };
 
     const chatId = `${InstagramService.CHAT_PREFIX}${senderId}`;
-    const conversation = await this.conversation(shopId, chatId, item.sender?.name ?? item.sender?.username ?? '');
+    const conversation = await this.conversation(
+      shopId, chatId,
+      item.sender?.name ?? '',
+      item.sender?.username ?? '',
+    );
+    // اگر webhook نام/نام کاربری نفرستاده بود، از BoxAPI Data API بگیر و ذخیره کن
+    // تا در «مشتریان» و «گفتگوها» نام پیج دیده شود، نه «مشتری اینستاگرام».
+    // این کار پس‌زمینه‌ای است و هرگز پاسخ به مشتری را معطل نمی‌کند.
+    if (!conversation.firstName && !conversation.username) {
+      void this.enrichProfile(conversation.id, senderId);
+    }
 
     const payload = item.postback?.payload ?? item.message?.quick_reply?.payload ?? '';
     if (payload) return this.handlePayload(conversation, payload);
@@ -584,19 +594,48 @@ export class InstagramService {
   }
 
   /** گفتگو را می‌سازد/به‌روز می‌کند؛ `chatId` یکتاست. */
-  private async conversation(shopId: string, chatId: string, name: string): Promise<Conversation> {
+  private async conversation(shopId: string, chatId: string, name: string, username = ''): Promise<Conversation> {
     const displayName = name.trim().slice(0, 80);
+    const handle = username.trim().replace(/^@/, '').slice(0, 80);
     const row = await this.db.telegramConversation.upsert({
       where: { shopId_chatId: { shopId, chatId } },
-      create: { shopId, chatId, firstName: displayName },
+      create: { shopId, chatId, firstName: displayName, username: handle },
       update: {
         lastSeenAt: new Date(),
         messageCount: { increment: 1 },
         ...(displayName ? { firstName: displayName } : {}),
+        ...(handle ? { username: handle } : {}),
       },
       select: { id: true, shopId: true, chatId: true, firstName: true, username: true, draft: true, clarify: true },
     });
     return row;
+  }
+
+  /**
+   * تکمیل نام/نام کاربری مشتری اینستاگرام از BoxAPI Data API.
+   *
+   * مستندات: `POST /api/instagram/user/get_info_by_id` با `{ id: <IGSID> }`
+   * خروجی `response.body.user` با فیلدهای `username` و `full_name` می‌دهد
+   * (https://boxapi.ir/docs/instagram/get-info-by-id/). این توکن با کلید DM
+   * فرق دارد و در متغیر `BOXAPI_DATA_TOKEN` می‌آید؛ اگر ست نشده باشد، این
+   * تابع بی‌صدا رد می‌شود و نام پیش‌فرض «مشتری اینستاگرام» نمایش داده می‌شود.
+   */
+  private async enrichProfile(conversationId: string, igsid: string): Promise<void> {
+    try {
+      const profile = await this.client.getUserInfoById(igsid);
+      if (!profile.ok || !profile.data) return;
+      const { username, fullName } = profile.data;
+      if (!username && !fullName) return;
+      await this.db.telegramConversation.update({
+        where: { id: conversationId },
+        data: {
+          ...(username ? { username } : {}),
+          ...(fullName ? { firstName: fullName.slice(0, 80) } : {}),
+        },
+      });
+    } catch {
+      /* غنی‌سازی اختیاری است؛ خطا نباید هیچ‌چیز را بشکند. */
+    }
   }
 
   /** ذخیره‌ی فهرستی که همین حالا فرستادیم، تا «۱» و «۲» به همان محصول‌ها بخورد. */
@@ -1421,11 +1460,22 @@ function normalizeMessage(record: Record<string, unknown>): InstagramMessaging |
   const recipientRaw = record.recipient ?? record.to;
   const mid = message.mid ?? message.id ?? record.mid ?? record.message_id ?? record.id;
 
+  // نام/نام کاربری ممکن است با کلیدهای مختلف بیاید (name/full_name/username/…)
+    //؛ همه را امتحان می‌کنیم تا در «مشتریان» نام پیج دیده شود.
+  const senderObj = (typeof senderRaw === 'object' && senderRaw !== null ? senderRaw : {}) as Record<string, unknown>;
+  const pickStr = (...keys: string[]): string | undefined => {
+    for (const key of keys) {
+      const value = senderObj[key] ?? record[key];
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return undefined;
+  };
+
   return {
     sender: {
       id: String(senderId),
-      name: typeof senderRaw === 'object' ? (senderRaw as { name?: string }).name : undefined,
-      username: typeof senderRaw === 'object' ? (senderRaw as { username?: string }).username : undefined,
+      name: pickStr('name', 'full_name', 'fullName', 'sender_name', 'display_name'),
+      username: pickStr('username', 'user_name', 'handle', 'sender_username')?.replace(/^@/, ''),
     },
     recipient: recipientRaw
       ? {

@@ -286,7 +286,7 @@ export default function OrdersPage() {
                       <IconMoney size={15} />
                     </span>
 
-                    <div style={{ minWidth: 0, flex: '0 1 auto', maxWidth: 260 }}>
+                    <div className="order-id" style={{ minWidth: 0, flex: '0 1 auto', maxWidth: 260 }}>
                       <div className="row" style={{ gap: 8 }}>
                         <strong style={{ fontSize: 'var(--fs-md)', fontWeight: 500 }} className="mono">{order.code}</strong>
                         <span className={`badge ${status.tone}`}><span className="dot" />{status.label}</span>
@@ -296,7 +296,7 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    <div style={{ minWidth: 0, flex: '0 1 auto', maxWidth: 300 }}>
+                    <div className="order-items" style={{ minWidth: 0, flex: '0 1 auto', maxWidth: 300 }}>
                       <div className="small" style={{ lineHeight: 1.9 }}>
                         {(order.items ?? []).slice(0, 2).map(item => (
                           <div key={item.id} className="truncate">
@@ -309,12 +309,12 @@ export default function OrdersPage() {
 
                     <div className="row-spacer" />
 
-                    <div className="row-stat" style={{ minWidth: 96 }}>
+                    <div className="row-stat order-total" style={{ minWidth: 96 }}>
                       <span className="row-stat-num" style={{ fontSize: 18 }}>{faNum(order.total)}</span>
                       <span className="small muted">تومان</span>
                     </div>
 
-                    <div className="row" style={{ gap: 6 }}>
+                    <div className="row order-actions" style={{ gap: 6 }}>
                       <button className="btn btn-outline btn-sm" onClick={() => setOpen(order)}>
                         جزئیات
                       </button>

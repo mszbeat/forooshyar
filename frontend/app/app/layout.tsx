@@ -131,7 +131,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
           >
             <IconMenu size={18} />
           </button>
-          <style>{`@media (max-width: 900px){#nav-toggle{display:inline-flex !important} .sidebar .hide-sm{display:inline-flex !important} .topbar .topbar-heading{display:block !important} .topbar-sub{display:none}}`}</style>
+          <style>{`@media (max-width: 900px){#nav-toggle{display:inline-flex !important} .sidebar .hide-sm{display:inline-flex !important} .topbar .topbar-heading{display:block !important; min-width:0; flex:1 1 auto} .topbar .topbar-title{overflow:hidden; text-overflow:ellipsis; white-space:nowrap} .topbar-sub{display:none}}`}</style>
 
           <div className="topbar-heading hide-sm">
             <div className="topbar-title" style={{ fontSize: 'var(--fs-base)', fontWeight: 600 }}>{shop?.name ?? 'فروشگاه شما'}</div>

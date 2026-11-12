@@ -5,6 +5,20 @@ import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 /**
+ * نام نمایشی یک گفتگو، با توجه به کانال.
+ *
+ * گفتگوهای اینستاگرام هم در همین جدول‌اند (`chatId` با پیشوند `ig:`)؛ اگر برای
+ * همه «مشتری تلگرام» برگردانیم، در پنلِ اینستاگرام دکمه‌ی «آزمایش به مشتری
+ * تلگرام» دیده می‌شود. پس نامِ پیش‌فرض به کانال بستگی دارد و اگر نام کاربری
+ * (username) باشد، همان نام پیج/اکانت نمایش داده می‌شود.
+ */
+function displayName(row: { chatId: string; firstName: string; username: string }): string {
+  if (row.firstName) return row.firstName;
+  if (row.username) return `@${row.username.replace(/^@/, '')}`;
+  return row.chatId.startsWith('ig:') ? 'مشتری اینستاگرام' : 'مشتری تلگرام';
+}
+
+/**
  * «گفتگوها و مشتریان» — همان چیزی که تا امروز فقط در تلگرام بود.
  *
  * چرا در بک‌اند و نه فقط در پنل: پیام مشتری در `ChatMessage` ذخیره می‌شود ولی
@@ -65,7 +79,7 @@ export class ChatService {
       return {
         id: row.id,
         chatId: row.chatId,
-        name: row.firstName || (row.username ? `@${row.username}` : 'مشتری تلگرام'),
+        name: displayName(row),
         username: row.username,
         messageCount: counts.get(row.chatId) ?? row.messageCount,
         lastMessage: last ? { id: last.id, text: last.text.slice(0, 120), direction: last.direction, at: last.createdAt.toISOString() } : null,
@@ -114,7 +128,7 @@ export class ChatService {
       conversation: {
         id: conversation.id,
         chatId: conversation.chatId,
-        name: conversation.firstName || (conversation.username ? `@${conversation.username}` : 'مشتری تلگرام'),
+        name: displayName(conversation),
         username: conversation.username,
         lastSeenAt: conversation.lastSeenAt.toISOString(),
         createdAt: conversation.createdAt.toISOString(),
@@ -216,7 +230,7 @@ export class ChatService {
       const order = stat.get(row.chatId);
       return {
         chatId: row.chatId,
-        name: row.firstName || (row.username ? `@${row.username}` : 'مشتری تلگرام'),
+        name: displayName(row),
         username: row.username,
         messageCount: messageCount.get(row.chatId) ?? row.messageCount,
         orders: order?.orders ?? 0,
