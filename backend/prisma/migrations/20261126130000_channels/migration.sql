@@ -3,7 +3,7 @@ CREATE TYPE "ChannelPlatform" AS ENUM ('INSTAGRAM', 'TELEGRAM', 'BALE', 'RUBIKA'
 CREATE TYPE "ChannelConnectionStatus" AS ENUM ('CONNECTED', 'EXPIRED', 'DISCONNECTED', 'ERROR');
 
 CREATE TABLE "ChannelConnection" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "platform" "ChannelPlatform" NOT NULL,
   "status" "ChannelConnectionStatus" NOT NULL DEFAULT 'CONNECTED',

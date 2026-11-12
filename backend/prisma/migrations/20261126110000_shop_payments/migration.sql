@@ -5,7 +5,7 @@ ALTER TABLE "Shop"
   ADD COLUMN "paymentWaitHours" INTEGER NOT NULL DEFAULT 24;
 
 CREATE TABLE "ShopPaymentMethod" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "holderName" TEXT NOT NULL,
   "cardNumberEnc" TEXT NOT NULL,

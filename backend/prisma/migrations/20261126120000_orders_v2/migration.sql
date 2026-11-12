@@ -16,7 +16,7 @@ ALTER TABLE "Order"
   ADD CONSTRAINT "Order_shopId_id_key" UNIQUE ("shopId", "id");
 
 CREATE TABLE "ShippingMethod" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "name" TEXT NOT NULL,
   "kind" TEXT NOT NULL DEFAULT 'FIXED',
@@ -46,7 +46,7 @@ ALTER TABLE "Order"
   ON DELETE SET NULL ON UPDATE CASCADE;
 
 CREATE TABLE "PaymentReceipt" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "orderId" UUID NOT NULL,
   "imageRef" TEXT NOT NULL,

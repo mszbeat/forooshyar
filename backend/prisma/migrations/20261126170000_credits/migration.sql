@@ -1,6 +1,6 @@
 -- V2-9: بسته‌های اعتبار پاسخ AI و دفتر حسابداری
 CREATE TABLE "CreditPack" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "slug" TEXT NOT NULL,
   "name" TEXT NOT NULL,
   "credits" INTEGER NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE "CreditPack" (
 CREATE UNIQUE INDEX "CreditPack_slug_key" ON "CreditPack"("slug");
 
 CREATE TABLE "AiCreditLedger" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "delta" INTEGER NOT NULL,
   "reason" TEXT NOT NULL,
@@ -32,6 +32,6 @@ ALTER TABLE "AiCreditLedger"
 -- بسته‌های پیش‌فرض (قیمت‌ها placeholder و قابل ویرایش‌اند)
 INSERT INTO "CreditPack" ("id", "slug", "name", "credits", "price", "listPrice", "active", "sortOrder", "createdAt", "updatedAt")
 VALUES
-  (gen_random_uuid()::text, 'pack-100', 'بسته‌ی ۱۰۰ پاسخ', 100, 49000, 0, true, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (gen_random_uuid()::text, 'pack-500', 'بسته‌ی ۵۰۰ پاسخ', 500, 199000, 249000, true, 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  (gen_random_uuid()::text, 'pack-2000', 'بسته‌ی ۲۰۰۰ پاسخ', 2000, 690000, 0, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  (gen_random_uuid(), 'pack-100', 'بسته‌ی ۱۰۰ پاسخ', 100, 49000, 0, true, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'pack-500', 'بسته‌ی ۵۰۰ پاسخ', 500, 199000, 249000, true, 2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  (gen_random_uuid(), 'pack-2000', 'بسته‌ی ۲۰۰۰ پاسخ', 2000, 690000, 0, true, 3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

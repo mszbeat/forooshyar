@@ -1,6 +1,6 @@
 -- V2-7: دانش Q&A و پرامپت‌های دستیار با نسخه
 CREATE TABLE "KnowledgeItem" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "question" TEXT NOT NULL,
   "answer" TEXT NOT NULL,
@@ -18,7 +18,7 @@ ALTER TABLE "KnowledgeItem"
   ON DELETE CASCADE ON UPDATE CASCADE;
 
 CREATE TABLE "AssistantPrompt" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "tab" TEXT NOT NULL,
   "content" TEXT NOT NULL,
