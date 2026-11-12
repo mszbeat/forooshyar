@@ -8,7 +8,8 @@ import { api, ApiError, type AiStatus, type BotReply, type KnowledgeItem, type P
 import { faNum } from '@/lib/format';
 import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { RichText } from '@/components/richtext';
-import { IconAlertCircle, IconChat, IconSend, IconSettings, IconShield, IconSparkles } from '@/components/icons';
+import { CreditsSection } from '@/components/credits-section';
+import { IconAlertCircle, IconChat, IconCheckCircle, IconSend, IconSettings, IconShield, IconSparkles } from '@/components/icons';
 
 type Message = { id: number; role: 'customer' | 'bot'; text: string; kind?: BotReply['kind']; source?: 'rules' | 'ai' };
 
@@ -35,7 +36,7 @@ const KIND_LABEL: Record<BotReply['kind'], { text: string; tone: string }> = {
   handoff: { text: 'ارجاع به فروشنده', tone: 'b-blue' },
 };
 
-type MainTab = 'chat' | 'knowledge' | 'prompts';
+type MainTab = 'chat' | 'knowledge' | 'prompts' | 'credits' | 'answering';
 
 export default function AssistantPage() {
   const toast = useToast();
@@ -91,7 +92,7 @@ export default function AssistantPage() {
         eyebrow="آزمایشگاه"
         title="دستیار پاسخ‌گو"
         description="همان منطق واقعی پاسخ‌گویی، اجراشده روی کاتالوگ فعلی شما — بدون ارسال پیام و بدون تغییر داده."
-        actions={<Link href="/app/settings" className="btn btn-outline"><IconSettings size={16} />تنظیمات پاسخ</Link>}
+        actions={<button type="button" className="btn btn-outline" onClick={() => setMainTab('answering')}><IconSettings size={16} />اطلاعات پاسخگویی</button>}
       />
 
       <div className="chip-tabs" role="group" aria-label="بخش‌های دستیار" style={{ marginBottom: 4 }}>
@@ -104,10 +105,18 @@ export default function AssistantPage() {
         <button type="button" className={`chip-btn ${mainTab === 'prompts' ? 'on' : ''}`} onClick={() => setMainTab('prompts')}>
           پرامپت‌های دستیار
         </button>
+        <button type="button" className={`chip-btn ${mainTab === 'credits' ? 'on' : ''}`} onClick={() => setMainTab('credits')}>
+          اعتبار پاسخ
+        </button>
+        <button type="button" className={`chip-btn ${mainTab === 'answering' ? 'on' : ''}`} onClick={() => setMainTab('answering')}>
+          اطلاعات پاسخگویی
+        </button>
       </div>
 
       {mainTab === 'knowledge' && <KnowledgeSection />}
       {mainTab === 'prompts' && <PromptsSection />}
+      {mainTab === 'credits' && <CreditsSection />}
+      {mainTab === 'answering' && <AnsweringSection />}
 
       {mainTab === 'chat' && (
       <div className="split">
@@ -208,7 +217,7 @@ export default function AssistantPage() {
               را در تنظیمات کامل کنید تا دستیار همان‌جا جواب بدهد و مجبور نشود به شما ارجاع دهد.
             </p>
             <div className="row mt-3">
-              <Link href="/app/settings" className="btn btn-soft btn-sm">تکمیل تنظیمات</Link>
+              <button type="button" className="btn btn-soft btn-sm" onClick={() => setMainTab('answering')}>تکمیل اطلاعات پاسخگویی</button>
               <Link href="/app/products" className="btn btn-ghost btn-sm">مشاهده کاتالوگ</Link>
             </div>
             <div className="small muted mt-3">محصولات فعال کاتالوگ شما ({faNum(stats.products)} محصول · {faNum(stats.variants)} واریانت) همین حالا در پاسخ‌ها استفاده می‌شوند.</div>
@@ -524,5 +533,112 @@ function PromptsSection() {
         )}
       </div>
     </section>
+  );
+}
+
+/* ------------------------------------------------------------ answering info */
+
+/** پیش‌فرض‌های لحن — با یک کلیک در کادر لحن می‌نشینند؛ متن آزاد هم ممکن است. */
+const TONE_PRESETS = [
+  { label: 'صمیمی و دوستانه', value: 'صمیمی، گرم و مؤدبانه؛ مثل یک فروشنده‌ی آشنا. کوتاه و بدون اغراق.' },
+  { label: 'رسمی و حرفه‌ای', value: 'رسمی، مؤدبانه و دقیق؛ بدون ایموجی و بدون خودمانی‌شدن.' },
+  { label: 'پرانرژی و مشتاقانه', value: 'پرانرژی و مشتاقانه؛ مشتری را به خرید تشویق می‌کند ولی قیمت و موجودی را عوض نمی‌کند.' },
+  { label: 'مینیمال و مستقیم', value: 'خیلی کوتاه و مستقیم؛ فقط اطلاعات، بدون مقدمه و تشریفات.' },
+];
+
+/**
+ * اطلاعات پاسخگویی — لحن، شرایط ارسال، توضیح پرداخت، ساعت کاری، سیاست
+ * مرجوعی و پیام ارجاع. این‌ها همان متن‌هایی است که دستیار وقتی سؤال را
+ * می‌فهمد از آن‌ها استفاده می‌کند؛ خالی باشند، به فروشنده ارجاع می‌دهد.
+ *
+ * لایه‌ی ایمنی (قیمت/موجودی/جمع از دیتابیس) قفل است و این‌جا ویرایش نمی‌شود.
+ */
+function AnsweringSection() {
+  const toast = useToast();
+  const [form, setForm] = useState({ tone: '', shipping: '', payment: '', workingHours: '', returns: '', handoffMessage: '' });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.shop()
+      .then(data => setForm({ tone: data.tone, shipping: data.shipping, payment: data.payment, workingHours: data.workingHours, returns: data.returns ?? '', handoffMessage: data.handoffMessage }))
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const set = (key: keyof typeof form) => (event: { target: { value: string } }) =>
+    setForm(previous => ({ ...previous, [key]: event.target.value }));
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await api.updateShop(form);
+      toast.success('اطلاعات پاسخگویی ذخیره شد.', 'پاسخ‌های دستیار از این پس با همین اطلاعات ساخته می‌شوند.');
+    } catch (problem) {
+      toast.error('ذخیره انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <SkeletonBlock height={320} />;
+
+  return (
+    <form className="card" onSubmit={save}>
+      <div className="card-head">
+        <div className="row" style={{ gap: 10 }}>
+          <span className="stat-ico"><IconSettings size={15} /></span>
+          <div>
+            <div className="card-title">اطلاعات پاسخگویی</div>
+            <div className="card-desc">اگر خالی بماند، دستیار برای این سؤال‌ها شما را ارجاع می‌دهد.</div>
+          </div>
+        </div>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gap: 14 }}>
+        <Field label="لحن پاسخ" htmlFor="tone" hint="لحن فقط نحوه‌ی گفتن را عوض می‌کند؛ قیمت و موجودی همیشه از کاتالوگ می‌آید و هرگز با لحن عوض نمی‌شود.">
+          <input id="tone" className="input" maxLength={2000} value={form.tone} onChange={set('tone')} placeholder="صمیمی و مؤدبانه، بدون اغراق" />
+        </Field>
+        <div className="tone-presets" role="group" aria-label="پیش‌فرض‌های لحن">
+          {TONE_PRESETS.map(preset => (
+            <button
+              key={preset.label}
+              type="button"
+              className={`chip-btn ${form.tone === preset.value ? 'on' : ''}`}
+              aria-pressed={form.tone === preset.value}
+              onClick={() => setForm(previous => ({ ...previous, tone: preset.value }))}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <Field label="شرایط ارسال" htmlFor="shipping" hint="هزینه، روش و زمان تحویل را بنویسید.">
+          <textarea id="shipping" className="textarea" maxLength={2000} value={form.shipping} onChange={set('shipping')}
+            placeholder="ارسال با پست پیشتاز ۴۵٬۰۰۰ تومان؛ سفارش بالای ۲ میلیون تومان رایگان." />
+        </Field>
+        <Field label="توضیح پرداخت (برای پاسخ دستیار)" htmlFor="payment" hint="متن آزاد برای پاسخ‌گویی دستیار. شماره کارت‌های واقعی را در «تنظیمات فروشگاه ← شماره کارت» ثبت کنید؛ پرداخت مشتری همیشه کارت‌به‌کارت است.">
+          <textarea id="payment" className="textarea" maxLength={2000} value={form.payment} onChange={set('payment')}
+            placeholder="پرداخت کارت‌به‌کارت است؛ بعد از واریز، عکس رسید را بفرستید." />
+        </Field>
+        <Field label="ساعت کاری" htmlFor="workingHours">
+          <input id="workingHours" className="input" maxLength={2000} value={form.workingHours} onChange={set('workingHours')}
+            placeholder="شنبه تا پنجشنبه، ۱۰ صبح تا ۸ شب." />
+        </Field>
+        <Field label="سیاست مرجوعی و تعویض" htmlFor="returns" hint="اگر پرش کنید، بات سؤال «مرجوعی دارید؟» را خودش جواب می‌دهد. خالی باشد، بعد از چند سؤال به شما ارجاع می‌دهد.">
+          <textarea id="returns" className="textarea" maxLength={2000} value={form.returns} onChange={set('returns')}
+            placeholder="مثال: تا ۷ روز پس از دریافت، اگر برچسب نخورده باشد، تعویض یا مرجوع می‌کنیم." />
+        </Field>
+        <Field label="پیام ارجاع به فروشنده" htmlFor="handoffMessage" hint="فقط وقتی ارسال می‌شود که بات بعد از چند سؤال هم منظور مشتری را نفهمیده باشد.">
+          <textarea id="handoffMessage" className="textarea" maxLength={2000} value={form.handoffMessage} onChange={set('handoffMessage')} />
+        </Field>
+      </div>
+      <div className="card-foot row-between">
+        <span className="small muted">تغییرات پس از ذخیره، در پاسخ‌های آزمایشی و واقعی اعمال می‌شود.</span>
+        <button className="btn btn-primary" type="submit" disabled={busy}>
+          {busy ? <Spinner size={15} /> : <IconCheckCircle size={16} />}
+          ذخیره
+        </button>
+      </div>
+    </form>
   );
 }

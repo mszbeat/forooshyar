@@ -41,7 +41,7 @@ export type Product = {
 };
 export type Shop = {
   id: string; name: string; tone: string; shipping: string; payment: string;
-  workingHours: string; returns: string; handoffMessage: string; smsPhone?: string; notifySellerBySms?: boolean;
+  workingHours: string; returns: string; handoffMessage: string; smsPhone?: string; notifySellerBySms?: boolean; smsEnabled?: boolean;
   receiptAutoConfirm?: boolean; receiptAutoConfirmMax?: number | null; paymentWaitHours?: number;
 };
 export type PaymentMethod = {

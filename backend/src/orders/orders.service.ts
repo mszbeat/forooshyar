@@ -169,7 +169,7 @@ export class OrdersService {
   async markPaid(input: { authority: string; refId?: string; provider?: string }) {
     const order = await this.db.order.findFirst({
       where: { paymentAuthority: input.authority },
-      include: { items: true, shop: { select: { id: true, name: true, smsPhone: true, notifySellerBySms: true } } },
+      include: { items: true, shop: { select: { id: true, name: true, smsPhone: true, notifySellerBySms: true, smsEnabled: true } } },
     });
     if (!order) return { ok: false as const, reason: 'order_not_found' as const };
 
@@ -215,8 +215,8 @@ export class OrdersService {
       void send.catch(error => this.logger.warn(`customer payment notification failed: ${String(error)}`));
     }
     // Required customer notification (Mock until provider selection); seller is opt-in.
-    void this.sms.send(paid.customerPhone, `پرداخت تأیید شد؛ سفارش ${paid.code} به مبلغ ${toman(paid.total)} ثبت شد.`, 'order_customer', paid.shopId).catch(error => this.logger.warn(`customer SMS failed: ${String(error)}`));
-    if (order.shop.notifySellerBySms && order.shop.smsPhone) void this.sms.send(order.shop.smsPhone, `سفارش ${paid.code} پرداخت شد. مبلغ ${toman(paid.total)}؛ مشتری ${order.customerName || '—'}.`, 'order_seller', paid.shopId).catch(error => this.logger.warn(`seller SMS failed: ${String(error)}`));
+    if (order.shop.smsEnabled) void this.sms.send(paid.customerPhone, `پرداخت تأیید شد؛ سفارش ${paid.code} به مبلغ ${toman(paid.total)} ثبت شد.`, 'order_customer', paid.shopId).catch(error => this.logger.warn(`customer SMS failed: ${String(error)}`));
+    if (order.shop.smsEnabled && order.shop.notifySellerBySms && order.shop.smsPhone) void this.sms.send(order.shop.smsPhone, `سفارش ${paid.code} پرداخت شد. مبلغ ${toman(paid.total)}؛ مشتری ${order.customerName || '—'}.`, 'order_seller', paid.shopId).catch(error => this.logger.warn(`seller SMS failed: ${String(error)}`));
 
     return { ok: true as const, order: paid, already: false };
   }

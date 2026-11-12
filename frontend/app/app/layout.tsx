@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui';
 import { NotificationBell } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme';
 import {
-  IconBox, IconChat, IconDashboard, IconLogout, IconMenu, IconWallet,
+  IconBolt, IconBox, IconChat, IconDashboard, IconLogout, IconMenu, IconWallet,
   IconSettings, IconSparkles, IconStore, IconUpload, IconUsers, IconX,
 } from '@/components/icons';
 
@@ -20,6 +20,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'نمای کلی',
     items: [
       { href: '/app', label: 'داشبورد', icon: IconDashboard, exact: true },
+      { href: '/app/accounts', label: 'اکانت‌ها', icon: IconUsers },
     ],
   },
   {
@@ -34,12 +35,12 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'مشتریان',
     items: [
       { href: '/app/conversations', label: 'گفت‌وگوها', icon: IconChat },
-      { href: '/app/customers', label: 'مشتریان', icon: IconUsers },
     ],
   },
   {
     label: 'هوش مصنوعی',
     items: [
+      { href: '/app/automation', label: 'اتوماسیون', icon: IconBolt },
       { href: '/app/assistant', label: 'دستیار پاسخ‌گو', icon: IconSparkles },
       { href: '/app/settings', label: 'تنظیمات فروشگاه', icon: IconSettings },
     ],
@@ -50,7 +51,8 @@ const TITLES: Record<string, { title: string; sub: string }> = {
   '/app': { title: 'داشبورد', sub: 'تصویر کلی فروشگاه در یک نگاه' },
   '/app/products': { title: 'محصولات و موجودی', sub: 'کاتالوگ، واریانت‌ها و دفتر گردش' },
   '/app/conversations': { title: 'گفت‌وگوها', sub: 'همه‌ی چت‌های تلگرام، بی‌واسطه و از همین‌جا' },
-  '/app/customers': { title: 'مشتریان', sub: 'هر کسی که یک بار با فروشگاه شما حرف زده' },
+  '/app/accounts': { title: 'اکانت‌ها', sub: 'حساب‌های متصل فروشگاه' },
+  '/app/automation': { title: 'اتوماسیون', sub: 'کامنت به دایرکت اینستاگرام' },
   '/app/import': { title: 'ورود کاتالوگ', sub: 'بارگذاری گروهی از فایل اکسل یا CSV' },
   '/app/assistant': { title: 'دستیار پاسخ‌گو', sub: 'آزمایش پاسخ فروش‌یار پیش از انتشار' },
   '/app/settings': { title: 'تنظیمات فروشگاه', sub: 'لحن، ارسال، پرداخت و پیام ارجاع' },

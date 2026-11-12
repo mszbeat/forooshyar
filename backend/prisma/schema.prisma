@@ -67,6 +67,8 @@ model Shop {
   trialEndsAt    DateTime?
   smsPhone       String   @default("")
   notifySellerBySms Boolean @default(true)
+  /// ارسال پیامک برای این فروشگاه فعال است؟ (سطح پلتفرم: SMS_ENABLED)
+  smsEnabled     Boolean  @default(true)
   subscriptions  Subscription[]
   products       Product[]
   variants       Variant[]
