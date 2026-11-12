@@ -30,6 +30,11 @@ export function databaseUrl(env: NodeJS.ProcessEnv): string {
       DB_HOST: z.string().min(1), DB_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
       DB_USERNAME: z.string().min(1), DB_PASSWORD: z.string().min(1), DB_NAME: z.string().min(1),
       DB_SSL_MODE: z.enum(['disable', 'require', 'verify-full']).default('disable'),
+      // برای pooler تراکنشی (Supabase پورت 6543): DB_PGBOUNCER=true و
+      // DB_CONNECTION_LIMIT=5. بدون این‌ها اتصال session-mode است و با
+      // چند نمونه‌ی سرویس، سقف pooler (۱۵) تمام می‌شود.
+      DB_PGBOUNCER: z.enum(['true', 'false']).default('false'),
+      DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).max(100).optional(),
     }).parse(env);
     const url = new URL('postgresql://localhost');
     url.hostname = parsed.DB_HOST;
@@ -40,6 +45,8 @@ export function databaseUrl(env: NodeJS.ProcessEnv): string {
     url.pathname = `/${encodeURIComponent(parsed.DB_NAME)}`;
     url.searchParams.set('schema', 'public');
     url.searchParams.set('sslmode', parsed.DB_SSL_MODE);
+    if (parsed.DB_PGBOUNCER === 'true') url.searchParams.set('pgbouncer', 'true');
+    if (parsed.DB_CONNECTION_LIMIT !== undefined) url.searchParams.set('connection_limit', String(parsed.DB_CONNECTION_LIMIT));
     return url.toString();
   }
   return env.DATABASE_URL ?? '';

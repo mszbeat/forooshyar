@@ -12,6 +12,12 @@ const directUrl = (process.env.DIRECT_URL ?? '').trim();
 const url = directUrl || databaseUrl(process.env);
 if (!url) throw new Error('Set DIRECT_URL, or DB_HOST, DB_USERNAME, DB_PASSWORD and DB_NAME (or legacy DATABASE_URL)');
 const bin = require.resolve('prisma/build/index.js');
-const result = spawnSync(process.execPath, [bin, ...process.argv.slice(2)], { stdio: 'inherit', env: { ...process.env, DATABASE_URL: url } });
+// Prisma همه‌ی envهای ارجاع‌شده در schema (DATABASE_URL و DIRECT_URL) را
+// اجباری می‌داند؛ اگر DIRECT_URL ست نشده باشد، همان url را می‌گذاریم تا
+// اعتبارسنجی P1012 ندهد. مهاجرت روی همین اتصال اجرا می‌شود.
+const result = spawnSync(process.execPath, [bin, ...process.argv.slice(2)], {
+  stdio: 'inherit',
+  env: { ...process.env, DATABASE_URL: url, DIRECT_URL: directUrl || url },
+});
 if (result.error) throw result.error;
 process.exit(result.status ?? 1);
