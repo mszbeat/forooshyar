@@ -73,6 +73,7 @@ model Shop {
   chatMessages   ChatMessage[]
   stockAlerts    StockAlert[]
   paymentMethods ShopPaymentMethod[]
+  shippingMethods ShippingMethod[]
   /// سیاست رسید پرداخت (فاز V2-3): تأیید خودکار روشن است یا نه، سقف مبلغ
   /// تأیید خودکار و مهلت انتظار پرداخت (ساعت) قبل از آزادشدن موجودی.
   receiptAutoConfirm Boolean @default(true)
@@ -300,10 +301,21 @@ model TelegramConversation {
 // سفارش لغو شد، موجودی برمی‌گردد.
 enum OrderStatus {
   AWAITING_PAYMENT
+  RECEIPT_RECEIVED
+  NEEDS_REVIEW
   PAID
+  PREPARING
   SHIPPED
   COMPLETED
   CANCELLED
+  EXPIRED
+}
+
+/// حکم وریفای رسید پرداخت.
+enum ReceiptVerdict {
+  CONFIRMED
+  NEEDS_REVIEW
+  REJECTED
 }
 
 model Order {
@@ -328,20 +340,88 @@ model Order {
   unit            String      @default("")
   postalCode      String      @default("")
   note            String      @default("")
+  /// جمع اقلام (بدون ارسال/تخفیف).
+  subtotal        Int         @default(0)
+  /// هزینه ارسال محاسبه‌شده سمت سرور؛ جزئی از جمع کل است.
+  shippingCost    Int         @default(0)
+  shippingMethodId String?    @db.Uuid
+  shippingMethod  ShippingMethod? @relation(fields: [shippingMethodId], references: [id], onDelete: SetNull)
+  /// تخفیف (تومان)؛ فعلاً فقط دستی از پنل.
+  discount        Int         @default(0)
   total           Int
-  // پرداخت
-  paymentProvider String      @default("")
+  // پرداخت (کارت‌به‌کارت؛ درگاه آنلاین فقط برای پلن/اعتبار پلتفرم است)
+  paymentProvider String      @default("card_to_card")
   paymentAuthority String?
   paymentRefId    String      @default("")
   paidAt          DateTime?
   cancelledReason String      @default("")
   items           OrderItem[]
+  receipts        PaymentReceipt[]
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
   @@unique([shopId, paymentAuthority])
+  @@unique([shopId, id])
   @@index([shopId, createdAt])
   @@index([shopId, status])
+}
+
+/// روش ارسال فروشگاه با قانون هزینه:
+///  - FIXED: مبلغ ثابت
+///  - FREE_OVER: رایگان بالای آستانه، وگرنه مبلغ ثابت
+///  - TABLE: جدول استانی/شهری (در `rulesJson`)
+///  - PICKUP: برداشت حضوری (رایگان)
+model ShippingMethod {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @db.Uuid
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name        String
+  kind        String   @default("FIXED")
+  /// مبلغ پایه (تومان) برای FIXED/FREE_OVER.
+  baseCost    Int      @default(0)
+  /// آستانه‌ی رایگان‌شدن برای FREE_OVER.
+  freeOver    Int?
+  /// جدول هزینه برای TABLE: { "تهران": 45000, "تهران/شهریار": 60000, "*": 80000 }
+  rulesJson   Json     @default("{}")
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  orders      Order[]
+
+  @@unique([shopId, id])
+  @@index([shopId, active])
+}
+
+/// رسید پرداخت کارت‌به‌کارت که مشتری فرستاده است.
+/// تصویر در ذخیره‌ی خصوصی نگه داشته می‌شود؛ JSON استخراج‌شده و نتیجه‌ی
+/// چک‌های قطعی هم ذخیره می‌شود تا بررسی فروشنده و audit کامل باشد.
+model PaymentReceipt {
+  id            String         @id @default(uuid()) @db.Uuid
+  shopId        String         @db.Uuid
+  orderId       String         @db.Uuid
+  order         Order          @relation(fields: [shopId, orderId], references: [shopId, id], onDelete: Cascade)
+  /// مسیر/کلید تصویر در ذخیره‌ی خصوصی.
+  imageRef      String
+  /// هش SHA-256 تصویر برای تشخیص رسید تکراری.
+  imageHash     String
+  /// JSON استخراج‌شده از رسید (مبلغ، مقصد، زمان، شماره پیگیری…).
+  extractedJson Json           @default("{}")
+  /// نتیجه‌ی چک‌های قطعی: [{ check, ok, detail }]
+  checksJson    Json           @default("[]")
+  verdict       ReceiptVerdict @default(NEEDS_REVIEW)
+  /// دلیل حکم (برای نمایش به فروشنده/مشتری).
+  verdictReason String         @default("")
+  /// بررسی دستی فروشنده.
+  reviewedBy    String?        @db.Uuid
+  reviewedAt    DateTime?
+  reviewNote    String         @default("")
+  createdAt     DateTime       @default(now())
+
+  @@unique([shopId, id])
+  @@unique([shopId, imageHash])
+  @@index([shopId, orderId])
+  @@index([shopId, verdict])
 }
 
 model OrderItem {

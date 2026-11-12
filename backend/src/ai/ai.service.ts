@@ -119,6 +119,75 @@ export class AiService {
   }
 
   /**
+   * یک نوبت گفتگو با ورودی تصویری (رسید پرداخت). مثل `complete` هر خطا
+   * `null` برمی‌گرداند تا فلو به بررسی دستی برگردد.
+   */
+  async completeVision(
+    system: string,
+    imageBase64: string,
+    mimeType: string,
+    userText: string,
+    signal?: AbortSignal,
+  ): Promise<string | null> {
+    if (!this.enabled) return null;
+    if (Date.now() < this.failures.blockedUntil) return null;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), Number(process.env.AI_TIMEOUT_MS ?? 30000));
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+
+    try {
+      const response = await fetch(`${this.provider.replace(/\/+$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: this.model,
+          temperature: 0,
+          max_tokens: 600,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: system },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: userText },
+                { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+              ],
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => '');
+        this.logger.warn(`مدل بینایی پاسخ نداد (${response.status}): ${body.slice(0, 160)}`);
+        this.trip();
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        choices?: { message?: { content?: string } }[];
+      };
+      const text = data.choices?.[0]?.message?.content?.trim() ?? '';
+      if (!text) {
+        this.trip();
+        return null;
+      }
+      this.failures.count = 0;
+      return text;
+    } catch (error) {
+      this.logger.warn(`خطای مدل بینایی: ${error instanceof Error ? error.message : 'unknown'}`);
+      this.trip();
+      return null;
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
+    }
+  }
+
+  /**
    * آزمون اتصال برای پنل ادمین.
    *
    * چرا جدا از `complete`: آن یکی هر خطا را `null` می‌کند (تا مسیر قاعده‌محور

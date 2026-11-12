@@ -6,6 +6,7 @@ import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { InstagramService } from '../instagram/instagram.service';
 import { SmsService } from '../sms/sms.service';
+import { orderTotal, pickDefaultMethod, shippingCostFor } from './shipping';
 
 export type NewOrderItem = { variantId: string; quantity: number };
 
@@ -24,6 +25,10 @@ export type NewOrder = {
   postalCode?: string;
   note?: string;
   items: NewOrderItem[];
+  /** روش ارسال انتخاب‌شده؛ اگر نباشد، روش پیش‌فرض فروشگاه استفاده می‌شود. */
+  shippingMethodId?: string;
+  /** تخفیف دستی (تومان)؛ فقط سمت سرور اعمال می‌شود. */
+  discount?: number;
 };
 
 /** سفارش پرداخت‌نشده بعد از این مدت با بازگشت موجودی لغو می‌شود. */
@@ -73,7 +78,7 @@ export class OrdersService {
 
     const created = await this.db.$transaction(async tx => {
       const items: Prisma.OrderItemUncheckedCreateWithoutOrderInput[] = [];
-      let total = 0;
+      let subtotal = 0;
 
       for (const line of input.items) {
         // decrement شرطی: اگر موجودی کافی نباشد هیچ ردیفی به‌روز نمی‌شود.
@@ -94,13 +99,25 @@ export class OrdersService {
           select: { id: true, price: true, size: true, color: true, product: { select: { title: true } } },
         });
         const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
-        total += variant.price * line.quantity;
+        subtotal += variant.price * line.quantity;
 
         await tx.stockMovement.create({
           data: { shopId, variantId: variant.id, delta: -line.quantity, reason: 'order', actorId: SHOP_ACTOR },
         });
         items.push({ shopId, variantId: variant.id, title: variant.product.title, spec, price: variant.price, quantity: line.quantity });
       }
+
+      // هزینه ارسال فقط سمت سرور و از روی روش‌های فروشگاه محاسبه می‌شود؛
+      // مدل و مشتری هرگز عدد را تعیین نمی‌کنند.
+      const methods = await tx.shippingMethod.findMany({ where: { shopId, active: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+      const method = input.shippingMethodId
+        ? methods.find(m => m.id === input.shippingMethodId) ?? null
+        : pickDefaultMethod(methods);
+      const shippingCost = method
+        ? shippingCostFor(method, { subtotal, province: input.province ?? '', city: input.city ?? '' })
+        : 0;
+      const discount = Math.max(0, Math.min(input.discount ?? 0, subtotal + shippingCost));
+      const total = orderTotal(subtotal, shippingCost, discount);
 
       return tx.order.create({
         data: {
@@ -119,6 +136,10 @@ export class OrdersService {
           unit: input.unit ?? '',
           postalCode: input.postalCode ?? '',
           note: input.note ?? '',
+          subtotal,
+          shippingCost,
+          shippingMethodId: method?.id ?? null,
+          discount,
           total,
           items: { create: items },
         },
@@ -131,7 +152,7 @@ export class OrdersService {
       entity: 'order',
       entityId: created.id,
       shopId,
-      meta: { code: created.code, total: created.total, items: created.items.length, chatId: input.chatId ?? null },
+      meta: { code: created.code, total: created.total, subtotal: created.subtotal, shippingCost: created.shippingCost, discount: created.discount, items: created.items.length, chatId: input.chatId ?? null },
     });
     // پنل باز، سفارش تازه را بدون رفرش می‌بیند؛ موجودی هم عوض شده است.
     this.realtime.emitShop(shopId, 'order', { id: created.id, code: created.code, status: created.status, reason: 'created' });

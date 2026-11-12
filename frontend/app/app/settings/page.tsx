@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, request, ApiError, type PaymentMethod, type ReceiptPolicy, type Shop } from '@/lib/api';
+import { api, request, ApiError, type PaymentMethod, type ReceiptPolicy, type ShippingMethod, type Shop } from '@/lib/api';
 import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { TelegramConnect } from '@/components/telegram-connect';
 import { InstagramConnect } from '@/components/instagram-connect';
@@ -167,6 +167,8 @@ export default function SettingsPage() {
         </form>
 
         <PaymentMethodsSection />
+
+        <ShippingMethodsSection />
 
         <div className="stack">
           <section className="card card-pad">
@@ -434,6 +436,191 @@ function PaymentMethodModal({ method, onClose, onSaved }: { method: PaymentMetho
         <Field label="متن دستور پرداخت" htmlFor="instruction" hint="مثلاً: «فقط به همین کارت واریز کنید و رسید بفرستید.»">
           <input id="instruction" name="instruction" className="input" maxLength={500} defaultValue={method?.instruction ?? ''} />
         </Field>
+      </form>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------ shipping methods */
+
+const SHIPPING_KINDS: { value: ShippingMethod['kind']; label: string; hint: string }[] = [
+  { value: 'FIXED', label: 'مبلغ ثابت', hint: 'برای همه‌ی مقصدها یک مبلغ.' },
+  { value: 'FREE_OVER', label: 'رایگان بالای آستانه', hint: 'بالای مبلغ مشخص رایگان، وگرنه مبلغ ثابت.' },
+  { value: 'TABLE', label: 'جدول استانی/شهری', hint: 'هر استان/شهر مبلغ خودش؛ کلید * برای بقیه.' },
+  { value: 'PICKUP', label: 'برداشت حضوری', hint: 'همیشه رایگان.' },
+];
+
+function ShippingMethodsSection() {
+  const toast = useToast();
+  const [methods, setMethods] = useState<ShippingMethod[] | null>(null);
+  const [editing, setEditing] = useState<ShippingMethod | 'new' | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    api.shippingMethods().then(setMethods).catch(() => setMethods([]));
+  };
+
+  useEffect(load, []);
+
+  async function toggle(method: ShippingMethod, active: boolean) {
+    setBusy(true);
+    try {
+      await api.updateShippingMethod(method.id, { active });
+      toast.success(active ? 'روش ارسال فعال شد.' : 'روش ارسال غیرفعال شد.');
+      load();
+    } catch (problem) {
+      toast.error('تغییر وضعیت انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(method: ShippingMethod) {
+    setBusy(true);
+    try {
+      await api.deleteShippingMethod(method.id);
+      toast.success('روش ارسال حذف شد.');
+      load();
+    } catch (problem) {
+      toast.error('حذف انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div className="row" style={{ gap: 10 }}>
+          <span className="stat-ico"><IconSettings size={15} /></span>
+          <div>
+            <div className="card-title">روش‌های ارسال</div>
+            <div className="card-desc">هزینه ارسال جزئی از جمع سفارش است و فقط سمت سرور محاسبه می‌شود؛ اولین روش فعال، پیش‌فرض است.</div>
+          </div>
+        </div>
+        <span className="card-index num">۰۴</span>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gap: 14 }}>
+        {methods === null && <SkeletonBlock height={60} />}
+        {methods !== null && methods.length === 0 && (
+          <div className="alert alert-info">
+            <IconAlertCircle />
+            <span>هنوز روش ارسالی تعریف نشده؛ سفارش‌ها بدون هزینه ارسال ثبت می‌شوند. برای محاسبه‌ی خودکار، دست‌کم یک روش (مثلاً «پست پیشتاز — ۴۵٬۰۰۰ تومان») اضافه کنید.</span>
+          </div>
+        )}
+        {methods?.map(method => (
+          <div key={method.id} className="row-between" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
+            <div>
+              <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>{method.name}</div>
+              <div className="small muted">
+                {SHIPPING_KINDS.find(kind => kind.value === method.kind)?.label ?? method.kind}
+                {method.kind !== 'PICKUP' && ` · ${method.baseCost.toLocaleString('fa-IR')} تومان`}
+                {method.kind === 'FREE_OVER' && method.freeOver != null && ` · رایگان بالای ${method.freeOver.toLocaleString('fa-IR')} تومان`}
+                {method.kind === 'TABLE' && ` · ${Object.keys(method.rulesJson ?? {}).length} قاعده`}
+              </div>
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <Switch label="فعال" checked={method.active} onChange={next => void toggle(method, next)} />
+              <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => setEditing(method)}>ویرایش</button>
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void remove(method)} style={{ color: 'var(--danger)' }}>حذف</button>
+            </div>
+          </div>
+        ))}
+        <button className="btn btn-outline btn-sm" onClick={() => setEditing('new')}>
+          + افزودن روش ارسال
+        </button>
+      </div>
+
+      {editing && (
+        <ShippingMethodModal
+          method={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+    </section>
+  );
+}
+
+function ShippingMethodModal({ method, onClose, onSaved }: { method: ShippingMethod | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [kind, setKind] = useState<ShippingMethod['kind']>(method?.kind ?? 'FIXED');
+  const [rulesText, setRulesText] = useState(() =>
+    method?.kind === 'TABLE'
+      ? Object.entries(method.rulesJson ?? {}).map(([key, value]) => `${key}: ${value}`).join('\n')
+      : '',
+  );
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const baseCost = Number(data.get('baseCost') ?? 0);
+    const freeOverRaw = String(data.get('freeOver') ?? '').trim();
+    let rules: Record<string, number> | undefined;
+    if (kind === 'TABLE') {
+      rules = {};
+      for (const line of rulesText.split('\n')) {
+        const [key, value] = line.split(':').map(part => part.trim());
+        if (key && value) rules[key] = Number(value);
+      }
+    }
+    const body = {
+      name: String(data.get('name') ?? '').trim(),
+      kind,
+      baseCost: kind === 'PICKUP' ? 0 : baseCost,
+      freeOver: kind === 'FREE_OVER' ? (freeOverRaw === '' ? null : Number(freeOverRaw)) : null,
+      rules,
+    };
+    setBusy(true);
+    try {
+      if (method) {
+        await api.updateShippingMethod(method.id, body);
+        toast.success('روش ارسال به‌روزرسانی شد.');
+      } else {
+        await api.createShippingMethod(body);
+        toast.success('روش ارسال اضافه شد.');
+      }
+      onSaved();
+    } catch (problem) {
+      toast.error('ذخیره انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const kindInfo = SHIPPING_KINDS.find(item => item.value === kind);
+
+  return (
+    <Modal
+      open onClose={onClose} title={method ? 'ویرایش روش ارسال' : 'روش ارسال جدید'}
+      description="هزینه ارسال همیشه سمت سرور محاسبه می‌شود و در جمع سفارش نمایش داده می‌شود."
+      footer={<><button className="btn btn-ghost" onClick={onClose}>انصراف</button><button className="btn btn-primary" form="sm-form" disabled={busy}>{busy && <Spinner size={14} />}ذخیره</button></>}
+    >
+      <form id="sm-form" onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
+        <Field label="نام روش" required htmlFor="sm-name">
+          <input id="sm-name" name="name" className="input" required maxLength={200} defaultValue={method?.name ?? ''} placeholder="پست پیشتاز، پیک تهران، برداشت حضوری…" autoFocus />
+        </Field>
+        <Field label="نوع قانون" htmlFor="sm-kind" hint={kindInfo?.hint}>
+          <select id="sm-kind" className="select" value={kind} onChange={event => setKind(event.target.value as ShippingMethod['kind'])}>
+            {SHIPPING_KINDS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+        </Field>
+        {kind !== 'PICKUP' && (
+          <Field label="مبلغ پایه (تومان)" required htmlFor="baseCost">
+            <input id="baseCost" name="baseCost" className="input input-ltr" type="number" min={0} max={2147483647} required defaultValue={method?.baseCost ?? 45000} />
+          </Field>
+        )}
+        {kind === 'FREE_OVER' && (
+          <Field label="آستانه‌ی رایگان‌شدن (تومان)" htmlFor="freeOver" hint="اگر جمع اقلام به این مبلغ برسد، ارسال رایگان می‌شود.">
+            <input id="freeOver" name="freeOver" className="input input-ltr" type="number" min={0} max={2147483647} defaultValue={method?.freeOver ?? ''} placeholder="2000000" />
+          </Field>
+        )}
+        {kind === 'TABLE' && (
+          <Field label="قواعد استانی/شهری" htmlFor="rules" hint="هر خط: استان یا استان/شهر، دو نقطه، مبلغ. کلید * برای بقیه‌ی مقصدها.">
+            <textarea id="rules" className="textarea mono" rows={5} value={rulesText} onChange={event => setRulesText(event.target.value)} placeholder={'تهران: 45000\nتهران/شهریار: 60000\n*: 80000'} />
+          </Field>
+        )}
       </form>
     </Modal>
   );

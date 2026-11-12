@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { api, ApiError, type ChatMessage, type Order, type OrderStatus, type OrdersSummary } from '@/lib/api';
+import { api, ApiError, type ChatMessage, type Order, type OrderStatus, type OrdersSummary, type PaymentReceipt } from '@/lib/api';
 import { faDateTime, faNum, relativeTime, toman } from '@/lib/format';
 import { useRealtime } from '@/lib/realtime';
 import { EmptyState, Modal, PageHeader, Segmented, SkeletonBlock, Spinner, StatCard, useToast } from '@/components/ui';
@@ -24,14 +24,26 @@ type Filter = 'all' | OrderStatus;
 
 const STATUS: Record<OrderStatus, { label: string; tone: string }> = {
   AWAITING_PAYMENT: { label: 'در انتظار پرداخت', tone: 'b-amber' },
+  RECEIPT_RECEIVED: { label: 'رسید دریافت شد', tone: 'b-blue' },
+  NEEDS_REVIEW: { label: 'نیاز به بررسی رسید', tone: 'b-amber' },
   PAID: { label: 'پرداخت‌شده', tone: 'b-brand' },
+  PREPARING: { label: 'در حال آماده‌سازی', tone: 'b-blue' },
   SHIPPED: { label: 'ارسال‌شده', tone: 'b-blue' },
   COMPLETED: { label: 'تحویل‌شده', tone: 'b-green' },
   CANCELLED: { label: 'لغوشده', tone: 'b-red' },
+  EXPIRED: { label: 'منقضی‌شده', tone: 'b-gray' },
 };
 
 const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string; icon: 'send' | 'check' }[]>> = {
+  NEEDS_REVIEW: [
+    { to: 'PAID', label: 'تأیید رسید و پرداخت‌شده', icon: 'check' },
+    { to: 'AWAITING_PAYMENT', label: 'رد رسید (بازگشت به انتظار)', icon: 'check' },
+  ],
   PAID: [
+    { to: 'PREPARING', label: 'شروع آماده‌سازی', icon: 'send' },
+    { to: 'CANCELLED', label: 'لغو سفارش', icon: 'check' },
+  ],
+  PREPARING: [
     { to: 'SHIPPED', label: 'ارسال شد', icon: 'send' },
     { to: 'CANCELLED', label: 'لغو سفارش', icon: 'check' },
   ],
@@ -65,6 +77,7 @@ export default function OrdersPage() {
   const [sending, setSending] = useState(false);
   // ریپلای: پیامی که فروشنده روی آن «پاسخ» زده است.
   const [quoting, setQuoting] = useState<ChatMessage | null>(null);
+  const [receipts, setReceipts] = useState<PaymentReceipt[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const [rowFlash, setRowFlash] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
@@ -72,9 +85,10 @@ export default function OrdersPage() {
 
   const load = useCallback(async () => {
     try {
-      const [list, stats] = await Promise.all([api.orders(), api.ordersSummary()]);
+      const [list, stats, queue] = await Promise.all([api.orders(), api.ordersSummary(), api.receiptQueue().catch(() => [] as PaymentReceipt[])]);
       setOrders(list);
       setSummary(stats);
+      setReceipts(queue);
     } catch (problem) {
       toast.error('بارگذاری سفارش‌ها انجام نشد', problem instanceof ApiError ? problem.message : undefined);
     } finally {
@@ -152,11 +166,24 @@ export default function OrdersPage() {
 
   const counts = useMemo(() => {
     const base: Record<Filter, number> = {
-      all: orders.length, AWAITING_PAYMENT: 0, PAID: 0, SHIPPED: 0, COMPLETED: 0, CANCELLED: 0,
+      all: orders.length, AWAITING_PAYMENT: 0, RECEIPT_RECEIVED: 0, NEEDS_REVIEW: 0, PAID: 0, PREPARING: 0, SHIPPED: 0, COMPLETED: 0, CANCELLED: 0, EXPIRED: 0,
     };
     for (const order of orders) base[order.status] += 1;
     return base;
   }, [orders]);
+
+  async function reviewReceipt(receipt: PaymentReceipt, decision: 'CONFIRMED' | 'REJECTED') {
+    setBusyId(receipt.id);
+    try {
+      await api.reviewReceipt(receipt.id, decision);
+      toast.success(decision === 'CONFIRMED' ? 'رسید تأیید شد و سفارش پرداخت‌شده شد.' : 'رسید رد شد؛ سفارش به انتظار پرداخت برگشت.');
+      await load();
+    } catch (problem) {
+      toast.error('بررسی رسید انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function changeStatus(order: Order, status: OrderStatus) {
     setBusyId(order.id);
@@ -237,6 +264,42 @@ export default function OrdersPage() {
           />
         </div>
       </div>
+
+      {receipts.length > 0 && (
+        <div className="card card-pad stack mt-4" style={{ borderColor: 'var(--amber, #f59e0b)' }}>
+          <div className="row-between">
+            <div className="card-title">🧾 رسیدهای نیاز به بررسی ({faNum(receipts.length)})</div>
+            <span className="small muted">رسیدهایی که خودکار تأیید نشدند؛ یک کلیک تأیید/رد کنید.</span>
+          </div>
+          {receipts.map(receipt => (
+            <div key={receipt.id} className="row-between" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
+              <div>
+                <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>
+                  سفارش {receipt.order?.code ?? receipt.orderId} · {receipt.order ? toman(receipt.order.total) : ''}
+                </div>
+                <div className="small muted">{receipt.verdictReason}</div>
+                {receipt.checksJson?.length > 0 && (
+                  <div className="small muted" style={{ marginTop: 4 }}>
+                    {receipt.checksJson.map(check => (
+                      <span key={check.check} style={{ marginInlineEnd: 8, color: check.ok ? 'var(--ok, #0f7b4f)' : 'var(--danger, #b42318)' }}>
+                        {check.ok ? '✓' : '✗'} {check.detail}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="row" style={{ gap: 6 }}>
+                <button className="btn btn-primary btn-sm" disabled={busyId === receipt.id} onClick={() => void reviewReceipt(receipt, 'CONFIRMED')}>
+                  {busyId === receipt.id ? <Spinner size={13} /> : <IconCheckCircle size={13} />}تأیید
+                </button>
+                <button className="btn btn-outline btn-sm" disabled={busyId === receipt.id} onClick={() => void reviewReceipt(receipt, 'REJECTED')}>
+                  رد
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="orders-filter mt-4" style={{ gap: 10, flexWrap: 'wrap' }}>
         <Segmented<Filter>
@@ -363,9 +426,25 @@ export default function OrdersPage() {
               </table>
             </div>
 
-            <div className="row-between" style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
-              <span className="strong">مبلغ کل</span>
-              <span className="strong num">{toman(open.total)}</span>
+            <div className="stack" style={{ gap: 6, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+              <div className="row-between">
+                <span className="muted">جمع اقلام</span>
+                <span className="num">{toman(open.subtotal ?? open.total)}</span>
+              </div>
+              <div className="row-between">
+                <span className="muted">هزینه ارسال</span>
+                <span className="num">{toman(open.shippingCost ?? 0)}</span>
+              </div>
+              {(open.discount ?? 0) > 0 && (
+                <div className="row-between">
+                  <span className="muted">تخفیف</span>
+                  <span className="num">−{toman(open.discount ?? 0)}</span>
+                </div>
+              )}
+              <div className="row-between">
+                <span className="strong">مبلغ کل قابل پرداخت</span>
+                <span className="strong num">{toman(open.total)}</span>
+              </div>
             </div>
 
             <div className="card" style={{ background: 'var(--surface-2, #fafafa)' }}>

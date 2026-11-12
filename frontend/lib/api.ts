@@ -122,7 +122,7 @@ export type TelegramStatus = {
   ownerLinkedAt: string | null;
   conversations: number;
 };
-export type OrderStatus = 'AWAITING_PAYMENT' | 'PAID' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED';
+export type OrderStatus = 'AWAITING_PAYMENT' | 'RECEIPT_RECEIVED' | 'NEEDS_REVIEW' | 'PAID' | 'PREPARING' | 'SHIPPED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
 export type OrderItem = {
   id: string; title: string; spec: string; price: number; quantity: number; variantId: string | null;
 };
@@ -130,9 +130,22 @@ export type Order = {
   id: string; code: string; status: OrderStatus;
   chatId: string | null; customerName: string; customerPhone: string; address: string; note: string;
   province: string; city: string; street: string; alley: string; plaque: string; unit: string; postalCode: string;
+  subtotal?: number; shippingCost?: number; discount?: number; shippingMethodId?: string | null;
   total: number; paymentProvider: string; paymentRefId: string; paidAt: string | null;
   cancelledReason: string; createdAt: string; updatedAt: string;
   items: OrderItem[]; itemsCount?: number;
+};
+export type ShippingMethod = {
+  id: string; name: string; kind: 'FIXED' | 'FREE_OVER' | 'TABLE' | 'PICKUP';
+  baseCost: number; freeOver: number | null; rulesJson: Record<string, number>;
+  active: boolean; sortOrder: number;
+};
+export type ReceiptCheck = { check: string; ok: boolean; detail: string };
+export type PaymentReceipt = {
+  id: string; orderId: string; verdict: 'CONFIRMED' | 'NEEDS_REVIEW' | 'REJECTED';
+  verdictReason: string; extractedJson: Record<string, unknown>; checksJson: ReceiptCheck[];
+  reviewNote: string; reviewedAt: string | null; createdAt: string;
+  order?: { id: string; code: string; total: number; customerName: string; customerPhone: string; status: OrderStatus; createdAt: string };
 };
 export type ChatMessage = {
   id: string; chatId: string; direction: 'in' | 'out'; text: string;
@@ -408,6 +421,18 @@ export const api = {
   ordersSummary: () => request<OrdersSummary>('/orders/summary'),
   setOrderStatus: (id: string, status: OrderStatus) =>
     request<Order>(`/orders/${id}/status`, { method: 'POST', body: { status } }),
+
+  shippingMethods: () => request<ShippingMethod[]>('/shipping-methods'),
+  createShippingMethod: (body: { name: string; kind: ShippingMethod['kind']; baseCost: number; freeOver?: number | null; rules?: Record<string, number> }) =>
+    request<ShippingMethod>('/shipping-methods', { method: 'POST', body }),
+  updateShippingMethod: (id: string, body: Partial<ShippingMethod> & { rules?: Record<string, number> }) =>
+    request<ShippingMethod>(`/shipping-methods/${id}`, { method: 'PATCH', body }),
+  deleteShippingMethod: (id: string) =>
+    request<{ ok: true }>(`/shipping-methods/${id}`, { method: 'DELETE' }),
+
+  receiptQueue: () => request<PaymentReceipt[]>('/receipts/review-queue'),
+  reviewReceipt: (id: string, decision: 'CONFIRMED' | 'REJECTED', note?: string) =>
+    request<PaymentReceipt>(`/receipts/${id}/review`, { method: 'POST', body: { decision, note } }),
   orderMessages: (id: string) => request<ChatMessage[]>(`/orders/${id}/messages`),
   sendOrderMessage: (id: string, text: string, replyToId?: string) =>
     request<ChatMessage[]>(`/orders/${id}/message`, { method: 'POST', body: { text, ...(replyToId ? { replyToId } : {}) } }),

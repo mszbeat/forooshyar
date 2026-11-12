@@ -933,10 +933,14 @@ export class TelegramService {
     }
     const labels: Record<OrderStatus, string> = {
       [OrderStatus.AWAITING_PAYMENT]: 'در انتظار پرداخت',
+      [OrderStatus.RECEIPT_RECEIVED]: 'رسید دریافت شد',
+      [OrderStatus.NEEDS_REVIEW]: 'در حال بررسی رسید',
       [OrderStatus.PAID]: 'پرداخت‌شده',
+      [OrderStatus.PREPARING]: 'در حال آماده‌سازی',
       [OrderStatus.SHIPPED]: 'ارسال‌شده',
       [OrderStatus.COMPLETED]: 'تحویل‌شده',
       [OrderStatus.CANCELLED]: 'لغوشده',
+      [OrderStatus.EXPIRED]: 'منقضی‌شده',
     };
     const lines = orders.map(order => [
       `${order.code} · ${labels[order.status]} · ${order.total.toLocaleString('fa-IR')} تومان`,
