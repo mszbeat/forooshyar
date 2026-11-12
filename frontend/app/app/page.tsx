@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const [attentionError, setAttentionError] = useState(false);
   const [tested, setTested] = useState(false);
   const [chartMetric, setChartMetric] = useState<'revenue' | 'units'>('revenue');
-  const [planState, setPlanState] = useState<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null } | null>(null);
+  const [planState, setPlanState] = useState<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null; aiUsage?: { usedMonth: number; monthlyLimit: number; planName: string; exceeded: boolean } | null } | null>(null);
   const [channels, setChannels] = useState<ChannelConnection[]>([]);
 
   const load = useCallback(async () => {
@@ -58,7 +58,7 @@ export default function DashboardPage() {
 useEffect(() => { void load(); }, [load]);
   useEffect(() => { setTested(window.localStorage.getItem('forooshyar.botTested') === '1'); }, []);
   useEffect(() => {
-    request<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null }>('/subscriptions/status').then(setPlanState).catch(() => undefined);
+    request<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null; aiUsage?: { usedMonth: number; monthlyLimit: number; planName: string; exceeded: boolean } | null }>('/subscriptions/status').then(setPlanState).catch(() => undefined);
     api.channels().then(setChannels).catch(() => setChannels([]));
   }, []);
 
@@ -372,7 +372,7 @@ function SubscriptionCard({
   planState,
   channels,
 }: {
-  planState: { mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null } | null;
+  planState: { mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null; aiUsage?: { usedMonth: number; monthlyLimit: number; planName: string; exceeded: boolean } | null } | null;
   channels: ChannelConnection[];
 }) {
   if (!planState) return <SkeletonBlock height={110} />;
@@ -400,16 +400,30 @@ function SubscriptionCard({
           {expired ? 'منقضی' : trial ? 'آزمایشی' : 'فعال'}
         </span>
       </div>
-      <div className="card-body row-between" style={{ alignItems: 'center' }}>
-        <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
-          {endsAt && (
-            <span className="small muted">انقضا: <strong style={{ color: 'var(--ink)' }}>{faDate(endsAt)}</strong></span>
-          )}
-          <span className="small muted">اکانت‌های متصل: <strong style={{ color: 'var(--ink)' }}>{faNum(channels.length)}</strong></span>
+      <div className="card-body" style={{ display: 'grid', gap: 12 }}>
+        <div className="row-between" style={{ alignItems: 'center' }}>
+          <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
+            {endsAt && (
+              <span className="small muted">انقضا: <strong style={{ color: 'var(--ink)' }}>{faDate(endsAt)}</strong></span>
+            )}
+            <span className="small muted">اکانت‌های متصل: <strong style={{ color: 'var(--ink)' }}>{faNum(channels.length)}</strong></span>
+          </div>
+          <Link href="/#plans" className="btn btn-primary btn-sm">
+            {expired ? 'فعال‌سازی اشتراک' : 'تمدید / ارتقا'}
+          </Link>
         </div>
-        <Link href="/#plans" className="btn btn-primary btn-sm">
-          {expired ? 'فعال‌سازی اشتراک' : 'تمدید / ارتقا'}
-        </Link>
+        {planState.aiUsage && planState.aiUsage.monthlyLimit > 0 && (
+          <div>
+            <div className="row-between">
+              <span className="small muted">پاسخ هوش مصنوعی این ماه ({planState.aiUsage.planName})</span>
+              <span className="small">{faNum(planState.aiUsage.usedMonth)} از {faNum(planState.aiUsage.monthlyLimit)}</span>
+            </div>
+            <div className="progress" role="progressbar" aria-valuenow={planState.aiUsage.usedMonth} aria-valuemax={planState.aiUsage.monthlyLimit} aria-label="مصرف پاسخ هوش مصنوعی">
+              <span style={{ width: `${Math.min(100, (planState.aiUsage.usedMonth / planState.aiUsage.monthlyLimit) * 100)}%`, background: planState.aiUsage.exceeded ? 'var(--danger)' : 'var(--brand)' }} />
+            </div>
+            {planState.aiUsage.exceeded && <p className="small" style={{ color: 'var(--danger)', margin: '6px 0 0' }}>سقف پر شد؛ پاسخ‌های قالبی ارسال می‌شود. برای افزایش سقف، پلن را ارتقا دهید.</p>}
+          </div>
+        )}
       </div>
     </section>
   );

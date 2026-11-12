@@ -569,8 +569,14 @@ model SubscriptionPlan {
   telegramLimit       Int
   /// سقف پیام ماهانه‌ی هوش مصنوعی؛ صفر یعنی نامحدود.
   monthlyMessageLimit Int      @default(0)
+  /// سقف پاسخ هوش مصنوعی در روز؛ صفر یعنی بدون سقف روزانه.
+  dailyMessageLimit   Int      @default(0)
   /// سقف تعداد محصول؛ صفر یعنی نامحدود.
   productLimit        Int      @default(0)
+  /// سقف تعداد اتوماسیون؛ صفر یعنی نامحدود.
+  automationLimit     Int      @default(0)
+  /// سقف پیامک ماهانه؛ صفر یعنی نامحدود.
+  smsLimit            Int      @default(0)
   isPopular           Boolean  @default(false)
   active              Boolean  @default(false)
   sortOrder           Int      @default(0)

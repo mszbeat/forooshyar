@@ -11,64 +11,121 @@ import { endsAtFrom, instagramAddonMonthlyPrice, quotePrice } from './pricing';
  */
 const SEED_PLANS = [
   {
-    slug: 'basic',
-    name: 'پایه',
-    tagline: 'برای فروشگاه تازه‌کار با یک پیج',
-    description: 'شروع مطمئن برای فروشگاهی که تازه دایرکت را به دستیار وصل می‌کند.',
+    slug: 'free',
+    name: 'رایگان',
+    tagline: 'برای شروع و آشنایی با فروش‌یار',
+    description: 'برای فروشگاهی که تازه می‌خواهد پاسخ خودکار را امتحان کند.',
     features: [
-      'پاسخ خودکار تلگرام و اینستاگرام از کاتالوگ زنده',
-      'سفارش‌گیری مرحله‌به‌مرحله در همان گفتگو',
-      'قیمت و موجودی همیشه از دیتابیس فروشگاه',
-      'ارجاع به فروشنده وقتی بات مطمئن نیست',
+      'پاسخ خودکار از کاتالوگ زنده',
+      '۱ اتصال اینستاگرام + ۱ اتصال تلگرام',
+      'سفارش‌گیری در همان گفتگو',
+      '۱۰۰ پاسخ هوش مصنوعی در ماه',
     ],
-    monthlyPrice: 490000,
-    listMonthlyPrice: 690000,
+    monthlyPrice: 0,
+    listMonthlyPrice: 0,
     instagramLimit: 1,
     telegramLimit: 1,
-    monthlyMessageLimit: 1000,
-    productLimit: 200,
+    monthlyMessageLimit: 100,
+    dailyMessageLimit: 20,
+    productLimit: 50,
+    automationLimit: 1,
+    smsLimit: 0,
     isPopular: false,
     sortOrder: 0,
   },
   {
     slug: 'pro',
-    name: 'حرفه‌ای',
+    name: 'پرو',
     tagline: 'برای فروشگاهی که هر روز پیام می‌گیرد',
-    description: 'ظرفیت بیشتر برای فروشگاهی که چند پیج و حجم پیام بالایی دارد.',
+    description: 'ظرفیت بیشتر برای فروشگاهی که دایرکت، کانال اصلی فروش آن است.',
     features: [
-      'همه‌ی امکانات پلن پایه',
+      'همه‌ی امکانات رایگان',
       '۳ پیج اینستاگرام + ۳ بات تلگرام',
+      '۱٬۰۰۰ پاسخ هوش مصنوعی در ماه',
       'لحن پاسخ قابل تنظیم + پیش‌نمایش زنده',
       'اعلان موجودی کم و گزارش فروش',
     ],
-    monthlyPrice: 990000,
-    listMonthlyPrice: 1390000,
+    monthlyPrice: 490000,
+    listMonthlyPrice: 690000,
     instagramLimit: 3,
     telegramLimit: 3,
-    monthlyMessageLimit: 5000,
-    productLimit: 1000,
+    monthlyMessageLimit: 1000,
+    dailyMessageLimit: 100,
+    productLimit: 500,
+    automationLimit: 5,
+    smsLimit: 100,
     isPopular: true,
     sortOrder: 1,
   },
   {
-    slug: 'business',
-    name: 'تجاری',
-    tagline: 'برای تیم فروش با چند فروشگاه',
+    slug: 'ultra',
+    name: 'اولترا',
+    tagline: 'برای فروشگاه پرمخاطب با چند پیج',
     description: 'سقف بالا برای کسب‌وکارهایی که دایرکت، کانال اصلی فروش آن‌هاست.',
     features: [
-      'همه‌ی امکانات پلن حرفه‌ای',
+      'همه‌ی امکانات پرو',
       '۱۰ پیج اینستاگرام + ۱۰ بات تلگرام',
-      'سقف پیام و محصول بالاتر',
+      '۵٬۰۰۰ پاسخ هوش مصنوعی در ماه',
+      'اتوماسیون کامنت به دایرکت',
       'پشتیبانی اولویت‌دار',
+    ],
+    monthlyPrice: 990000,
+    listMonthlyPrice: 1390000,
+    instagramLimit: 10,
+    telegramLimit: 10,
+    monthlyMessageLimit: 5000,
+    dailyMessageLimit: 300,
+    productLimit: 2000,
+    automationLimit: 20,
+    smsLimit: 500,
+    isPopular: false,
+    sortOrder: 2,
+  },
+  {
+    slug: 'max',
+    name: 'مکس',
+    tagline: 'برای تیم فروش با حجم بالا',
+    description: 'بیشترین ظرفیت برای فروشگاه‌های بزرگ و چندفروشگاهی.',
+    features: [
+      'همه‌ی امکانات اولترا',
+      'پیج و بات نامحدود',
+      '۲۰٬۰۰۰ پاسخ هوش مصنوعی در ماه',
+      'پیامک اطلاع‌رسانی فروشنده',
+      'مدیر حساب اختصاصی',
     ],
     monthlyPrice: 2490000,
     listMonthlyPrice: 3490000,
-    instagramLimit: 10,
-    telegramLimit: 10,
+    instagramLimit: 0,
+    telegramLimit: 0,
     monthlyMessageLimit: 20000,
-    productLimit: 5000,
+    dailyMessageLimit: 1000,
+    productLimit: 0,
+    automationLimit: 0,
+    smsLimit: 2000,
     isPopular: false,
-    sortOrder: 2,
+    sortOrder: 3,
+  },
+  {
+    slug: 'custom',
+    name: 'اختصاصی',
+    tagline: 'تماس بگیرید',
+    description: 'برای نیازهای خاص و سازمانی؛ با ما در تماس باشید.',
+    features: [
+      'همه‌ی امکانات مکس',
+      'سقف‌های سفارشی',
+      'پشتیبانی اختصاصی',
+    ],
+    monthlyPrice: 0,
+    listMonthlyPrice: 0,
+    instagramLimit: 0,
+    telegramLimit: 0,
+    monthlyMessageLimit: 0,
+    dailyMessageLimit: 0,
+    productLimit: 0,
+    automationLimit: 0,
+    smsLimit: 0,
+    isPopular: false,
+    sortOrder: 4,
   },
 ];
 
@@ -76,7 +133,8 @@ function toPublicPlan(plan: {
   id: string; slug: string; name: string; tagline: string; description: string;
   features: unknown; monthlyPrice: number; listMonthlyPrice: number;
   instagramLimit: number; telegramLimit: number; monthlyMessageLimit: number;
-  productLimit: number; isPopular: boolean; sortOrder: number;
+  dailyMessageLimit?: number; productLimit: number; automationLimit?: number; smsLimit?: number;
+  isPopular: boolean; sortOrder: number;
 }) {
   return {
     id: plan.id,
@@ -90,7 +148,10 @@ function toPublicPlan(plan: {
     instagramLimit: plan.instagramLimit,
     telegramLimit: plan.telegramLimit,
     monthlyMessageLimit: plan.monthlyMessageLimit,
+    dailyMessageLimit: plan.dailyMessageLimit ?? 0,
     productLimit: plan.productLimit,
+    automationLimit: plan.automationLimit ?? 0,
+    smsLimit: plan.smsLimit ?? 0,
     isPopular: plan.isPopular,
     sortOrder: plan.sortOrder,
     extraInstagramPrice: instagramAddonMonthlyPrice(),
@@ -102,11 +163,47 @@ export class SubscriptionsService implements OnModuleInit {
   constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
 
   async onModuleInit() {
-    const count = await this.db.subscriptionPlan.count().catch(() => 0);
-    if (count) return;
+    // seed idempotent: پلن‌های جدید ساخته و پلن‌های موجود به‌روزرسانی می‌شوند.
     for (const plan of SEED_PLANS) {
-      await this.db.subscriptionPlan.create({ data: { ...plan, active: true } }).catch(() => undefined);
+      const existing = await this.db.subscriptionPlan.findFirst({ where: { slug: plan.slug } }).catch(() => null);
+      if (!existing) {
+        await this.db.subscriptionPlan.create({ data: { ...plan, active: true } }).catch(() => undefined);
+      } else {
+        await this.db.subscriptionPlan.update({
+          where: { id: existing.id },
+          data: { name: plan.name, tagline: plan.tagline, description: plan.description, features: plan.features as unknown as import('@prisma/client').Prisma.InputJsonValue, monthlyPrice: plan.monthlyPrice, listMonthlyPrice: plan.listMonthlyPrice, instagramLimit: plan.instagramLimit, telegramLimit: plan.telegramLimit, monthlyMessageLimit: plan.monthlyMessageLimit, dailyMessageLimit: plan.dailyMessageLimit, productLimit: plan.productLimit, automationLimit: plan.automationLimit, smsLimit: plan.smsLimit, isPopular: plan.isPopular, sortOrder: plan.sortOrder },
+        }).catch(() => undefined);
+      }
     }
+    // پلن‌های قدیمی (basic/business) غیرفعال می‌شوند تا فقط ۵ سطح نمایش داده شود.
+    await this.db.subscriptionPlan.updateMany({ where: { slug: { in: ['basic', 'business'] } }, data: { active: false } }).catch(() => undefined);
+  }
+
+  /** مصرف پاسخ هوش مصنوعی این ماه/امروز (از پیام‌های بات) در برابر سقف پلن. */
+  async aiUsage(shopId: string) {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const [usedMonth, usedDay, current] = await Promise.all([
+      this.db.chatMessage.count({ where: { shopId, author: 'bot', createdAt: { gte: monthStart } } }),
+      this.db.chatMessage.count({ where: { shopId, author: 'bot', createdAt: { gte: dayStart } } }),
+      this.db.subscription.findFirst({ where: { shopId, status: 'ACTIVE', endsAt: { gt: now } }, include: { plan: true }, orderBy: { endsAt: 'desc' } }),
+    ]);
+    const plan = current?.plan ?? null;
+    const monthlyLimit = plan?.monthlyMessageLimit ?? 0;
+    const dailyLimit = plan?.dailyMessageLimit ?? 0;
+    return {
+      usedMonth, usedDay,
+      monthlyLimit, dailyLimit,
+      planName: plan?.name ?? 'رایگان',
+      exceeded: (monthlyLimit > 0 && usedMonth >= monthlyLimit) || (dailyLimit > 0 && usedDay >= dailyLimit),
+    };
+  }
+
+  /** آیا سقف پاسخ هوش مصنوعی پر شده؟ (برای fallback به پاسخ قالبی) */
+  async aiLimitExceeded(shopId: string): Promise<boolean> {
+    const usage = await this.aiUsage(shopId).catch(() => null);
+    return usage?.exceeded ?? false;
   }
 
   async plans() {
@@ -159,6 +256,7 @@ export class SubscriptionsService implements OnModuleInit {
       trialStartedAt: shop.trialStartedAt?.toISOString() ?? null,
       trialEndsAt: shop.trialEndsAt?.toISOString() ?? null,
       subscription: current ? { planName: current.plan.name, startsAt: current.startsAt?.toISOString(), endsAt: current.endsAt?.toISOString(), months: current.months } : null,
+      aiUsage: await this.aiUsage(shopId).catch(() => null),
       plans: await this.plans(),
     };
   }

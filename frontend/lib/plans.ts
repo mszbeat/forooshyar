@@ -13,6 +13,9 @@ export type Plan = {
   instagramLimit: number;
   telegramLimit: number;
   monthlyMessageLimit: number;
+  dailyMessageLimit?: number;
+  automationLimit?: number;
+  smsLimit?: number;
   productLimit: number;
   isPopular: boolean;
   sortOrder: number;
@@ -56,6 +59,9 @@ function normalizePlan(raw: Partial<Plan> & { id: string; name: string }): Plan 
     instagramLimit: raw.instagramLimit ?? 0,
     telegramLimit: raw.telegramLimit ?? 0,
     monthlyMessageLimit: raw.monthlyMessageLimit ?? 0,
+    dailyMessageLimit: raw.dailyMessageLimit ?? 0,
+    automationLimit: raw.automationLimit ?? 0,
+    smsLimit: raw.smsLimit ?? 0,
     productLimit: raw.productLimit ?? 0,
     isPopular: raw.isPopular ?? false,
     sortOrder: raw.sortOrder ?? 0,

@@ -1211,3 +1211,6 @@ section[id] { scroll-margin-top: 70px; }
 
 /* کارت حساب متصل — با انیمیشن وارد می‌شود (تسک ۴) */
 .account-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); animation: authxRise .5s cubic-bezier(.22,1,.36,1) both; }
+
+.progress { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 6px; }
+.progress > span { display: block; height: 100%; border-radius: 999px; transition: width .4s var(--ease); }

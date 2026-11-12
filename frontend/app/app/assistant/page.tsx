@@ -3,12 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { api, ApiError, type AiStatus, type BotReply, type KnowledgeItem, type PromptState, type PromptTab } from '@/lib/api';
 import { faNum } from '@/lib/format';
 import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { RichText } from '@/components/richtext';
-import { CreditsSection } from '@/components/credits-section';
 import { IconAlertCircle, IconChat, IconCheckCircle, IconSend, IconSettings, IconShield, IconSparkles } from '@/components/icons';
 
 type Message = { id: number; role: 'customer' | 'bot'; text: string; kind?: BotReply['kind']; source?: 'rules' | 'ai' };
@@ -22,21 +20,13 @@ const SUGGESTIONS = [
   'بلابلا زیرو',
 ];
 
-const ASSISTANT_VISUALS = [
-  { src: '/assistant/mascot.png', title: 'دستیار فروش', detail: 'همراه هوشمند فروشگاه' },
-  { src: '/assistant/orders.png', title: 'مدیریت سفارش', detail: 'پیگیری سفارش تا ارسال' },
-  { src: '/assistant/inventory.webp', title: 'کنترل موجودی', detail: 'بررسی دقیق کاتالوگ' },
-  { src: '/assistant/customer-chat.webp', title: 'پاسخ‌گویی به مشتری', detail: 'گفت‌وگوی سریع و دقیق' },
-  { src: '/assistant/insights.webp', title: 'تحلیل فروش', detail: 'دید بهتر نسبت به روند فروش' },
-];
-
 const KIND_LABEL: Record<BotReply['kind'], { text: string; tone: string }> = {
   answer: { text: 'پاسخ مستقیم', tone: 'b-green' },
   clarify: { text: 'نیاز به توضیح بیشتر', tone: 'b-amber' },
   handoff: { text: 'ارجاع به فروشنده', tone: 'b-blue' },
 };
 
-type MainTab = 'chat' | 'knowledge' | 'prompts' | 'credits' | 'answering';
+type MainTab = 'chat' | 'knowledge' | 'prompts' | 'answering';
 
 export default function AssistantPage() {
   const toast = useToast();
@@ -105,9 +95,6 @@ export default function AssistantPage() {
         <button type="button" className={`chip-btn ${mainTab === 'prompts' ? 'on' : ''}`} onClick={() => setMainTab('prompts')}>
           پرامپت‌های دستیار
         </button>
-        <button type="button" className={`chip-btn ${mainTab === 'credits' ? 'on' : ''}`} onClick={() => setMainTab('credits')}>
-          اعتبار پاسخ
-        </button>
         <button type="button" className={`chip-btn ${mainTab === 'answering' ? 'on' : ''}`} onClick={() => setMainTab('answering')}>
           اطلاعات پاسخگویی
         </button>
@@ -115,7 +102,6 @@ export default function AssistantPage() {
 
       {mainTab === 'knowledge' && <KnowledgeSection />}
       {mainTab === 'prompts' && <PromptsSection />}
-      {mainTab === 'credits' && <CreditsSection />}
       {mainTab === 'answering' && <AnsweringSection />}
 
       {mainTab === 'chat' && (
@@ -226,27 +212,6 @@ export default function AssistantPage() {
       </div>
       )}
 
-      <section className="card assistant-visuals" aria-labelledby="assistant-visuals-title">
-        <div className="card-head">
-          <div>
-            <div className="card-title" id="assistant-visuals-title">همراه هوشمند فروشگاه شما</div>
-            <div className="card-desc">یک دستیار ثابت در مسیر سفارش، موجودی، گفت‌وگو و رشد فروش.</div>
-          </div>
-        </div>
-        <div className="assistant-visual-grid">
-          {ASSISTANT_VISUALS.map(item => (
-            <article className="assistant-visual-card" key={item.src}>
-              <div className="assistant-visual-image">
-                <Image src={item.src} alt={`${item.title} — ربات دستیار فروش‌یار`} width={480} height={480} />
-              </div>
-              <div className="assistant-visual-copy">
-                <strong>{item.title}</strong>
-                <span>{item.detail}</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

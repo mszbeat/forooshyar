@@ -45,10 +45,18 @@ function PlanCard({ plan, index }: { plan: Plan; index: number }) {
       <span className="plan-card-name">{plan.name}</span>
       {plan.tagline && <span className="plan-card-tagline">{plan.tagline}</span>}
       <span className="plan-card-price">
-        {discount > 0 && <span className="plan-card-list">{toman(plan.listMonthlyPrice)}</span>}
-        <b>{toman(plan.monthlyPrice)}</b>
-        <small>/ ماه</small>
-        {discount > 0 && <span className="plan-card-discount">٪{discount} تخفیف</span>}
+        {plan.slug === 'custom' ? (
+          <b>تماس بگیرید</b>
+        ) : plan.monthlyPrice === 0 ? (
+          <b>رایگان</b>
+        ) : (
+          <>
+            {discount > 0 && <span className="plan-card-list">{toman(plan.listMonthlyPrice)}</span>}
+            <b>{toman(plan.monthlyPrice)}</b>
+            <small>/ ماه</small>
+            {discount > 0 && <span className="plan-card-discount">٪{discount} تخفیف</span>}
+          </>
+        )}
       </span>
       <span className="plan-card-limits">
         {plan.instagramLimit} اتصال اینستاگرام · {plan.telegramLimit} اتصال تلگرام
@@ -169,16 +177,28 @@ export function LandingPlans() {
                       {plans.map(plan => <td key={plan.id}>{plan.telegramLimit} بات</td>)}
                     </tr>
                     <tr>
-                      <td>سقف پیام ماهانه</td>
+                      <td>پاسخ هوش مصنوعی در ماه</td>
                       {plans.map(plan => <td key={plan.id}>{plan.monthlyMessageLimit > 0 ? plan.monthlyMessageLimit.toLocaleString('fa-IR') : 'نامحدود'}</td>)}
+                    </tr>
+                    <tr>
+                      <td>پاسخ هوش مصنوعی در روز</td>
+                      {plans.map(plan => <td key={plan.id}>{(plan.dailyMessageLimit ?? 0) > 0 ? (plan.dailyMessageLimit ?? 0).toLocaleString('fa-IR') : 'نامحدود'}</td>)}
                     </tr>
                     <tr>
                       <td>سقف محصول</td>
                       {plans.map(plan => <td key={plan.id}>{plan.productLimit > 0 ? plan.productLimit.toLocaleString('fa-IR') : 'نامحدود'}</td>)}
                     </tr>
                     <tr>
+                      <td>اتوماسیون</td>
+                      {plans.map(plan => <td key={plan.id}>{(plan.automationLimit ?? 0) > 0 ? (plan.automationLimit ?? 0).toLocaleString('fa-IR') : 'نامحدود'}</td>)}
+                    </tr>
+                    <tr>
+                      <td>پیامک ماهانه</td>
+                      {plans.map(plan => <td key={plan.id}>{(plan.smsLimit ?? 0) > 0 ? (plan.smsLimit ?? 0).toLocaleString('fa-IR') : 'نامحدود'}</td>)}
+                    </tr>
+                    <tr>
                       <td>قیمت ماهانه</td>
-                      {plans.map(plan => <td key={plan.id}>{toman(plan.monthlyPrice)}</td>)}
+                      {plans.map(plan => <td key={plan.id}>{plan.slug === 'custom' ? 'تماس بگیرید' : plan.monthlyPrice === 0 ? 'رایگان' : toman(plan.monthlyPrice)}</td>)}
                     </tr>
                   </tbody>
                 </table>
@@ -191,6 +211,22 @@ export function LandingPlans() {
           مدت اشتراک ۱ تا ۱۸ ماه قابل انتخاب است و هرچه بیشتر، تخفیف بیشتر.
           پس از پایان اشتراک، اتصال‌ها قفل می‌شوند ولی داده‌های فروشگاه محفوظ می‌مانند.
         </p>
+
+        <div className="plan-faq fx" style={{ '--fx-delay': '200ms' } as React.CSSProperties}>
+          <h3 className="sec-title" style={{ fontSize: 20 }}>سؤال‌های پرتکرار</h3>
+          <details className="plan-faq-item">
+            <summary>اگر سقف پاسخ هوش مصنوعی پر شود چه اتفاقی می‌افتد؟</summary>
+            <p>بات به پاسخ‌های قالبی (از کاتالوگ و اطلاعات پاسخگویی) برمی‌گردد و فروشنده مطلع می‌شود؛ سفارش‌گیری و موجودی همیشه از دیتابیس می‌آید.</p>
+          </details>
+          <details className="plan-faq-item">
+            <summary>پلن رایگان چه محدودیتی دارد؟</summary>
+            <p>۱ اتصال اینستاگرام و ۱ اتصال تلگرام، ۱۰۰ پاسخ هوش مصنوعی در ماه و ۵۰ محصول. برای سقف بیشتر، به پرو ارتقا دهید.</p>
+          </details>
+          <details className="plan-faq-item">
+            <summary>پلن اختصاصی برای چه کسی است؟</summary>
+            <p>برای کسب‌وکارهای بزرگ و سازمانی با سقف‌های سفارشی. از صفحه پشتیبانی درخواست مشاوره بدهید.</p>
+          </details>
+        </div>
       </div>
     </section>
   );

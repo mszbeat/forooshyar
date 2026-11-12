@@ -430,3 +430,9 @@
 @media (max-width: 900px) {
   .hero-mascot-wrap { position: static; display: grid; place-items: center; margin-bottom: 16px; }
 }
+
+.plan-month-range { width: 100%; margin-top: 6px; accent-color: var(--brand); }
+.plan-faq { margin-top: 36px; display: grid; gap: 10px; }
+.plan-faq-item { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; background: var(--surface); }
+.plan-faq-item summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.plan-faq-item p { margin: 8px 0 0; font-size: 13px; line-height: 1.9; color: var(--ink-2); }

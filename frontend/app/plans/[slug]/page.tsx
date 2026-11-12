@@ -63,8 +63,13 @@ export default function PlanDetailPage() {
     }
   }, [quote]);
 
+  const isCustom = plan?.slug === 'custom';
+  const isFree = plan?.monthlyPrice === 0 && !isCustom;
+
   async function checkout() {
     if (!plan) return;
+    if (isCustom) { router.push('/support'); return; }
+    if (isFree) { router.push('/login?mode=register'); return; }
     setError('');
     if (!token) {
       router.push(`/login?mode=register&next=${encodeURIComponent(`/plans/${plan.slug}`)}`);
@@ -153,6 +158,14 @@ export default function PlanDetailPage() {
                     </button>
                   ))}
                 </div>
+                <label className="small muted" htmlFor="months-range" style={{ display: 'block', marginTop: 8 }}>
+                  یا مدت دلخواه: {fa(months)} ماه (۱ تا ۱۸)
+                </label>
+                <input
+                  id="months-range" type="range" min={1} max={18} step={1} value={months}
+                  onChange={e => setMonths(Number(e.target.value))}
+                  className="plan-month-range" aria-label="مدت اشتراک به ماه"
+                />
               </div>
 
               <div className="plan-opt">

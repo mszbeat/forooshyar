@@ -910,7 +910,14 @@ export class InstagramService {
 
     // ۳) مدل زبانی فقط وقتی قاعده‌ها مطمئن نیستند؛ با بودجه‌ی زمانی تا پاسخ
     //    مشتری پشت یک مدل کند گیر نکند (همان قاعده‌ی تلگرام).
+    let aiOverLimit = false;
     if (this.ai.enabled && reply.kind !== 'order') {
+      aiOverLimit = await this.subscriptions.aiLimitExceeded(conversation.shopId).catch(() => false);
+      if (aiOverLimit) {
+        await this.telegram.notifyOwner(conversation.shopId, '⚠️ سقف پاسخ هوش مصنوعی پلن شما پر شد؛ تا پایان ماه پاسخ‌های قالبی ارسال می‌شود.').catch(() => false);
+      }
+    }
+    if (this.ai.enabled && reply.kind !== 'order' && !aiOverLimit) {
       const budget = Number(process.env.AI_REPLY_BUDGET_MS ?? 4000);
       const history = await this.recentMessages(conversation.shopId, conversation.chatId, 8);
       const resolved = await withBudget(
