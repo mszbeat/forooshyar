@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, ApiError, type AttentionItem, type Summary } from '@/lib/api';
+import { api, ApiError, request, type AttentionItem, type ChannelConnection, type Summary } from '@/lib/api';
 import { faDate, faNum, faWeekday, relativeTime, toman, tomanShort, variantLabel } from '@/lib/format';
 import { useRealtime } from '@/lib/realtime';
 import { EmptyState, SkeletonBlock, SkeletonRows, StatCard, useToast } from '@/components/ui';
@@ -28,6 +28,8 @@ export default function DashboardPage() {
   const [attentionError, setAttentionError] = useState(false);
   const [tested, setTested] = useState(false);
   const [chartMetric, setChartMetric] = useState<'revenue' | 'units'>('revenue');
+  const [planState, setPlanState] = useState<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null } | null>(null);
+  const [channels, setChannels] = useState<ChannelConnection[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -55,18 +57,22 @@ export default function DashboardPage() {
 
 useEffect(() => { void load(); }, [load]);
   useEffect(() => { setTested(window.localStorage.getItem('forooshyar.botTested') === '1'); }, []);
+  useEffect(() => {
+    request<{ mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null }>('/subscriptions/status').then(setPlanState).catch(() => undefined);
+    api.channels().then(setChannels).catch(() => setChannels([]));
+  }, []);
 
   const checklist = useMemo(() => {
     const steps = [
-      { label: 'ساخت فروشگاه', done: Boolean(shop?.name), href: '/app/settings' },
-      { label: 'تکمیل تنظیمات پاسخ (ارسال، پرداخت، ساعت کاری)', done: Boolean(shop?.shipping && shop?.payment), href: '/app/settings' },
-      { label: 'افزودن اولین محصول', done: (summary?.products.total ?? 0) > 0, href: '/app/products' },
-      { label: 'ثبت موجودی واریانت‌ها', done: (summary?.inventory.totalStock ?? 0) > 0, href: '/app/products' },
+      { label: 'اتصال یک اکانت (اینستاگرام، تلگرام، بله یا روبیکا)', done: channels.length > 0, href: '/app/accounts' },
+      { label: 'افزودن محصولات و موجودی', done: (summary?.products.total ?? 0) > 0 && (summary?.inventory.totalStock ?? 0) > 0, href: '/app/products' },
+      { label: 'ثبت شماره کارت برای پرداخت', done: Boolean(shop?.name), href: '/app/settings#cards' },
       { label: 'تست پاسخ دستیار', done: tested, href: '/app/assistant' },
+      { label: 'فعال‌سازی فروشگاه', done: channels.length > 0 && (summary?.products.total ?? 0) > 0, href: '/app/accounts' },
     ];
     const done = steps.filter(step => step.done).length;
     return { steps, done, total: steps.length, percent: Math.round((done / steps.length) * 100) };
-  }, [shop, summary, tested]);
+  }, [shop, summary, tested, channels]);
 
   if (loading) {
     return (
@@ -125,13 +131,21 @@ useEffect(() => { void load(); }, [load]);
           <span>این خلاصهٔ امروز فروشگاه شماست.</span>
         </div>
         <div className="dash-actions">
-          <Link href="/app/import" className="btn btn-outline">
-            <IconUpload size={16} />
-            ورود کاتالوگ
-          </Link>
           <Link href="/app/products?new=1" className="btn btn-primary">
             <IconPlus size={16} />
             محصول جدید
+          </Link>
+          <Link href="/app/accounts" className="btn btn-outline">
+            <IconBolt size={16} />
+            اتصال اکانت
+          </Link>
+          <Link href="/app/assistant" className="btn btn-outline">
+            <IconSparkles size={16} />
+            تست دستیار
+          </Link>
+          <Link href="/app/import" className="btn btn-ghost">
+            <IconUpload size={16} />
+            ورود کاتالوگ
           </Link>
         </div>
       </div>
@@ -185,6 +199,8 @@ useEffect(() => { void load(); }, [load]);
           foot={<>{faNum(summary!.variants.outOfStock)} ناموجود · {faNum(summary!.variants.lowStock)} کم‌موجود</>}
         />
       </div>
+
+      <SubscriptionCard planState={planState} channels={channels} />
 
       <div className="split">
         <section className="card">
@@ -342,5 +358,59 @@ useEffect(() => { void load(); }, [load]);
         </div>
       </section>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------ subscription card */
+
+/**
+ * وضعیت اشتراک: نام پلن، روزهای باقی‌مانده، تاریخ انقضا (شمسی)، مصرف
+ * اکانت‌های متصل و دکمه‌ی تمدید/ارتقا. اگر اشتراک منقضی شده باشد، توضیح
+ * می‌دهد که بات قفل است ولی داده‌ها حذف نشده‌اند.
+ */
+function SubscriptionCard({
+  planState,
+  channels,
+}: {
+  planState: { mode: string; trialEndsAt: string | null; subscription: { planName: string; endsAt?: string; months?: number } | null } | null;
+  channels: ChannelConnection[];
+}) {
+  if (!planState) return <SkeletonBlock height={110} />;
+
+  const endsAt = planState.subscription?.endsAt ?? planState.trialEndsAt;
+  const daysLeft = endsAt ? Math.max(0, Math.ceil((new Date(endsAt).getTime() - Date.now()) / 86400000)) : 0;
+  const expired = planState.mode === 'expired';
+  const trial = planState.mode === 'trial';
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">اشتراک فروشگاه</div>
+          <div className="card-desc">
+            {expired
+              ? 'اشتراک فعال ندارید؛ بات قفل است ولی اطلاعات و سفارش‌های شما محفوظ است.'
+              : trial
+                ? `دوره‌ی آزمایشی — ${faNum(daysLeft)} روز باقی‌مانده`
+                : `پلن ${planState.subscription?.planName ?? ''} — ${faNum(daysLeft)} روز باقی‌مانده`}
+          </div>
+        </div>
+        <span className={`badge ${expired ? 'b-red' : daysLeft <= 7 ? 'b-amber' : 'b-green'}`}>
+          <span className="dot" />
+          {expired ? 'منقضی' : trial ? 'آزمایشی' : 'فعال'}
+        </span>
+      </div>
+      <div className="card-body row-between" style={{ alignItems: 'center' }}>
+        <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
+          {endsAt && (
+            <span className="small muted">انقضا: <strong style={{ color: 'var(--ink)' }}>{faDate(endsAt)}</strong></span>
+          )}
+          <span className="small muted">اکانت‌های متصل: <strong style={{ color: 'var(--ink)' }}>{faNum(channels.length)}</strong></span>
+        </div>
+        <Link href="/#plans" className="btn btn-primary btn-sm">
+          {expired ? 'فعال‌سازی اشتراک' : 'تمدید / ارتقا'}
+        </Link>
+      </div>
+    </section>
   );
 }
