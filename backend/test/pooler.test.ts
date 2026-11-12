@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { describePooler, warnOnRiskyPooler } from '../src/config';
+import { describePooler, migrationDatabaseUrl, warnOnRiskyPooler } from '../src/config';
 
 /**
  * تشخیص حالت pooler و هشدار اتصال پرریسک.
@@ -58,5 +58,42 @@ describe('warnOnRiskyPooler', () => {
       log: () => {},
     });
     assert.ok(warnings.length >= 1);
+  });
+});
+
+describe('migrationDatabaseUrl', () => {
+  it('converts transaction pooler port 6543 to session port 5432 and drops pgbouncer params', () => {
+    const url = migrationDatabaseUrl({
+      DB_HOST: 'aws-0.pooler.supabase.com',
+      DB_PORT: '6543',
+      DB_USERNAME: 'forooshyar',
+      DB_PASSWORD: 'secret',
+      DB_NAME: 'postgres',
+      DB_PGBOUNCER: 'true',
+      DB_CONNECTION_LIMIT: '5',
+    } as NodeJS.ProcessEnv);
+    const parsed = new URL(url);
+    assert.equal(parsed.port, '5432');
+    assert.equal(parsed.searchParams.get('pgbouncer'), null);
+    assert.equal(parsed.searchParams.get('connection_limit'), null);
+  });
+
+  it('prefers DIRECT_URL when set', () => {
+    const url = migrationDatabaseUrl({
+      DIRECT_URL: 'postgresql://u:p@direct:5432/db',
+      DB_HOST: 'pooler:6543',
+    } as NodeJS.ProcessEnv);
+    assert.equal(url, 'postgresql://u:p@direct:5432/db');
+  });
+
+  it('keeps port 5432 unchanged for direct installs', () => {
+    const url = migrationDatabaseUrl({
+      DB_HOST: 'localhost',
+      DB_PORT: '5432',
+      DB_USERNAME: 'u',
+      DB_PASSWORD: 'p',
+      DB_NAME: 'db',
+    } as NodeJS.ProcessEnv);
+    assert.equal(new URL(url).port, '5432');
   });
 });

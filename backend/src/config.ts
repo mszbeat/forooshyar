@@ -54,6 +54,32 @@ export function databaseUrl(env: NodeJS.ProcessEnv): string {
 export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => schema.parse({ ...env, DATABASE_URL: databaseUrl(env) });
 
 /**
+ * URL مخصوص مهاجرت‌ها (prisma migrate deploy).
+ *
+ * مهاجرت روی pooler تراکنشی (پورت 6543) کار نمی‌کند و گیر می‌کند؛ باید روی
+ * اتصال session/direct (پورت 5432) اجرا شود. اگر DIRECT_URL ست شده باشد
+ * همان استفاده می‌شود؛ در غیر این صورت از DB_* (یا DATABASE_URL) همان
+ * URL ساخته می‌شود ولی پورت 6543 به 5432 تبدیل و پارامترهای pgbouncer
+ * حذف می‌شوند. این‌طوری runtime روی 6543 و مهاجرت روی 5432 می‌ماند،
+ * بدون اینکه کاربر دو URL جدا نگه دارد.
+ */
+export function migrationDatabaseUrl(env: NodeJS.ProcessEnv): string {
+  const direct = (env.DIRECT_URL ?? '').trim();
+  if (direct) return direct;
+  const url = databaseUrl(env);
+  if (!url) return '';
+  try {
+    const parsed = new URL(url);
+    if (parsed.port === '6543') parsed.port = '5432';
+    parsed.searchParams.delete('pgbouncer');
+    parsed.searchParams.delete('connection_limit');
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
+/**
  * حالت pooler اتصال دیتابیس را از روی URL تشخیص می‌دهد و بدون افشای هیچ
  * رازی (رمز/هاست کامل) فقط حالت و سقف اتصال را برمی‌گرداند تا در لاگ
  * استارتاپ ثبت شود. هدف: اگر کسی اشتباهی به pooler session-mode با
