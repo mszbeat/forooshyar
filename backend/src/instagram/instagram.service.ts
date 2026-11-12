@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -151,10 +151,11 @@ export class InstagramService {
     private readonly audit: AuditService,
     private readonly realtime: RealtimeService,
     private readonly ai: AiService,
-    private readonly orders: OrdersService,
-    private readonly paymentMethods: ShopPaymentMethodsService,
-    private readonly automation: AutomationService,
-    private readonly telegram: TelegramService,
+    // چرخه‌ی عمدی و محدود: اینستاگرام سفارش می‌سازد، سفارش‌ها با اینستاگرام اعلان می‌دهند.
+    @Inject(forwardRef(() => OrdersService)) private readonly orders: OrdersService,
+    @Inject(forwardRef(() => ShopPaymentMethodsService)) private readonly paymentMethods: ShopPaymentMethodsService,
+    @Inject(forwardRef(() => AutomationService)) private readonly automation: AutomationService,
+    @Inject(forwardRef(() => TelegramService)) private readonly telegram: TelegramService,
     private readonly subscriptions: SubscriptionsService,
   ) {
     this.config = readInstagramConfig();
