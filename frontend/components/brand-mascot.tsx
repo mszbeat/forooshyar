@@ -1,30 +1,21 @@
 'use client';
 
+/** @deprecated expressionها دیگر انیمیشن ندارند؛ فقط برای سازگاری API نگه داشته شده. */
 export type MascotExpression =
   | 'idle' | 'smile' | 'laugh' | 'wink' | 'surprised' | 'hearts'
   | 'thinking' | 'wave' | 'squint' | 'dizzy';
 
 type Props = {
   size?: number;
+  /** @deprecated نادیده گرفته می‌شود؛ ماسکات فقط پلک می‌زند و (در صورت float) شناور می‌شود. */
   expression?: MascotExpression;
-  /** پلک‌زدن و شناورشدن؛ با prefers-reduced-motion خاموش می‌شود. */
+  /** پلک‌زدن؛ با prefers-reduced-motion خاموش می‌شود. */
   animated?: boolean;
+  /** شناورشدن ملایم بالا/پایین (حس زنده‌بودن)؛ لوگو خاموش است، صفحه روشن. */
+  float?: boolean;
   className?: string;
   /** 'face' = فقط صورت (برای لوگو)؛ 'full' = صورت+گردن+شانه (برای صفحه). */
   variant?: 'face' | 'full';
-};
-
-const EXPRESSION_TRANSFORM: Record<MascotExpression, string> = {
-  idle: 'none',
-  smile: 'translateY(-2%)',
-  laugh: 'translateY(-4%) rotate(-2deg)',
-  wink: 'rotate(3deg)',
-  surprised: 'translateY(-5%) scale(1.04)',
-  hearts: 'translateY(-3%)',
-  thinking: 'rotate(-4deg)',
-  wave: 'rotate(4deg)',
-  squint: 'scaleY(.96)',
-  dizzy: 'rotate(-6deg)',
 };
 
 /**
@@ -38,31 +29,29 @@ const EYES: Record<'face' | 'full', { left: number; top: number; w: number; h: n
     { left: 53.7, top: 40.6, w: 15.7, h: 7.7 },
   ],
   face: [
-    { left: 25.8, top: 60.3, w: 18.8, h: 9.2 },
-    { left: 54.8, top: 59.2, w: 20.7, h: 10.4 },
+    { left: 27.0, top: 62.8, w: 17.9, h: 8.6 },
+    { left: 54.6, top: 61.8, w: 19.7, h: 9.7 },
   ],
 };
 
 /**
  * ماسکات فروش‌یار — ربات سه‌بعدی تأییدشده با شخصیت کول.
  *
- * تصویر PNG با پس‌زمینه‌ی شفاف است و پلک‌ها (`.robot-eyelid`) روی چشم‌ها
- * قرار می‌گیرند تا ربات پلک بزند؛ طراحی دقیقاً همان تصویر تأییدشده می‌ماند.
- * expressionها با حرکت‌های ظریف روی کل ماسکات بازنمایی می‌شوند.
+ * فقط دو حرکت دارد: پلک‌زدن (`.robot-eyelid` روی چشم‌ها) و در صورت `float`
+ * شناورشدن ملایم بالا/پایین. هیچ چرخش/واکنش/ترانسفورم دیگری نیست تا طراحی
+ * تأییدشده دقیقاً همان بماند.
  */
-export function BrandMascot({ size = 30, expression = 'idle', animated = true, className, variant = 'full' }: Props) {
+export function BrandMascot({ size = 30, animated = true, float = false, className, variant = 'full' }: Props) {
   const src = variant === 'face' ? '/brand/robot-face.png' : '/brand/robot-face-mark.png';
   return (
     <span
-      className={`brand-mascot mascot-${expression} ${animated ? 'brand-mascot-animated' : ''} ${className ?? ''}`}
+      className={`brand-mascot ${animated ? 'brand-mascot-animated' : ''} ${float ? 'brand-mascot-float' : ''} ${className ?? ''}`}
       role="img"
       aria-label="فروش‌یار"
       style={{
         position: 'relative',
         display: 'inline-block',
         width: size,
-        transform: EXPRESSION_TRANSFORM[expression],
-        transition: 'transform .35s cubic-bezier(.22,1,.36,1)',
         flex: '0 0 auto',
         lineHeight: 0,
       }}

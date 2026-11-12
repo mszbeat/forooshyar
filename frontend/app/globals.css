@@ -1152,11 +1152,13 @@ section[id] { scroll-margin-top: 70px; }
 }
 
 /* ---------- ماسکات برند ---------- */
+/* فقط دو حرکت: پلک‌زدن (همیشه، مگر reduced-motion) و شناورشدن ملایم
+   بالا/پایین (فقط با .brand-mascot-float؛ لوگو شناور نیست). */
 .brand-mascot { position: relative; display: inline-block; flex: 0 0 auto; line-height: 0; }
-.brand-mascot-animated { animation: brand-float 4.6s ease-in-out infinite; }
+.brand-mascot-float { animation: brand-float 5.5s ease-in-out infinite; }
 @keyframes brand-float {
   0%, 100% { translate: 0 0; }
-  50% { translate: 0 -3px; }
+  50% { translate: 0 -4px; }
 }
 /* پلک ربات: پلک تیره از بالای چشم به پایین می‌آید و چشم نورانی را می‌پوشاند. */
 .robot-eyelid {
@@ -1173,67 +1175,16 @@ section[id] { scroll-margin-top: 70px; }
   95% { transform: scaleY(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand-mascot-animated { animation: none; }
+  .brand-mascot-float { animation: none; }
   .brand-mascot-animated .robot-eyelid { animation: none; }
 }
 
-/* ---------- ماسکات تعاملی لندینگ ---------- */
+/* ---------- ماسکات لندینگ (فقط پلک + شناور ملایم) ---------- */
 .hero-mascot { position: relative; display: grid; place-items: center; }
-.hero-mascot .brand-mascot { animation: mascot-float 5s ease-in-out infinite; }
-@keyframes mascot-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
-}
-.hero-mascot.mascot-laugh .brand-mascot { animation: mascot-bounce .5s ease-in-out 2; }
-@keyframes mascot-bounce {
-  0%, 100% { transform: translateY(0) scale(1); }
-  40% { transform: translateY(-14px) scale(1.04); }
-}
-.hero-mascot.mascot-dizzy .brand-mascot { animation: mascot-spin .8s ease-in-out; }
-@keyframes mascot-spin {
-  from { transform: rotate(0); }
-  to { transform: rotate(360deg); }
-}
-.hero-mascot.mascot-wave .brand-mascot { animation: mascot-wave .6s ease-in-out 2; }
-@keyframes mascot-wave {
-  0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-6deg); }
-  75% { transform: rotate(6deg); }
-}
-.hero-mascot-bubble {
-  position: absolute; bottom: calc(100% + 8px); inset-inline-start: 50%;
-  transform: translateX(50%);
-  background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--r-lg); padding: 8px 14px;
-  font-size: 13px; font-weight: 600; white-space: nowrap;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
-  animation: mascot-bubble-in .3s ease both;
-}
-@keyframes mascot-bubble-in {
-  from { opacity: 0; transform: translateX(50%) translateY(6px); }
-  to { opacity: 1; transform: translateX(50%) translateY(0); }
-}
-.hero-mascot-sparkle {
-  position: absolute; pointer-events: none;
-  animation: mascot-sparkle 1s ease-out both;
-}
-@keyframes mascot-sparkle {
-  0% { opacity: 0; transform: translateY(0) scale(.5); }
-  30% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-30px) scale(1.1); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .hero-mascot .brand-mascot,
-  .hero-mascot.mascot-laugh .brand-mascot,
-  .hero-mascot.mascot-dizzy .brand-mascot,
-  .hero-mascot.mascot-wave .brand-mascot { animation: none; }
-  .hero-mascot-bubble, .hero-mascot-sparkle { animation: none; }
-}
 
 /* ماسکات شناور پایین-چپ (تسک ۲) — physical left، safe-area، pointer-events فقط روی ماسکات */
 .floating-mascot { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 60; pointer-events: none; }
-.floating-mascot-main { pointer-events: auto; border: 0; background: none; cursor: pointer; padding: 0; animation: mascotFloat 4.5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(11,13,18,.22)); }
-.floating-mascot-main:hover { transform: scale(1.05); }
+.floating-mascot-main { pointer-events: auto; border: 0; background: none; cursor: pointer; padding: 0; animation: mascotFloat 5.5s ease-in-out infinite; filter: drop-shadow(0 10px 24px rgba(11,13,18,.22)); }
 .floating-mascot-bubble { pointer-events: none; position: absolute; bottom: calc(100% + 8px); left: 0; max-width: 220px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 8px 12px; font-size: 12px; line-height: 1.8; box-shadow: 0 12px 32px rgba(11,13,18,.16); animation: authxRise .4s var(--ease) both; }
 .floating-mascot-collapsed { position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 60; }
 .floating-mascot-open { pointer-events: auto; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px; cursor: pointer; box-shadow: 0 8px 20px rgba(11,13,18,.14); }

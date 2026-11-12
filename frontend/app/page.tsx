@@ -193,7 +193,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* ماسکات تعاملی — روی آن نگه دار یا کلیک کن */}
+          {/* ماسکات هیرو — فقط پلک + شناور ملایم */}
           <div className="hero-mascot-wrap">
             <HeroMascot size={150} />
           </div>
