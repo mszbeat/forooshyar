@@ -8,7 +8,15 @@ ALTER TABLE "SubscriptionPlan" ADD COLUMN "productLimit" INTEGER NOT NULL DEFAUL
 ALTER TABLE "SubscriptionPlan" ADD COLUMN "isPopular" BOOLEAN NOT NULL DEFAULT false;
 
 -- slug برای ردیف‌های قدیمی: بر اساس ترتیب ساخت.
-UPDATE "SubscriptionPlan" SET "slug" = 'plan-' || (ROW_NUMBER() OVER (ORDER BY "sortOrder", "createdAt"))::text WHERE "slug" IS NULL;
+-- تابع پنجره‌ای (ROW_NUMBER) مستقیم در UPDATE مجاز نیست؛ با زیرکوئری انجام می‌شود.
+UPDATE "SubscriptionPlan" AS sp
+SET "slug" = 'plan-' || sub.rn::text
+FROM (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY "sortOrder", "createdAt") AS rn
+  FROM "SubscriptionPlan"
+  WHERE "slug" IS NULL
+) AS sub
+WHERE sp.id = sub.id;
 ALTER TABLE "SubscriptionPlan" ALTER COLUMN "slug" SET NOT NULL;
 CREATE UNIQUE INDEX "SubscriptionPlan_slug_key" ON "SubscriptionPlan"("slug");
 
