@@ -27,6 +27,9 @@ export function BrandMascot({ size = 30, expression = 'idle', animated = true, c
   const faceId = `mascot-face-${uid}`;
   const eyeId = `mascot-eye-${uid}`;
   const glowId = `mascot-glow-${uid}`;
+  const bodyId = `mascot-body-${uid}`;
+  const rimId = `mascot-rim-${uid}`;
+  const shadowId = `mascot-shadow-${uid}`;
 
   const eyes = renderEyes(expression, eyeId);
   const mouth = renderMouth(expression);
@@ -60,7 +63,25 @@ export function BrandMascot({ size = 30, expression = 'idle', animated = true, c
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <linearGradient id={bodyId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#8b9bb4" />
+          <stop offset="100%" stopColor="#5b6b84" />
+        </linearGradient>
+        <linearGradient id={rimId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#7ef0ff" stopOpacity=".9" />
+          <stop offset="100%" stopColor="#7ef0ff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id={shadowId} cx=".5" cy=".5" r=".5">
+          <stop offset="0%" stopColor="#0b0d12" stopOpacity=".35" />
+          <stop offset="100%" stopColor="#0b0d12" stopOpacity="0" />
+        </radialGradient>
       </defs>
+
+      {/* سایه‌ی زمین */}
+      <ellipse cx="32" cy="61" rx="20" ry="2.6" fill={`url(#${shadowId})`} />
+      {/* بدن ربات */}
+      <rect x="20" y="52" width="24" height="8" rx="4" fill={`url(#${bodyId})`} stroke="rgba(11,13,18,.12)" strokeWidth=".8" />
+      <circle cx="32" cy="56" r="2.2" fill="#22d3ee" opacity=".9" />
 
       {/* آنتن */}
       <line x1="32" y1="9" x2="32" y2="4" stroke="#8b9bb4" strokeWidth="2" strokeLinecap="round" />
@@ -68,6 +89,11 @@ export function BrandMascot({ size = 30, expression = 'idle', animated = true, c
 
       {/* سر سفید ربات */}
       <rect x="7" y="9" width="50" height="46" rx="17" fill={`url(#${headId})`} stroke="rgba(11,13,18,.10)" strokeWidth="1" />
+      {/* نور حاشیه (rim light) و هایلایت مشخصی */}
+      <path d="M12 14 Q10 30 12 46" stroke={`url(#${rimId})`} strokeWidth="1.6" fill="none" strokeLinecap="round" opacity=".8" />
+      <ellipse cx="17" cy="16" rx="7" ry="3.4" fill="#ffffff" opacity=".55" transform="rotate(-18 17 16)" />
+      {/* سایه‌ی محیطی پایین سر (AO) */}
+      <path d="M10 48 Q32 56 54 48 L54 52 Q32 60 10 52 Z" fill="#0b0d12" opacity=".08" />
       {/* صفحه‌ی صورت تیره */}
       <rect x="13" y="15" width="38" height="34" rx="13" fill={`url(#${faceId})`} />
       {/* نور حاشیه‌ی فیروزه‌ای */}

@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
 import { NotificationBell } from '@/components/notifications';
+import { FloatingMascot } from '@/components/floating-mascot';
 import { ThemeToggle } from '@/components/theme';
 import {
   IconBolt, IconBox, IconChat, IconDashboard, IconLogout, IconMenu, IconWallet,
@@ -165,6 +166,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="page">{children}</main>
+        <FloatingMascot />
       </div>
     </div>
   );
