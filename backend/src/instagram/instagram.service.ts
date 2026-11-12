@@ -7,6 +7,8 @@ import { AiService } from '../ai/ai.service';
 import { OrdersService } from '../orders/orders.service';
 import { ShopPaymentMethodsService } from '../payments/shop-payment-methods.service';
 import { AutomationService } from '../automation/automation.service';
+import { CartService } from '../orders/cart.service';
+import { parseNumberedChoice } from '../channels/capabilities';
 import { TelegramService } from '../telegram/telegram.service';
 import { discover, productCodeOf, type CatalogProduct } from '../catalog/discovery';
 import {
@@ -157,6 +159,7 @@ export class InstagramService {
     @Inject(forwardRef(() => AutomationService)) private readonly automation: AutomationService,
     @Inject(forwardRef(() => TelegramService)) private readonly telegram: TelegramService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly cart: CartService,
   ) {
     this.config = readInstagramConfig();
     this.client = new InstagramClient(this.config);
@@ -855,6 +858,25 @@ export class InstagramService {
     const command = /^\/(start|help|products|orders|stop)\b/u.exec(rawText);
     if (command) return this.command(conversation, shop, command[1]);
 
+    // ۰) انتخاب سبد (تسک ۱۲): لیست شماره‌دار «۱) ثبت سفارش ۲) افزودن محصول جدید».
+    const cartState = (conversation.clarify ?? {}) as { cartChoiceVariantId?: string };
+    if (cartState.cartChoiceVariantId) {
+      const choice = parseNumberedChoice(rawText, 2);
+      if (choice === 1) {
+        await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { clarify: Prisma.DbNull } });
+        return this.checkoutCart(conversation, cartState.cartChoiceVariantId);
+      }
+      if (choice === 2) {
+        await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { clarify: Prisma.DbNull } });
+        const products = await this.catalog(conversation.shopId);
+        const reply = clarifyProducts(products, 'کاتالوگ فروشگاه', 0);
+        const sent = await this.send(conversation, reply.text, reply.buttons);
+        return { status: 'handled', replies: sent ? 1 : 0, kind: 'cart_add_more' };
+      }
+      const sent = await this.send(conversation, 'لطفاً فقط عدد ۱ یا ۲ بنویسید:\n۱) ثبت سفارش\n۲) افزودن محصول جدید');
+      return { status: 'handled', replies: sent ? 1 : 0, kind: 'cart_invalid_choice' };
+    }
+
     // ۱) وسط سفارش: ورودی فقط جواب همان مرحله است.
     const draft = TelegramService.readDraft(conversation.draft);
     if (draft) {
@@ -1141,19 +1163,17 @@ export class InstagramService {
       return { status: 'handled', replies: sent ? 1 : 0, kind: 'out_of_stock' };
     }
     const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
-    const draft = startDraft({
-      productId: variant.product.id,
-      variantId: variant.id,
-      title: variant.product.title,
-      spec,
-      price: variant.price,
-      stock: variant.stock,
+    // سبد چندقلمی با لیست شماره‌دار (تسک ۱۲): اینستاگرام دکمه ندارد.
+    await this.cart.add(conversation.shopId, conversation.chatId, variant.id, 1);
+    const items = await this.cart.get(conversation.shopId, conversation.chatId);
+    await this.db.telegramConversation.update({
+      where: { id: conversation.id },
+      data: { clarify: { cartChoiceVariantId: variant.id } as unknown as Prisma.InputJsonValue },
     });
-    await this.saveDraft(conversation.id, draft);
-    const prompt = promptFor(draft, conversation.firstName);
-    const sent = await this.send(conversation, prompt.text, prompt.buttons);
-    this.audit.record({ action: 'instagram.order_started', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title } });
-    return { status: 'handled', replies: sent ? 1 : 0, kind: 'order_started' };
+    const text = `🛒 به سبد اضافه شد: ${variant.product.title}${spec ? ` (${spec})` : ''}\nسبد شما: ${items.length.toLocaleString('fa-IR')} قلم\n\n۱) ثبت سفارش\n۲) افزودن محصول جدید\n\nعدد ۱ یا ۲ را بنویسید.`;
+    const sent = await this.send(conversation, text);
+    this.audit.record({ action: 'instagram.cart_added', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title, cartSize: items.length } });
+    return { status: 'handled', replies: sent ? 1 : 0, kind: 'cart_added' };
   }
 
   private async continueOrder(
@@ -1179,8 +1199,38 @@ export class InstagramService {
     return { status: 'handled', replies: sent ? 1 : 0, kind: outcome.kind === 'invalid' ? 'order_invalid' : 'order_step' };
   }
 
+  private async checkoutCart(conversation: Conversation, variantId: string): Promise<InstagramHandleResult> {
+    const variant = await this.db.variant.findFirst({
+      where: { id: variantId, shopId: conversation.shopId, active: true },
+      select: { id: true, size: true, color: true, price: true, stock: true, product: { select: { id: true, title: true, active: true } } },
+    });
+    if (!variant || !variant.product.active) {
+      const sent = await this.send(conversation, 'این محصول دیگر در دسترس نیست.');
+      return { status: 'handled', replies: sent ? 1 : 0, kind: 'variant_gone' };
+    }
+    const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
+    const draft = startDraft({
+      productId: variant.product.id,
+      variantId: variant.id,
+      title: variant.product.title,
+      spec,
+      price: variant.price,
+      stock: variant.stock,
+    });
+    await this.saveDraft(conversation.id, draft);
+    const prompt = promptFor(draft, conversation.firstName);
+    const sent = await this.send(conversation, prompt.text, prompt.buttons);
+    this.audit.record({ action: 'instagram.order_started', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title } });
+    return { status: 'handled', replies: sent ? 1 : 0, kind: 'order_started' };
+  }
+
   private async finishOrder(conversation: Conversation, draft: OrderDraft): Promise<InstagramHandleResult> {
     try {
+      const cartItems = await this.cart.get(conversation.shopId, conversation.chatId);
+      const items = cartItems.length > 0
+        ? cartItems
+        : [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }];
+      await this.cart.validate(conversation.shopId, items);
       const order = await this.orders.create(conversation.shopId, {
         chatId: conversation.chatId,
         customerName: draft.name ?? '',
@@ -1193,8 +1243,9 @@ export class InstagramService {
         plaque: draft.plaque ?? '',
         unit: draft.unit ?? '',
         postalCode: draft.postalCode ?? '',
-        items: [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }],
+        items,
       });
+      await this.cart.clear(conversation.shopId, conversation.chatId);
       await this.clearDraft(conversation.id);
 
       const methods = await this.paymentMethods.activeForCustomer(conversation.shopId);

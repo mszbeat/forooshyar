@@ -6,6 +6,7 @@ import { CatalogService } from './catalog.service';
 type Request = { principal: Principal };
 const product = z.object({
   title: text,
+  code: z.string().trim().max(100).nullable().optional(),
   description: optionalText.optional(),
   category: optionalText.optional(),
   type: z.enum(['PRODUCT', 'SERVICE']).optional(),
@@ -25,6 +26,7 @@ const adjustment = z.object({ delta: z.number().int().min(-2147483647).max(21474
 const attributes = z.object({
   attributes: z.array(z.object({ name: text, values: z.array(text).min(1).max(50) }).strict()).max(10),
 }).strict();
+const postLink = z.object({ input: z.string().trim().min(1).max(500) }).strict();
 const bulk = z.object({
   variantIds: z.array(z.string().uuid()).optional(),
   priceMode: z.enum(['set', 'percent']).optional(),
@@ -52,4 +54,7 @@ export class CatalogController {
   @Post('products/:id/attributes') setAttributes(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) { return this.catalog.setAttributes(req.principal.shopId, id, parse(attributes, body).attributes); }
   @Post('products/:id/generate-variants') generateVariants(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.catalog.generateVariants(req.principal.shopId, req.principal.userId, id); }
   @Post('products/:id/bulk-variants') bulkVariants(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) { return this.catalog.bulkUpdateVariants(req.principal.shopId, req.principal.userId, id, parse(bulk, body)); }
+  @Post('products/:id/post-links') addPostLink(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) { return this.catalog.addPostLink(req.principal.shopId, id, parse(postLink, body).input); }
+  @Get('products/:id/post-links') listPostLinks(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.catalog.listPostLinks(req.principal.shopId, id); }
+  @Delete('products/:id/post-links/:linkId') removePostLink(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Param('linkId', ParseUUIDPipe) linkId: string) { return this.catalog.removePostLink(req.principal.shopId, id, linkId); }
 }

@@ -31,12 +31,13 @@ export type ProductAttribute = {
   values: { id: string; value: string; sortOrder: number }[];
 };
 export type Product = {
-  id: string; title: string; description: string; category: string;
+  id: string; code?: string | null; title: string; description: string; category: string;
   active: boolean; createdAt: string; updatedAt: string; variants: Variant[];
   type?: 'PRODUCT' | 'SERVICE';
   isShippable?: boolean;
   defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
   serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
+  postLinks?: { id: string; mediaId: string; shortcode: string }[];
   attributes?: ProductAttribute[];
 };
 export type Shop = {
@@ -391,6 +392,7 @@ export const api = {
     type?: 'PRODUCT' | 'SERVICE'; isShippable?: boolean;
     defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
     serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
+  postLinks?: { id: string; mediaId: string; shortcode: string }[];
   }) => request<Product>('/products', { method: 'POST', body }),
   updateProduct: (id: string, body: Partial<Product>) =>
     request<Product>(`/products/${id}`, { method: 'PATCH', body }),
@@ -406,6 +408,12 @@ export const api = {
     stockMode?: 'set' | 'add'; stockValue?: number;
   }) => request<{ updated: number }>(`/products/${productId}/bulk-variants`, { method: 'POST', body }),
 
+  addPostLink: (productId: string, input: string) =>
+    request<{ id: string; mediaId: string; shortcode: string }>(`/products/${productId}/post-links`, { method: 'POST', body: { input } }),
+  listPostLinks: (productId: string) =>
+    request<{ id: string; mediaId: string; shortcode: string; createdAt: string }[]>(`/products/${productId}/post-links`),
+  removePostLink: (productId: string, linkId: string) =>
+    request<{ ok: true }>(`/products/${productId}/post-links/${linkId}`, { method: 'DELETE' }),
   createVariant: (productId: string, body: { sku?: string; size?: string; color?: string; price: number; stock: number }) =>
     request<Variant>(`/products/${productId}/variants`, { method: 'POST', body }),
   updateVariant: (id: string, body: { sku?: string | null; size?: string; color?: string; price?: number; active?: boolean }) =>

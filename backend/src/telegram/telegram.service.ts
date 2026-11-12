@@ -15,6 +15,7 @@ import { readTelegramConfig, splitMessage, TelegramClient, type ReplyMarkup } fr
 import { actionOf, actionsKeyboard, BOT_COMMANDS, helpText, welcomeText } from './menu';
 import { isDeliveryConfirmation } from './delivery';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { CartService } from '../orders/cart.service';
 
 type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
 /** پیامی که این پیام پاسخش است؛ برای «پاسخ فروشنده به مشتری» لازم است. */
@@ -103,6 +104,7 @@ export class TelegramService {
     // رخداد زنده برای پنل: پیام تازه، سفارش تازه، تغییر وضعیت.
     private readonly realtime: RealtimeService,
     private readonly subscriptions: SubscriptionsService,
+    private readonly cart: CartService,
   ) {}
 
   get configured(): boolean {
@@ -795,6 +797,39 @@ export class TelegramService {
         return { status: 'handled', replies: 1, kind: 'out_of_stock' };
       }
       const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
+      // سبد چندقلمی (تسک ۱۲): قلم به سبد اضافه می‌شود و مشتری انتخاب می‌کند.
+      await this.cart.add(conversation.shopId, chatId, variant.id, 1);
+      const items = await this.cart.get(conversation.shopId, chatId);
+      const buttons: BotButton[][] = [
+        [{ text: '🧾 ثبت سفارش', data: `cart:checkout:${variant.id}` }],
+        [{ text: '➕ افزودن محصول جدید', data: 'cart:add' }],
+      ];
+      const text = `🛒 به سبد اضافه شد: ${escapeHtml(variant.product.title)}${spec ? ` (${escapeHtml(spec)})` : ''}\nسبد شما: ${items.length.toLocaleString('fa-IR')} قلم\n\nچه کار کنم؟`;
+      const replies = (await this.sendWithButtons(chatId, text, buttons, 'HTML')) ? 1 : 0;
+      this.audit.record({ action: 'telegram.cart_added', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title, cartSize: items.length } });
+      return { status: 'handled', replies, kind: 'cart_added' };
+    }
+
+    // سبد: افزودن محصول جدید (بازگشت به انتخاب، سبد حفظ می‌شود)
+    if (data === 'cart:add') {
+      const products = await this.catalog(conversation.shopId);
+      const reply = clarifyProducts(products, 'کاتالوگ فروشگاه', 0);
+      const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons, reply.parseMode)) ? 1 : 0;
+      return { status: 'handled', replies, kind: 'cart_add_more' };
+    }
+
+    // سبد: ثبت سفارش (شروع فلو ارسال با همه‌ی اقلام سبد)
+    if (data.startsWith('cart:checkout:')) {
+      const variantId = data.slice('cart:checkout:'.length);
+      const variant = await this.db.variant.findFirst({
+        where: { id: variantId, shopId: conversation.shopId, active: true },
+        select: { id: true, size: true, color: true, price: true, stock: true, product: { select: { id: true, title: true, active: true } } },
+      });
+      if (!variant || !variant.product.active) {
+        await this.send(chatId, 'این محصول دیگر در دسترس نیست.');
+        return { status: 'handled', replies: 1, kind: 'variant_gone' };
+      }
+      const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
       const draft = startDraft({
         productId: variant.product.id,
         variantId: variant.id,
@@ -867,6 +902,11 @@ export class TelegramService {
     draft: OrderDraft,
   ): Promise<HandleResult> {
     try {
+      const cartItems = await this.cart.get(conversation.shopId, conversation.chatId);
+      const items = cartItems.length > 0
+        ? cartItems
+        : [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }];
+      await this.cart.validate(conversation.shopId, items);
       const order = await this.orders.create(conversation.shopId, {
         chatId: conversation.chatId,
         customerName: draft.name ?? '',
@@ -879,8 +919,9 @@ export class TelegramService {
         plaque: draft.plaque ?? '',
         unit: draft.unit ?? '',
         postalCode: draft.postalCode ?? '',
-        items: [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }],
+        items,
       });
+      await this.cart.clear(conversation.shopId, conversation.chatId);
       await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
 
       const methods = await this.paymentMethods.activeForCustomer(conversation.shopId);

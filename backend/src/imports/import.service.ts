@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { fromBuffer } from 'yauzl';
 import { z } from 'zod';
 import { PrismaService } from '../database/prisma.service';
+import { combinationKey } from '../catalog/variant-combinations';
 import { AuditService } from '../logging/audit.service';
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
@@ -78,6 +79,7 @@ async function readRows(filename: string, buffer: Buffer): Promise<Row[]> {
 
 const aliases: Record<string, string> = {
   title: 'title', name: 'title', 'نام': 'title', 'نام محصول': 'title',
+  code: 'code', 'کد': 'code', 'کد محصول': 'code',
   price: 'price', 'قیمت': 'price', stock: 'stock', 'موجودی': 'stock',
   size: 'size', 'سایز': 'size', color: 'color', 'رنگ': 'color', sku: 'sku',
   type: 'type', 'نوع': 'type', category: 'category', 'دسته': 'category',
@@ -94,8 +96,10 @@ function normalizeNumber(value: Cell): number | null {
 }
 const integer = z.number().int().min(0).max(2147483647);
 const schema = z.object({
-  title: z.string().trim().min(1).max(200),
+  title: z.string().trim().max(200),
+  code: z.string().trim().max(100).optional(),
   price: integer,
+  priceOnRequest: z.boolean().optional(),
   stock: integer,
   size: z.string().trim().max(2000),
   color: z.string().trim().max(2000),
@@ -133,10 +137,20 @@ export class ImportService {
         if (header) input[header] = row.cells[index];
         else if (rawHeaders[index] !== '') attributeValues[rawHeaders[index]] = row.cells[index] == null ? '' : String(row.cells[index]);
       });
+      // attribute_N/value_N pairs (تسک ۵)
+      for (let n = 1; n <= 10; n++) {
+        const attrName = String((input as Record<string, Cell>)[`attribute_${n}`] ?? '').trim();
+        const attrValue = String((input as Record<string, Cell>)[`value_${n}`] ?? '').trim();
+        if (attrName && attrValue) attributeValues[attrName] = attrValue;
+      }
       const typeRaw = typeof input.type === 'string' ? input.type.trim().toUpperCase() : undefined;
+      const priceRaw = typeof input.price === 'string' ? input.price.trim() : '';
+      const priceOnRequest = priceRaw === 'توافقی';
       const parsed = schema.safeParse({
         title: typeof input.title === 'string' ? input.title : '',
-        price: normalizeNumber(input.price),
+        code: input.code == null || String(input.code).trim() === '' ? undefined : String(input.code).trim(),
+        price: priceOnRequest ? 0 : normalizeNumber(input.price),
+        priceOnRequest: priceOnRequest || undefined,
         stock: normalizeNumber(input.stock),
         size: input.size == null ? '' : String(input.size),
         color: input.color == null ? '' : String(input.color),
@@ -204,12 +218,13 @@ export class ImportService {
       const text = value == null ? '' : String(value);
       return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     };
-    const header = ['نام', 'نوع', 'دسته', 'قیمت', 'موجودی', 'سایز', 'رنگ', 'SKU', ...attributeNames];
+    const header = ['کد', 'نام', 'نوع', 'دسته', 'قیمت', 'موجودی', 'سایز', 'رنگ', 'SKU', ...attributeNames];
     const lines = [header.map(escape).join(',')];
     for (const product of products) {
       for (const variant of product.variants) {
         const options = (variant.optionsJson as Record<string, string>) ?? {};
         const row = [
+          product.code ?? '',
           product.title,
           product.type === 'SERVICE' ? 'خدمت' : 'کالا',
           product.category,
@@ -227,18 +242,37 @@ export class ImportService {
     return { filename: 'catalog.csv', content: '\uFEFF' + lines.join('\r\n') };
   }
 
+  /** فایل نمونه‌ی قابل دانلود برای ایمپورت گروهی با کد (تسک ۵). */
+  sampleCsv(): { filename: string; content: string } {
+    const lines = [
+      'کد,نام,قیمت,موجودی,attribute_1,value_1,attribute_2,value_2',
+      'SHOE-001,کفش راحتی,640000,10,رنگ,مشکی,سایز,40',
+      'SHOE-001,,640000,8,رنگ,مشکی,سایز,41',
+      'SHOE-001,,640000,5,رنگ,قهوه‌ای,سایز,40',
+    ];
+    return { filename: 'catalog-sample.csv', content: '\uFEFF' + lines.join('\r\n') };
+  }
+
   private createRow(shopId: string, actorId: string, data: ValidRow) {
     return this.db.$transaction(async tx => {
-      const product = await tx.product.create({
-        data: {
-          shopId,
-          title: data.title,
-          type: data.type ?? 'PRODUCT',
-          category: data.category ?? '',
-          defaultPrice: data.price,
-          defaultStock: data.stock,
-        },
-      });
+      // upsert محصول با کد (تسک ۵): اگر کد تکراری باشد، واریانت به همان محصول اضافه می‌شود.
+      let product = data.code
+        ? await tx.product.findFirst({ where: { shopId, code: data.code } })
+        : null;
+      if (!product) {
+        if (!data.title) throw new Error('title is required for new product');
+        product = await tx.product.create({
+          data: {
+            shopId,
+            code: data.code ?? null,
+            title: data.title,
+            type: data.type ?? 'PRODUCT',
+            category: data.category ?? '',
+            defaultPrice: data.price,
+            defaultStock: data.stock,
+          },
+        });
+      }
       // ویژگی‌های آزاد + size/color به‌عنوان ویژگی‌های «سایز»/«رنگ»
       const options: Record<string, string> = { ...(data.attributes ?? {}) };
       if (data.size) options['سایز'] = data.size;
@@ -252,13 +286,18 @@ export class ImportService {
           },
         });
       }
-      const variant = await tx.variant.create({
-        data: {
-          shopId, productId: product.id, price: data.price, stock: data.stock,
-          size: data.size, color: data.color, sku: data.sku,
-          optionsJson: options as Prisma.InputJsonValue,
-        },
-      });
+      const comboKey = combinationKey(options);
+      const existingVariant = await tx.variant.findFirst({ where: { shopId, productId: product.id, comboKey } });
+      const variant = existingVariant
+        ? await tx.variant.update({ where: { shopId_id: { shopId, id: existingVariant.id } }, data: { price: data.price, stock: data.stock } })
+        : await tx.variant.create({
+            data: {
+              shopId, productId: product.id, price: data.price, stock: data.stock,
+              size: data.size, color: data.color, sku: data.sku,
+              optionsJson: options as Prisma.InputJsonValue,
+              comboKey,
+            },
+          });
       if (data.stock > 0) await tx.stockMovement.create({ data: { shopId, variantId: variant.id, actorId, delta: data.stock, reason: 'import' } });
       return { productId: product.id, variantId: variant.id };
     });

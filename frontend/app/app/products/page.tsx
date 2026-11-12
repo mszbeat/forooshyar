@@ -132,6 +132,7 @@ useEffect(() => { void load(); }, [load]);
     };
     const body = {
       title,
+      code: String(data.get('code') ?? '').trim() || null,
       category: String(data.get('category') ?? '').trim(),
       description: String(data.get('description') ?? '').trim(),
       type,
@@ -169,6 +170,7 @@ useEffect(() => { void load(); }, [load]);
     const data = new FormData(event.currentTarget);
     const ok = await run(editProduct.id, () => api.updateProduct(editProduct.id, {
       title: String(data.get('title') ?? '').trim(),
+      code: String(data.get('code') ?? '').trim() || null,
       category: String(data.get('category') ?? '').trim(),
       description: String(data.get('description') ?? '').trim(),
     }), 'محصول به‌روزرسانی شد.');
@@ -300,6 +302,7 @@ useEffect(() => { void load(); }, [load]);
                       {!product.active && <span className="badge b-gray product-status">غیرفعال</span>}
                       {product.active && stock === 0 && <span className="badge b-red product-status">ناموجود</span>}
                       {product.active && stock > 0 && needsAttention(product) && <span className="badge b-amber product-status">موجودی کم</span>}
+                      {(product.postLinks?.length ?? 0) > 0 && <span className="badge b-blue product-status">لینک به پست</span>}
                     </div>
                     {activeVariants.length > 0 && (
                       <div className="row product-pills" style={{ gap: 5, marginTop: 6 }}>
@@ -478,6 +481,9 @@ useEffect(() => { void load(); }, [load]);
           <Field label="نام محصول" required htmlFor="title">
             <input id="title" name="title" className="input" required maxLength={200} placeholder="مثلاً مانتو کتان تابستانه" autoFocus />
           </Field>
+          <Field label="کد محصول" htmlFor="code" hint="اختیاری — برای ایمپورت گروهی و SKU خودکار استفاده می‌شود.">
+            <input id="code" name="code" className="input input-ltr" maxLength={100} placeholder="SHOE-001" />
+          </Field>
           <Field label="نوع" htmlFor="type" hint="خدمت‌ها موجودی و ارسال ندارند؛ قیمت و ظرفیت دارند.">
             <select id="type" name="type" className="input" defaultValue="PRODUCT">
               <option value="PRODUCT">کالای فیزیکی</option>
@@ -551,6 +557,10 @@ useEffect(() => { void load(); }, [load]);
             <Field label="نام محصول" required htmlFor="ep-title">
               <input id="ep-title" name="title" className="input" required maxLength={200} defaultValue={editProduct.title} />
             </Field>
+            <Field label="کد محصول" htmlFor="ep-code">
+              <input id="ep-code" name="code" className="input input-ltr" maxLength={100} defaultValue={editProduct.code ?? ''} />
+            </Field>
+            <PostLinks productId={editProduct.id} />
             <Field label="دسته‌بندی" htmlFor="ep-category">
               <input id="ep-category" name="category" className="input" maxLength={200} defaultValue={editProduct.category} />
             </Field>
@@ -709,6 +719,7 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
   }
 
   async function generate() {
+    if (product.variants.length > 0 && !window.confirm('ترکیب‌ها دوباره تولید می‌شوند. ترکیب‌های موجود و قیمت/موجودی ویرایش‌شده حفظ می‌شوند و ترکیب‌های حذف‌شده غیرفعال می‌شوند. ادامه می‌دهید؟')) return;
     setGenerating(true);
     try {
       const result = await api.generateVariants(product.id);
@@ -777,12 +788,64 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
         <button className="btn btn-outline btn-sm" onClick={() => setDrafts(current => [...current, { name: '', values: [] }])}>
           <IconPlus size={14} />افزودن ویژگی
         </button>
+        {totalCombos > 100 && (
+          <div className="alert alert-error">
+            <IconAlertCircle />
+            <span>تعداد ترکیب‌ها ({faNum(totalCombos)}) از سقف ۱۰۰ گذشته است؛ تعداد مقادیر ویژگی‌ها را کم کنید.</span>
+          </div>
+        )}
         <div className="alert alert-info">
           <IconAlertCircle />
-          <span>تولید ترکیب حداکثر ۲۰۰ واریانت می‌سازد. ترکیب‌هایی که قبلاً ساخته‌اید (و قیمت/موجودی ویرایش‌شده‌شان) دست نمی‌خورند؛ ترکیب‌های حذف‌شده فقط غیرفعال می‌شوند.</span>
+          <span>تولید ترکیب حداکثر ۱۰۰ واریانت می‌سازد. ترکیب‌هایی که قبلاً ساخته‌اید (و قیمت/موجودی ویرایش‌شده‌شان) دست نمی‌خورند؛ ترکیب‌های حذف‌شده فقط غیرفعال می‌شوند.</span>
         </div>
       </div>
     </Modal>
+  );
+}
+
+/* ------------------------------------------------------------ post links (تسک ۸) */
+
+function PostLinks({ productId }: { productId: string }) {
+  const toast = useToast();
+  const [links, setLinks] = useState<{ id: string; mediaId: string; shortcode: string }[] | null>(null);
+  const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api.listPostLinks(productId).then(setLinks).catch(() => setLinks([]));
+  useEffect(() => { void load(); }, [productId]);
+
+  const add = async () => {
+    if (!input.trim()) return;
+    setBusy(true);
+    try {
+      await api.addPostLink(productId, input.trim());
+      setInput('');
+      toast.success('پست لینک شد', 'کامنت روی این پست، اطلاعات همین محصول را در دایرکت می‌فرستد.');
+      void load();
+    } catch (problem) {
+      toast.error('لینک پست انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      <Field label="لینک پست اینستاگرام" htmlFor="post-link" hint="اختیاری — کامنت روی این پست، اطلاعات همین محصول را در دایرکت می‌فرستد. چند پست برای یک محصول ممکن است.">
+        <div className="row" style={{ gap: 8 }}>
+          <input id="post-link" className="input input-ltr" dir="ltr" value={input} onChange={e => setInput(e.target.value)} placeholder="https://www.instagram.com/p/…" />
+          <button type="button" className="btn btn-outline btn-sm" disabled={busy || !input.trim()} onClick={() => void add()}>{busy ? <Spinner size={13} /> : null}افزودن</button>
+        </div>
+      </Field>
+      {links !== null && links.length > 0 && (
+        <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+          {links.map(link => (
+            <span key={link.id} className="badge b-blue">
+              {link.shortcode ? `پست ${link.shortcode}` : `مدیا ${link.mediaId}`}
+              <button type="button" aria-label="حذف لینک" style={{ border: 0, background: 'none', cursor: 'pointer', marginInlineStart: 4 }} onClick={() => void api.removePostLink(productId, link.id).then(load).catch(() => undefined)}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

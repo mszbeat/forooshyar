@@ -2,6 +2,7 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TelegramModule } from '../telegram/telegram.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { CartService } from './cart.service';
 import { InstagramModule } from '../instagram/instagram.module';
 import { SmsModule } from '../sms/sms.module';
 import { AiModule } from '../ai/ai.module';
@@ -20,7 +21,7 @@ import { ReceiptsService } from './receipts.service';
 @Module({
   imports: [forwardRef(() => TelegramModule), forwardRef(() => InstagramModule), SmsModule, AiModule],
   controllers: [OrdersController, ShippingMethodsController, ReceiptsController],
-  providers: [OrdersService, ShippingMethodsService, ReceiptsService],
-  exports: [OrdersService, ShippingMethodsService, ReceiptsService],
+  providers: [OrdersService, ShippingMethodsService, ReceiptsService, CartService],
+  exports: [OrdersService, ShippingMethodsService, ReceiptsService, CartService],
 })
 export class OrdersModule {}

@@ -14,6 +14,7 @@ const automationSchema = z.object({
   triggerWords: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
   publicReplies: z.array(z.string().trim().min(1).max(1000)).max(3).optional(),
   dmTemplate: z.string().max(4000).optional(),
+  productId: z.string().uuid().nullable().optional(),
   requireFollow: z.boolean().optional(),
   dailyCap: z.number().int().min(1).max(10000).optional(),
 }).strict();

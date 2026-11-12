@@ -5,10 +5,12 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 import {
+  combinationKey,
   diffCombinations,
   generateCombinations,
   sizeColorFromOptions,
 } from './variant-combinations';
+import { normalizePostInput } from './post-link';
 
 @Injectable()
 export class CatalogService {
@@ -37,13 +39,14 @@ export class CatalogService {
       include: {
         variants: true,
         attributes: { include: { values: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } },
+        postLinks: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
   }
   async createProduct(shopId: string, input: {
-    title: string; description?: string; category?: string;
+    title: string; code?: string | null; description?: string; category?: string;
     type?: ProductType; isShippable?: boolean;
     defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
     serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
@@ -55,7 +58,7 @@ export class CatalogService {
     return product;
   }
   async updateProduct(shopId: string, id: string, data: {
-    title?: string; description?: string; category?: string; active?: boolean;
+    title?: string; code?: string | null; description?: string; category?: string; active?: boolean;
     type?: ProductType; isShippable?: boolean;
     defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
     serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
@@ -305,13 +308,19 @@ export class CatalogService {
     const result = await this.db.$transaction(async (tx) => {
       let created = 0;
       let deactivated = 0;
+      let skuIndex = 0;
       for (const combo of diff.toCreate) {
         const { size, color } = sizeColorFromOptions(combo.options);
+        // SKU خودکار از کد محصول (یا ۸ کاراکتر اول شناسه) + شماره‌ی ترکیب.
+        const skuBase = (product.code ?? productId.slice(0, 8)).trim() || productId.slice(0, 8);
+        const sku = `${skuBase}-${++skuIndex}`;
         const variant = await tx.variant.create({
           data: {
             shopId, productId,
             size, color,
             optionsJson: combo.options as Prisma.InputJsonValue,
+            comboKey: combo.key,
+            sku,
             price: defaultPrice,
             stock: defaultStock,
           },
@@ -381,5 +390,43 @@ export class CatalogService {
     });
     this.realtime.emitShop(shopId, 'product', { id: productId, reason: 'variants_bulk' });
     return { updated: variants.length };
+  }
+
+  /** لینک محصول به پست اینستاگرام (تسک ۸): mediaId↔productId یکتا در هر فروشگاه. */
+  async addPostLink(shopId: string, productId: string, input: string) {
+    const product = await this.db.product.findFirst({ where: { shopId, id: productId }, select: { id: true } });
+    if (!product) throw new NotFoundException('Product not found');
+    let normalized: { shortcode: string; mediaId: string };
+    try { normalized = normalizePostInput(input); }
+    catch (error) { throw new BadRequestException(error instanceof Error ? error.message : 'لینک پست معتبر نیست'); }
+    if (!normalized.mediaId) throw new BadRequestException('لینک پست معتبر نیست');
+    try {
+      return await this.db.productPostLink.create({
+        data: { shopId, productId, mediaId: normalized.mediaId, shortcode: normalized.shortcode },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('این پست قبلاً به محصول دیگری لینک شده است');
+      }
+      throw error;
+    }
+  }
+
+  listPostLinks(shopId: string, productId: string) {
+    return this.db.productPostLink.findMany({ where: { shopId, productId }, orderBy: { createdAt: 'desc' } });
+  }
+
+  async removePostLink(shopId: string, productId: string, linkId: string) {
+    const result = await this.db.productPostLink.deleteMany({ where: { shopId, productId, id: linkId } });
+    if (result.count === 0) throw new NotFoundException('Post link not found');
+    return { ok: true };
+  }
+
+  /** محصول لینک‌شده به یک مدیا (برای اتوماسیون کامنت→DM). */
+  findProductByMedia(shopId: string, mediaId: string) {
+    return this.db.productPostLink.findFirst({
+      where: { shopId, mediaId },
+      include: { product: { include: { variants: { where: { active: true } } } } },
+    });
   }
 }

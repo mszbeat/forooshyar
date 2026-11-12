@@ -27,6 +27,7 @@ export interface AutomationView {
   triggerWords: string[];
   publicReplies: string[];
   dmTemplate: string;
+  productId: string | null;
   requireFollow: boolean;
   dailyCap: number;
 }
@@ -34,7 +35,7 @@ export interface AutomationView {
 function toView(row: {
   id: string; name: string; active: boolean; scope: string;
   mediaIdsJson: unknown; triggerWordsJson: unknown; publicRepliesJson: unknown;
-  dmTemplate: string; requireFollow: boolean; dailyCap: number;
+  dmTemplate: string; productId: string | null; requireFollow: boolean; dailyCap: number;
 }): AutomationView {
   const list = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -47,6 +48,7 @@ function toView(row: {
     triggerWords: list(row.triggerWordsJson),
     publicReplies: list(row.publicRepliesJson),
     dmTemplate: row.dmTemplate,
+    productId: row.productId,
     requireFollow: row.requireFollow,
     dailyCap: row.dailyCap,
   };
@@ -88,6 +90,7 @@ export class AutomationService {
         triggerWordsJson: (input.triggerWords ?? []) as Prisma.InputJsonValue,
         publicRepliesJson: (input.publicReplies ?? []) as Prisma.InputJsonValue,
         dmTemplate: input.dmTemplate ?? '',
+        productId: input.productId ?? null,
         requireFollow: input.requireFollow ?? false,
         dailyCap: input.dailyCap ?? 200,
       },
@@ -107,6 +110,7 @@ export class AutomationService {
     if (input.triggerWords !== undefined) data.triggerWordsJson = input.triggerWords as Prisma.InputJsonValue;
     if (input.publicReplies !== undefined) data.publicRepliesJson = input.publicReplies as Prisma.InputJsonValue;
     if (input.dmTemplate !== undefined) data.dmTemplate = input.dmTemplate;
+    if (input.productId !== undefined) data.productId = input.productId;
     if (input.requireFollow !== undefined) data.requireFollow = input.requireFollow;
     if (input.dailyCap !== undefined) data.dailyCap = input.dailyCap;
     const row = await this.db.automation.update({ where: { shopId_id: { shopId, id } }, data });
@@ -214,13 +218,41 @@ export class AutomationService {
       return 'FOLLOW_WAIT';
     }
 
-    // DM: اول private_reply روی همان کامنت، بعد send_message
+    // DM: اول private_reply روی همان کامنت، بعد send_message.
+    // محصول از پستِ کامنت‌شده (ProductPostLink) یا محصولِ لینک‌شده‌ی اتوماسیون.
     const shop = await this.db.shop.findFirst({ where: { id: shopId }, select: { name: true } });
-    const dm = automation.dmTemplate
+    const linked = await this.db.productPostLink.findFirst({
+      where: { shopId, mediaId: raw.mediaId },
+      include: { product: { include: { variants: { where: { active: true }, take: 20 } } } },
+    });
+    const linkedProduct = linked?.product ?? null;
+    let product = linkedProduct;
+    if (!product && automation.productId) {
+      product = await this.db.product.findFirst({
+        where: { shopId, id: automation.productId },
+        include: { variants: { where: { active: true }, take: 20 } },
+      });
+    }
+    const productTitle = product?.title ?? '';
+    const firstVariant = product?.variants[0];
+    const priceText = firstVariant ? firstVariant.price.toLocaleString('fa-IR') : '';
+    const stockText = firstVariant ? firstVariant.stock.toLocaleString('fa-IR') : '';
+    const variantLines = product
+      ? product.variants.slice(0, 10).map(v => {
+          const spec = Object.entries((v.optionsJson as Record<string, string>) ?? {}).map(([k, val]) => `${k}: ${val}`).join('، ');
+          return `• ${spec || 'استاندارد'} — ${v.price.toLocaleString('fa-IR')} تومان (موجودی: ${v.stock.toLocaleString('fa-IR')})`;
+        }).join('\n')
+      : '';
+    const productBlock = product
+      ? `🛍️ ${product.title}\n${variantLines}\nبرای ثبت سفارش همین‌جا بگویید.`
+      : '';
+    const template = automation.dmTemplate || (productBlock ? productBlock : 'سلام! برای اطلاعات بیشتر دایرکت بدهید 🌿');
+    const dm = template
       .replaceAll('{shop_name}', shop?.name ?? '')
-      .replaceAll('{product_title}', '')
-      .replaceAll('{price}', '')
-      .replaceAll('{stock}', '');
+      .replaceAll('{product_title}', productTitle)
+      .replaceAll('{price}', priceText)
+      .replaceAll('{stock}', stockText)
+      .replaceAll('{product_variants}', variantLines);
     const privateResult = await client.post(accountId, 'private_reply', {
       comment_id: raw.commentId,
       message: dm || 'سلام! برای اطلاعات بیشتر دایرکت بدهید 🌿',
