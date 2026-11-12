@@ -10,10 +10,10 @@ type Props = {
 };
 
 /**
- * نشان برند فروش‌یار — ماسکات با چشم‌های گرد و پلک‌زن.
- * پیاده‌سازی در `BrandMascot` است تا در لندینگ هم با expressionهای
- * تعاملی استفاده شود؛ این کامپوننت فقط wrapper سازگار با API قبلی است.
+ * نشان برند فروش‌یار — در بخش لوگو فقط «صورت» ربات نمایش داده می‌شود
+ * (نسخه‌ی face)؛ در صفحه (هیرو/ماسکات شناور) نسخه‌ی کامل با گردن و شانه است.
+ * پیاده‌سازی در `BrandMascot` است.
  */
 export function BrandLogo({ size = 30, animated = true, className }: Props) {
-  return <BrandMascot size={size} animated={animated} className={className} />;
+  return <BrandMascot size={size} animated={animated} className={className} variant="face" />;
 }

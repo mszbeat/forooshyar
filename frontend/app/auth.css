@@ -9,8 +9,10 @@
   min-height: 100dvh; background: var(--bg); isolation: isolate; overflow: hidden;
 }
 .authx-form-side, .authx-visual { flex: 0 0 50%; min-width: 0; }
-.authx-form-side { position: relative; z-index: 1; transition: transform .65s cubic-bezier(.22,1,.36,1); will-change: transform; }
-.authx-visual { position: relative; z-index: 2; transition: transform .65s cubic-bezier(.22,1,.36,1); will-change: transform; }
+/* چیدمان پایه (ورود): فرم راست، پنل چپ. order صریح است تا مستقل از ترتیب DOM
+   و جهت RTL باشد؛ جابه‌جایی ثبت‌نام با transform انجام می‌شود. */
+.authx-form-side { order: 1; position: relative; z-index: 1; transition: transform .65s cubic-bezier(.22,1,.36,1); will-change: transform; }
+.authx-visual { order: 2; position: relative; z-index: 2; transition: transform .65s cubic-bezier(.22,1,.36,1); will-change: transform; }
 /* در ثبت‌نام: فرم به چپ (جای پنل) و پنل به راست (جای فرم) می‌لغزد. */
 .authx.register .authx-form-side { transform: translateX(-100%); }
 .authx.register .authx-visual { transform: translateX(100%); }
@@ -32,10 +34,11 @@
 .authx-visual {
   color: #f7f8f8;
   min-height: 100dvh;
+  display: flex; flex-direction: column;
 }
 .authx-visual-card {
   position: relative; margin: 14px; border-radius: 28px; overflow: hidden;
-  min-height: calc(100dvh - 28px); height: calc(100% - 28px);
+  flex: 1 1 auto; min-height: calc(100dvh - 28px);
   background:
     radial-gradient(80% 55% at 80% 8%, rgba(124,108,255,.5), transparent 70%),
     radial-gradient(70% 60% at 8% 94%, rgba(34,211,238,.22), transparent 68%),

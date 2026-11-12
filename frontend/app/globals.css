@@ -686,8 +686,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 /* ==========================================================================
    7. پنل ادمین — «اتاق کنترل»
    ========================================================================== */
-.adm-shell { display: grid; width: 100%; max-width: none; min-width: 0; grid-template-columns: minmax(0, 258px) minmax(0, 1fr); min-height: 100dvh; background: var(--bg); }
-.adm-side { position: sticky; top: 0; height: 100dvh; max-height: 100dvh; display: flex; flex-direction: column; background: linear-gradient(180deg, #0c0d10, #101114 55%, #0c0d10); color: var(--night-ink); padding: 20px 16px; gap: 18px; border-inline-start: 1px solid var(--night-line); overflow: hidden; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+.adm-shell { display: grid; width: 100%; max-width: none; min-width: 0; grid-template-columns: minmax(0, 258px) minmax(0, 1fr); height: 100dvh; background: var(--bg); }
+.adm-side { height: 100dvh; max-height: 100dvh; display: flex; flex-direction: column; background: linear-gradient(180deg, #0c0d10, #101114 55%, #0c0d10); color: var(--night-ink); padding: 20px 16px; gap: 18px; border-inline-start: 1px solid var(--night-line); overflow: hidden; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
 .adm-brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 14px; border-bottom: 1px solid var(--night-line); }
 .adm-brand .glyph { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: 0 0 auto; background: var(--grad); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), var(--sh-brand); color: #fff; }
 .adm-brand .nm { font-weight: 800; font-size: 15px; letter-spacing: -0.01em; }
@@ -703,13 +703,13 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-ident .av { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; background: rgba(139,124,255,.18); color: #c9c2ff; font-weight: 800; font-size: 12px; border: 1px solid rgba(139,124,255,.3); }
 .adm-ident .em { font-size: 11.5px; color: rgba(247,248,248,.72); direction: ltr; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adm-status { display: grid; gap: 2px; padding: 10px 11px; border-radius: 13px; background: rgba(255,255,255,.04); border: 1px solid var(--night-line); }
-.adm-status .row0 { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 11.5px; }
-.adm-status .row0 .ico { color: #a99bff; display: inline-flex; }
-.adm-status .row0 .nm { color: rgba(247,248,248,.72); }
-.adm-status .row0 .vl { margin-inline-start: auto; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--night-line); color: rgba(247,248,248,.6); }
+.adm-status .row0 { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 11.5px; min-width: 0; }
+.adm-status .row0 .ico { color: #a99bff; display: inline-flex; flex: 0 0 auto; }
+.adm-status .row0 .nm { color: rgba(247,248,248,.72); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-status .row0 .vl { margin-inline-start: auto; flex: 0 0 auto; font-family: ui-monospace, monospace; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--night-line); color: rgba(247,248,248,.6); }
 .adm-status .row0 .vl.on { color: #6ee7c8; border-color: rgba(110,231,200,.3); background: rgba(110,231,200,.08); }
 .adm-status .row0 .vl.off { color: #fca5a5; border-color: rgba(252,165,165,.3); background: rgba(252,165,165,.08); }
-.adm-main { min-width: 0; display: flex; flex-direction: column; }
+.adm-main { min-width: 0; min-height: 0; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
 .adm-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px; padding: 14px 26px; background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
 .adm-top h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.015em; }
 .adm-top .crumbs { font-size: 11px; color: var(--ink-4); font-family: ui-monospace, monospace; letter-spacing: 0.08em; }
@@ -766,15 +766,28 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; line-height: 1.9; color: var(--ink-2); }
 .adm-note.bad { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
 /* نتیجه‌ی تست: کادر رنگی با متن هم‌رنگ (سبز موفق / قرمز ناموفق / کهربایی هشدار) */
-.probe-result { border: 0; }
-.probe-result.ok { background: rgba(52, 211, 153, .12); color: #047857; }
-.probe-result.bad { background: rgba(248, 113, 113, .14); color: #b91c1c; }
-.probe-result.warn { background: rgba(251, 191, 36, .16); color: #92400e; }
-.probe-result .probe-result-title { color: inherit; font-weight: 800; }
-.probe-result-cell { background: rgba(255,255,255,.35); border-radius: 8px; padding: 6px 9px; }
-.probe-result-cell .k { color: inherit; opacity: .75; font-weight: 600; }
-.probe-result-cell .v { color: inherit; font-weight: 700; }
-.probe-detail { background: rgba(0,0,0,.06); border-radius: 8px; padding: 8px 10px; }
+/* باکس نتیجه‌ی تست: کارت تمیز با سربرگ وضعیت، ردیف‌های شاخص و جزئیات اسکرول‌دار. */
+.probe-result { display: grid; gap: 12px; padding: 14px 16px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); }
+.probe-result.ok { border-color: rgba(16,185,129,.35); background: linear-gradient(180deg, rgba(16,185,129,.07), rgba(16,185,129,.02)); }
+.probe-result.bad { border-color: rgba(239,68,68,.35); background: linear-gradient(180deg, rgba(239,68,68,.07), rgba(239,68,68,.02)); }
+.probe-result-head { display: flex; align-items: center; gap: 11px; }
+.probe-result-ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; }
+.probe-result.ok .probe-result-ico { background: rgba(16,185,129,.16); color: #059669; }
+.probe-result.bad .probe-result-ico { background: rgba(239,68,68,.16); color: #dc2626; }
+.probe-result-head-main { min-width: 0; }
+.probe-result-title { font-weight: 800; font-size: 13.5px; line-height: 1.5; }
+.probe-result.ok .probe-result-title { color: #047857; }
+.probe-result.bad .probe-result-title { color: #b91c1c; }
+.probe-result-sub { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+.probe-result-list { display: grid; }
+.probe-result-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 8px 0; border-top: 1px dashed var(--line); min-width: 0; }
+.probe-result-row .k { font-size: 12px; color: var(--ink-3); flex: 0 0 auto; }
+.probe-result-row .v { font-size: 12.5px; font-weight: 600; color: var(--ink); text-align: end; overflow-wrap: anywhere; min-width: 0; }
+.probe-result-row .v.ltr { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); padding: 3px 9px; border-radius: 8px; }
+.probe-result-error { display: grid; gap: 8px; min-width: 0; }
+.probe-result-error-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.probe-result-error-msg { overflow-wrap: anywhere; font-weight: 600; font-size: 12.5px; color: var(--ink); }
+.probe-detail { background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; font-size: 11.5px; color: var(--ink-2); line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow-y: auto; direction: ltr; text-align: left; font-family: var(--font-mono, ui-monospace, monospace); }
 .adm-code { direction: ltr; text-align: left; background: var(--night); color: #d6deeb; border: 1px solid var(--night-line); border-radius: var(--r-md); padding: 16px 18px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 2; overflow-x: auto; }
 .adm-code .c { color: #8b93a7; } .adm-code .k { color: #a99bff; } .adm-code .v { color: #6ee7c8; }
 .adm-save-dock { position: sticky; bottom: 16px; z-index: 15; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-md); }
@@ -910,13 +923,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .ai-host-opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 0; background: none; font: inherit; font-size: 12.5px; cursor: pointer; text-align: start; }
 .ai-host-opt:hover, .ai-host-opt.on { background: var(--brand-50); }
 @keyframes ai-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-.probe-result { align-items: flex-start; }
-.probe-result-title { font-size: 12px; font-weight: 700; color: var(--ink-2); }
-.probe-result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
-.probe-result-cell { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
-.probe-result-cell .k { font-size: 11px; color: var(--ink-3); flex: 0 0 auto; }
-.probe-result-cell .v { overflow-wrap: anywhere; font-size: 12px; }
-.probe-detail { font-size: 12px; color: var(--ink-2); line-height: 1.9; white-space: pre-wrap; }
+/* (قوانین probe-result در بخش اصلی تعریف شده‌اند) */
 @media (max-width: 1180px) { .ai-page-split { grid-template-columns: minmax(0, 1fr); } .ai-page-col-probe { position: static; top: auto; } }
 
 /* گفت‌وگوها و مشتریان ------------------------------------------------------ */
@@ -1106,6 +1113,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .settings-nav a:hover { background: var(--surface-2); color: var(--ink); }
 .settings-nav a:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 section[id] { scroll-margin-top: 70px; }
+/* صفحه‌ی تنظیمات: ستون باریک‌تر و متمرکز برای فرم‌های خواناتر (به‌جای ۱۰۸۰px). */
+.page:has(.settings-nav) > * { max-width: 760px; }
 
 /* ---------- کاشی‌های پلتفرم در صفحه‌ی اکانت‌ها ---------- */
 .platform-tile {
@@ -1143,14 +1152,29 @@ section[id] { scroll-margin-top: 70px; }
 }
 
 /* ---------- ماسکات برند ---------- */
-.brand-mascot { display: block; flex-shrink: 0; }
+.brand-mascot { position: relative; display: inline-block; flex: 0 0 auto; line-height: 0; }
 .brand-mascot-animated { animation: brand-float 4.6s ease-in-out infinite; }
 @keyframes brand-float {
   0%, 100% { translate: 0 0; }
   50% { translate: 0 -3px; }
 }
+/* پلک ربات: پلک تیره از بالای چشم به پایین می‌آید و چشم نورانی را می‌پوشاند. */
+.robot-eyelid {
+  position: absolute;
+  background: #0b1a29;
+  border-radius: 0 0 999px 999px;
+  transform-origin: 50% 0%;
+  transform: scaleY(0);
+  pointer-events: none;
+}
+.brand-mascot-animated .robot-eyelid { animation: robot-blink 4.8s ease-in-out infinite; }
+@keyframes robot-blink {
+  0%, 92%, 100% { transform: scaleY(0); }
+  95% { transform: scaleY(1); }
+}
 @media (prefers-reduced-motion: reduce) {
   .brand-mascot-animated { animation: none; }
+  .brand-mascot-animated .robot-eyelid { animation: none; }
 }
 
 /* ---------- ماسکات تعاملی لندینگ ---------- */

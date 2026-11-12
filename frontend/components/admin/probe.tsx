@@ -68,31 +68,40 @@ export function splitProviderError(raw: string): { headline: string; detail: str
  * تمام‌عرضِ پایین می‌نشیند و کارت‌های بالا دست‌نخورده می‌مانند.
  */
 export function ProbeResultPanel({ result, title }: { result: ProbeResult; title?: string }) {
+  const ok = result.tone === 'ok';
   return (
-    <div className={`adm-note probe-result ${result.tone === 'ok' ? 'ok' : 'bad'}`}>
-      {result.tone === 'ok' ? <IconCheck size={16} /> : <IconAlertCircle size={16} />}
-      <div style={{ display: 'grid', gap: 5, minWidth: 0, width: '100%' }}>
-        {title && <div className="probe-result-title">{title}</div>}
-        {result.lines.length > 0 && (
-          <div className="probe-result-grid">
-            {result.lines.map(line => (
-              <div key={line.label} className="probe-result-cell">
-                <span className="k">{line.label}</span>
-                <b className="v num ltr">{line.value}</b>
-              </div>
-            ))}
-          </div>
-        )}
-        {result.error && (
-          <div style={{ display: 'grid', gap: 5, minWidth: 0 }}>
-            <div style={{ display: 'flex', gap: 7, alignItems: 'baseline', flexWrap: 'wrap' }}>
-              {result.statusText && <span className="adm-tag t-restart num">{result.statusText}</span>}
-              <span style={{ overflowWrap: 'anywhere', fontWeight: 600 }}>{result.error}</span>
-            </div>
-            {result.detail && <div className="probe-detail">{result.detail}</div>}
-          </div>
-        )}
+    <div className={`probe-result ${ok ? 'ok' : 'bad'}`} role="status">
+      <div className="probe-result-head">
+        <span className="probe-result-ico">{ok ? <IconCheck size={16} /> : <IconAlertCircle size={16} />}</span>
+        <div className="probe-result-head-main">
+          <div className="probe-result-title">{title || (ok ? 'اتصال برقرار است' : 'اتصال ناموفق بود')}</div>
+          {result.lines.length > 0 && (
+            <div className="probe-result-sub">{result.lines.length} شاخص بررسی شد</div>
+          )}
+        </div>
       </div>
+      {result.lines.length > 0 && (
+        <div className="probe-result-list">
+          {result.lines.map(line => {
+            const isLtr = /[a-zA-Z0-9]/.test(line.value) && !/[؀-ۿ]/.test(line.value);
+            return (
+              <div key={line.label} className="probe-result-row">
+                <span className="k">{line.label}</span>
+                <span className={`v${isLtr ? ' ltr' : ''}`}>{line.value}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {result.error && (
+        <div className="probe-result-error">
+          <div className="probe-result-error-head">
+            {result.statusText && <span className="adm-tag t-restart num">{result.statusText}</span>}
+            <span className="probe-result-error-msg">{result.error}</span>
+          </div>
+          {result.detail && <div className="probe-detail">{result.detail}</div>}
+        </div>
+      )}
     </div>
   );
 }
