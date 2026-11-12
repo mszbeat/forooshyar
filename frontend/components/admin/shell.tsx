@@ -55,6 +55,18 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const [admin, setAdmin] = useState<AdminIdentity | null>(null);
   // منوی موبایل: در عرض کم، نوار کنار جمع می‌شود و از همین دکمه باز/بسته می‌شود.
   const [navOpen, setNavOpen] = useState(false);
+  // سایدبار دسکتاپ: جمع‌شده (ریل آیکن) یا کامل — با دکمه باز/بسته می‌شود.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try { setCollapsed(window.localStorage.getItem('forooshyar.adminSidebarCollapsed') === '1'); } catch { /* ignore */ }
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed(prev => {
+      const next = !prev;
+      try { window.localStorage.setItem('forooshyar.adminSidebarCollapsed', next ? '1' : '0'); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const [state, setState] = useState<'loading' | 'ready' | 'out'>('loading');
   const { overview } = usePlatformStatus();
 
@@ -85,7 +97,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const db = overview?.services.database;
 
   return (
-    <div className={`adm-shell${navOpen ? ' nav-open' : ''}`}>
+    <div className={`adm-shell${navOpen ? ' nav-open' : ''}${collapsed ? ' collapsed' : ''}`}>
       {/* در موبایل، لایه‌ی تاریک پشت منو؛ با لمس بیرون بسته می‌شود. */}
       <button
         type="button" className="adm-scrim" aria-label="بستن منو"
@@ -104,6 +116,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
             onClick={() => setNavOpen(open => !open)}
           >
             {navOpen ? <IconX size={17} /> : <IconMenu size={17} />}
+          </button>
+          <button
+            type="button" className="adm-collapse-btn"
+            aria-label={collapsed ? 'باز کردن منو' : 'جمع‌کردن منو'} aria-expanded={!collapsed}
+            title={collapsed ? 'باز کردن منو' : 'جمع‌کردن منو'}
+            onClick={toggleCollapsed}
+            style={{ marginInlineStart: 'auto' }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: collapsed ? 'scaleX(-1)' : undefined }}><path d="m9 6 6 6-6 6" /></svg>
           </button>
         </div>
 

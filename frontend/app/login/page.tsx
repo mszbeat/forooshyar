@@ -164,6 +164,7 @@ export default function LoginPage() {
 
       {/* نیمه‌ی روایت — با تغییر حالت جابه‌جا می‌شود */}
       <aside className="authx-visual" aria-hidden="true">
+        <div className="authx-visual-card">
         <span className="authx-glow b" />
         <div className="authx-visual-inner">
           <div className="authx-brand">
@@ -218,6 +219,7 @@ export default function LoginPage() {
             <span className="dot" />
             کاتالوگ، موجودی و سفارش‌ها روی سرور خودتان می‌ماند.
           </div>
+        </div>
         </div>
       </aside>
 

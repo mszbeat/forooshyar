@@ -11,7 +11,7 @@ import { IconAlertCircle, IconCheckCircle, IconCopy, IconSend } from '@/componen
  *   ۲. مشتری وصل است      → لینک را کپی کن و به مشتری‌ها بده
  *   ۳. فروشنده وصل نیست   → کد یک‌بارمصرف بگیر و در چت بات بفرست تا اعلان‌ها برسد
  */
-export function TelegramConnect() {
+export function TelegramConnect({ onChanged }: { onChanged?: () => void } = {}) {
   const toast = useToast();
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [owner, setOwner] = useState<TelegramOwnerCode | null>(null);
@@ -40,6 +40,7 @@ export function TelegramConnect() {
       if ('ownerCode' in result) setOwner(result);
       else { setStatus(result); if (kind !== 'owner') setOwner(null); }
       toast.success(success.title, success.body);
+      if (kind === 'connect' || kind === 'disconnect' || kind === 'disable') onChanged?.();
     } catch (problem) {
       const message = problem instanceof ApiError ? problem.message : 'درخواست انجام نشد.';
       setError(message);

@@ -27,7 +27,7 @@ const WAITING_PAGE = `<!doctype html><html lang="fa" dir="rtl"><head><meta chars
  *
  * توکن و سکرت هرگز در این صفحه نیستند — نه ماسک‌شده هم نه؛ فقط «ست شده / نشده».
  */
-export function InstagramConnect() {
+export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {}) {
   const toast = useToast();
   const [status, setStatus] = useState<InstagramStatus | null>(null);
   const [accounts, setAccounts] = useState<InstagramAccount[] | null>(null);
@@ -177,6 +177,7 @@ export function InstagramConnect() {
       toast.success('پیج وصل شد', `از این پس دایرکت‌های @${result.username ?? account.username} همین‌جا مدیریت می‌شود.`);
       setAccounts(null);
       await load();
+      onChanged?.();
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : 'اتصال پیج انجام نشد.');
     } finally {
@@ -205,6 +206,7 @@ export function InstagramConnect() {
       }
       toast.success('قطع شد', 'دایرکت‌ها دیگر به این فروشگاه نمی‌رسند؛ گفتگوها باقی می‌مانند.');
       await load();
+      onChanged?.();
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : 'قطع اتصال انجام نشد.');
     } finally {

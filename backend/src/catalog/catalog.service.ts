@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ProductType } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -80,7 +81,26 @@ export class CatalogService {
       const created = await this.db.$transaction(async tx => {
         const product = await tx.product.findFirst({ where: { shopId, id: productId }, select: { id: true } });
         if (!product) throw new NotFoundException('Product not found');
-        const variant = await tx.variant.create({ data: { ...data, shopId, productId } });
+        // SKU خالی یعنی «بدون کد» (null) تا قید یکتایی روی رشته‌ی خالی نترکد.
+        const sku = (data.sku ?? '').trim() || null;
+        // واریانت دستی comboKey ندارد؛ برای اینکه قید یکتایی
+        // (shopId, productId, comboKey) روی '' نترکد، کلید یکتا می‌سازیم.
+        const size = (data.size ?? '').trim();
+        const color = (data.color ?? '').trim();
+        const options: Record<string, string> = {};
+        if (size) options['سایز'] = size;
+        if (color) options['رنگ'] = color;
+        const comboKey = Object.keys(options).length > 0
+          ? combinationKey(options)
+          : `manual:${randomUUID()}`;
+        const variant = await tx.variant.create({
+          data: {
+            shopId, productId, sku, size, color,
+            optionsJson: options as Prisma.InputJsonValue,
+            comboKey,
+            price: data.price, stock: data.stock,
+          },
+        });
         if (data.stock > 0) await tx.stockMovement.create({ data: { shopId, variantId: variant.id, delta: data.stock, reason: 'initial', actorId: userId } });
         return variant;
       });
@@ -97,6 +117,8 @@ export class CatalogService {
   }
   async updateVariant(shopId: string, id: string, data: { sku?: string | null; size?: string; color?: string; price?: number; active?: boolean }) {
     try {
+      // SKU خالی یعنی حذف کد (null)، نه رشته‌ی خالی.
+      if (data.sku !== undefined) data = { ...data, sku: (data.sku ?? '').trim() || null };
       const result = await this.db.variant.updateMany({ where: { shopId, id }, data });
       if (!result.count) throw new NotFoundException('Variant not found');
       const variant = await this.db.variant.findFirstOrThrow({ where: { shopId, id } });
@@ -308,12 +330,23 @@ export class CatalogService {
     const result = await this.db.$transaction(async (tx) => {
       let created = 0;
       let deactivated = 0;
+      // SKUهای موجود فروشگاه را می‌خوانیم تا شماره‌گذاری خودکار با آن‌ها تداخل نکند.
+      const usedSkus = new Set(
+        (await tx.variant.findMany({ where: { shopId }, select: { sku: true } }))
+          .map(v => v.sku).filter((v): v is string => Boolean(v)),
+      );
+      const skuBase = (product.code ?? productId.slice(0, 8)).trim() || productId.slice(0, 8);
       let skuIndex = 0;
+      const nextSku = () => {
+        let candidate = '';
+        do { candidate = `${skuBase}-${++skuIndex}`; } while (usedSkus.has(candidate));
+        usedSkus.add(candidate);
+        return candidate;
+      };
       for (const combo of diff.toCreate) {
         const { size, color } = sizeColorFromOptions(combo.options);
         // SKU خودکار از کد محصول (یا ۸ کاراکتر اول شناسه) + شماره‌ی ترکیب.
-        const skuBase = (product.code ?? productId.slice(0, 8)).trim() || productId.slice(0, 8);
-        const sku = `${skuBase}-${++skuIndex}`;
+        const sku = nextSku();
         const variant = await tx.variant.create({
           data: {
             shopId, productId,

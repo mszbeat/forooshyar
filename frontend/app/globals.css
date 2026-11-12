@@ -692,13 +692,13 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-brand .glyph { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: 0 0 auto; background: var(--grad); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), var(--sh-brand); color: #fff; }
 .adm-brand .nm { font-weight: 800; font-size: 15px; letter-spacing: -0.01em; }
 .adm-brand .rl { font-size: 10.5px; color: var(--night-ink-2); letter-spacing: 0.14em; font-family: ui-monospace, monospace; }
-.adm-nav { display: grid; gap: 3px; align-content: start; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.adm-nav { display: grid; gap: 3px; align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .adm-nav-lab { font-size: 10px; letter-spacing: 0.16em; color: rgba(247,248,248,.42); font-family: ui-monospace, monospace; padding: 14px 10px 6px; }
 .adm-nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 11px; color: rgba(247,248,248,.76); font-size: 13.5px; font-weight: 600; border: 1px solid transparent; transition: background 0.18s, color 0.18s, border-color 0.18s; }
 .adm-nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
 .adm-nav-item.active { background: rgba(139,124,255,.16); color: #fff; border-color: rgba(139,124,255,.3); box-shadow: inset 3px 0 0 var(--brand); }
 .adm-nav-item .sp { margin-inline-start: auto; font-size: 10px; opacity: 0.6; font-family: ui-monospace, monospace; }
-.adm-side-foot { margin-top: auto; display: grid; gap: 10px; }
+.adm-side-foot { flex: 0 0 auto; display: grid; gap: 10px; }
 .adm-ident { display: flex; align-items: center; gap: 10px; padding: 10px 11px; border-radius: 13px; background: rgba(255,255,255,.06); border: 1px solid var(--night-line); }
 .adm-ident .av { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; background: rgba(139,124,255,.18); color: #c9c2ff; font-weight: 800; font-size: 12px; border: 1px solid rgba(139,124,255,.3); }
 .adm-ident .em { font-size: 11.5px; color: rgba(247,248,248,.72); direction: ltr; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -765,6 +765,16 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-model.on { border-color: var(--brand); background: var(--brand-50); }
 .adm-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); font-size: 12.5px; line-height: 1.9; color: var(--ink-2); }
 .adm-note.bad { background: var(--danger-soft); border-color: var(--danger-line); color: var(--danger); }
+/* نتیجه‌ی تست: کادر رنگی با متن هم‌رنگ (سبز موفق / قرمز ناموفق / کهربایی هشدار) */
+.probe-result { border: 0; }
+.probe-result.ok { background: rgba(52, 211, 153, .12); color: #047857; }
+.probe-result.bad { background: rgba(248, 113, 113, .14); color: #b91c1c; }
+.probe-result.warn { background: rgba(251, 191, 36, .16); color: #92400e; }
+.probe-result .probe-result-title { color: inherit; font-weight: 800; }
+.probe-result-cell { background: rgba(255,255,255,.35); border-radius: 8px; padding: 6px 9px; }
+.probe-result-cell .k { color: inherit; opacity: .75; font-weight: 600; }
+.probe-result-cell .v { color: inherit; font-weight: 700; }
+.probe-detail { background: rgba(0,0,0,.06); border-radius: 8px; padding: 8px 10px; }
 .adm-code { direction: ltr; text-align: left; background: var(--night); color: #d6deeb; border: 1px solid var(--night-line); border-radius: var(--r-md); padding: 16px 18px; font-family: ui-monospace, monospace; font-size: 12px; line-height: 2; overflow-x: auto; }
 .adm-code .c { color: #8b93a7; } .adm-code .k { color: #a99bff; } .adm-code .v { color: #6ee7c8; }
 .adm-save-dock { position: sticky; bottom: 16px; z-index: 15; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(12px); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-md); }
@@ -822,11 +832,13 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-bar > span { display: block; height: 100%; background: var(--grad); border-radius: 999px; }
 .adm-checks { display: grid; gap: 8px; }
 .adm-check { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink-2); }
-.adm-table { table-layout: auto; }
-.adm-table th { padding: 8px 10px; } .adm-table td { padding: 8px 10px; }
+.adm-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+.adm-table th { padding: 8px 10px; } .adm-table td { padding: 8px 10px; overflow-wrap: anywhere; }
 .adm-table td.num, .adm-table th.num { width: 1%; white-space: nowrap; text-align: start; }
 .adm-table td:first-child, .adm-table th:first-child { padding-inline-start: 14px; }
 .adm-table td:last-child, .adm-table th:last-child { padding-inline-end: 14px; }
+.adm-table td.act { font-weight: 700; font-size: 12px; }
+.adm-table td.path { font-family: ui-monospace, monospace; font-size: 11px; direction: ltr; text-align: left; color: var(--ink-3); }
 .adm-mobile-menu { display: none; }
 .adm-nav-toggle { display: none !important; }
 .adm-scrim { display: none; }
@@ -1214,3 +1226,21 @@ section[id] { scroll-margin-top: 70px; }
 
 .progress { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 6px; }
 .progress > span { display: block; height: 100%; border-radius: 999px; transition: width .4s var(--ease); }
+
+.account-card-clickable { transition: border-color .18s var(--ease), transform .18s var(--ease); }
+.account-card-clickable:hover { border-color: var(--brand); transform: translateY(-1px); }
+
+/* سایدبار جمع‌شده (ریل آیکن) — دسکتاپ */
+.adm-shell.collapsed { grid-template-columns: minmax(0, 76px) minmax(0, 1fr); }
+.adm-shell.collapsed .adm-side { padding: 20px 10px; align-items: center; }
+.adm-shell.collapsed .adm-brand { justify-content: center; }
+.adm-shell.collapsed .adm-brand > div, .adm-shell.collapsed .adm-nav-lab,
+.adm-shell.collapsed .adm-nav-item span, .adm-shell.collapsed .adm-status,
+.adm-shell.collapsed .adm-ident > div { display: none; }
+.adm-shell.collapsed .adm-nav-item { justify-content: center; padding: 10px 0; }
+.adm-shell.collapsed .adm-ident { justify-content: center; }
+.adm-shell.collapsed .adm-nav-toggle { display: inline-flex !important; }
+.adm-collapse-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--night-line); background: rgba(255,255,255,.04); color: rgba(247,248,248,.8); cursor: pointer; }
+.adm-collapse-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+.plan-tabs { flex-wrap: wrap; }

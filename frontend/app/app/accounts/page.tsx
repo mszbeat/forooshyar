@@ -6,41 +6,41 @@ import { PageHeader, SkeletonBlock } from '@/components/ui';
 import { TelegramConnect } from '@/components/telegram-connect';
 import { ChannelConnect } from '@/components/channel-connect';
 import { InstagramConnect } from '@/components/instagram-connect';
-import { IconBolt, IconCheckCircle, IconInstagram, IconSend, IconX } from '@/components/icons';
+import { PlatformIcon } from '@/components/platform-icon';
+import { IconCheckCircle, IconX } from '@/components/icons';
 import { relativeTime } from '@/lib/format';
 
 type Platform = 'INSTAGRAM' | 'TELEGRAM' | 'BALE' | 'RUBIKA';
 
-const PLATFORMS: { id: Platform; name: string; desc: string; icon: typeof IconInstagram; anchor: string }[] = [
-  { id: 'INSTAGRAM', name: 'اینستاگرام', desc: 'دایرکت و کامنت', icon: IconInstagram, anchor: 'instagram' },
-  { id: 'TELEGRAM', name: 'تلگرام', desc: 'بات فروشگاه', icon: IconSend, anchor: 'telegram' },
-  { id: 'BALE', name: 'بله', desc: 'بات پیام‌رسان', icon: IconBolt, anchor: 'messengers' },
-  { id: 'RUBIKA', name: 'روبیکا', desc: 'بات پیام‌رسان', icon: IconBolt, anchor: 'messengers' },
+const PLATFORMS: { id: Platform; name: string; desc: string }[] = [
+  { id: 'INSTAGRAM', name: 'اینستاگرام', desc: 'دایرکت و کامنت' },
+  { id: 'TELEGRAM', name: 'تلگرام', desc: 'بات فروشگاه' },
+  { id: 'BALE', name: 'بله', desc: 'بات پیام‌رسان' },
+  { id: 'RUBIKA', name: 'روبیکا', desc: 'بات پیام‌رسان' },
 ];
 
 function statusChip(status: string): { label: string; cls: string } {
   if (status === 'ACTIVE' || status === 'CONNECTED') return { label: 'متصل', cls: 'b-green' };
   if (status === 'RECONNECT_NEEDED' || status === 'EXPIRED') return { label: 'نیاز به اتصال مجدد', cls: 'b-amber' };
   if (status === 'ERROR') return { label: 'خطا', cls: 'b-red' };
-  if (status === 'DISABLED') return { label: 'غیرفعال', cls: 'b-gray' };
+  if (status === 'DISABLED' || status === 'DISCONNECTED') return { label: 'قطع شده', cls: 'b-gray' };
   return { label: status, cls: 'b-gray' };
 }
 
 /**
- * اکانت‌ها — فروشنده فقط روی پلتفرم کلیک می‌کند، اجازه می‌دهد و کارت
- * وصل‌شده را می‌بیند. هیچ جزئیات فنی (webhook، توکن، ارائه‌دهنده) این‌جا
- * نیست؛ آن‌ها در صفحه‌ی ادمین «یکپارچه‌سازی‌ها» هستند.
+ * اکانت‌ها — روی هر پلتفرم کلیک کنید تا مودال اتصال/پیکربندی باز شود؛
+ * بعد از اتصال، کارت حساب در همین صفحه اضافه می‌شود و با کلیک روی کارت،
+ * همان مودال در حالت ویرایش باز می‌شود. بله و روبیکا مودال‌های جدا دارند.
  */
 export default function AccountsPage() {
   const [channels, setChannels] = useState<ChannelConnection[] | null>(null);
   const [openPlatform, setOpenPlatform] = useState<Platform | null>(null);
-  const [manage, setManage] = useState<ChannelConnection | null>(null);
-  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
 
   const load = () => api.channels().then(setChannels).catch(() => setChannels([]));
   useEffect(() => { void load(); }, []);
 
   const connected = (channels ?? []).filter(c => c.status === 'ACTIVE' || c.status === 'CONNECTED');
+  const platformName = (id: Platform) => PLATFORMS.find(p => p.id === id)?.name ?? id;
 
   return (
     <div className="stack">
@@ -54,8 +54,15 @@ export default function AccountsPage() {
         <div className="card-body">
           <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
             {PLATFORMS.map(platform => (
-              <button key={platform.id} type="button" className="platform-tile" onClick={() => setOpenPlatform(platform.id)} style={{ textAlign: 'center', cursor: 'pointer', font: 'inherit' }}>
-                <platform.icon size={22} />
+              <button
+                key={platform.id}
+                type="button"
+                className="platform-tile"
+                onClick={() => setOpenPlatform(platform.id)}
+                style={{ textAlign: 'center', cursor: 'pointer', font: 'inherit' }}
+                aria-label={`اتصال ${platform.name}`}
+              >
+                <PlatformIcon platform={platform.id} size={40} />
                 <strong>{platform.name}</strong>
                 <span>{platform.desc}</span>
               </button>
@@ -70,25 +77,31 @@ export default function AccountsPage() {
         <section className="card">
           <div className="card-head">
             <div className="card-title">حساب‌های متصل</div>
+            <div className="card-desc">روی هر کارت بزنید تا تنظیماتش را ببینید و ویرایش کنید.</div>
           </div>
           <div className="card-body" style={{ display: 'grid', gap: 10 }}>
             {connected.map((channel, index) => {
               const chip = statusChip(channel.status);
-              const platformName = PLATFORMS.find(p => p.id === channel.platform)?.name ?? channel.platform;
               return (
-                <div key={channel.id} className="account-card" style={{ animationDelay: `${index * 0.08}s` }}>
-                  <span className="avatar avatar-brand">{channel.displayName?.trim().charAt(0) ?? '؟'}</span>
+                <button
+                  key={channel.id}
+                  type="button"
+                  className="account-card account-card-clickable"
+                  style={{ animationDelay: `${index * 0.08}s`, textAlign: 'start', font: 'inherit', cursor: 'pointer', width: '100%' }}
+                  onClick={() => setOpenPlatform(channel.platform)}
+                  aria-label={`ویرایش حساب ${channel.displayName || platformName(channel.platform)}`}
+                >
+                  <PlatformIcon platform={channel.platform} size={40} />
                   <span style={{ minWidth: 0, flex: 1 }}>
-                    <strong style={{ display: 'block' }}>{channel.displayName || platformName}</strong>
+                    <strong style={{ display: 'block' }}>{channel.displayName || platformName(channel.platform)}</strong>
                     <span className="small muted">
-                      {platformName}
+                      {platformName(channel.platform)}
                       {channel.username ? ` · @${channel.username}` : ''}
                       {channel.lastSeenAt ? ` · آخرین فعالیت ${relativeTime(channel.lastSeenAt)}` : ''}
                     </span>
                   </span>
                   <span className={`badge ${chip.cls}`}><span className="dot" />{chip.label}</span>
-                  <button type="button" className="btn btn-outline btn-sm" onClick={() => { setManage(channel); setConfirmDisconnect(false); }}>مدیریت</button>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -105,50 +118,20 @@ export default function AccountsPage() {
       )}
 
       {openPlatform && (
-        <div className="modal-backdrop" onClick={() => setOpenPlatform(null)} role="dialog" aria-modal="true" aria-label="اتصال پلتفرم">
+        <div className="modal-backdrop" onClick={() => setOpenPlatform(null)} role="dialog" aria-modal="true" aria-label={`اتصال ${platformName(openPlatform)}`}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
             <div className="modal-head">
-              <div className="card-title">اتصال {PLATFORMS.find(p => p.id === openPlatform)?.name}</div>
+              <div className="row" style={{ gap: 10, alignItems: 'center' }}>
+                <PlatformIcon platform={openPlatform} size={32} />
+                <div className="card-title">اتصال {platformName(openPlatform)}</div>
+              </div>
               <button type="button" className="btn btn-ghost btn-icon" onClick={() => setOpenPlatform(null)} aria-label="بستن"><IconX size={16} /></button>
             </div>
             <div className="modal-body">
-              {openPlatform === 'INSTAGRAM' && <InstagramConnect />}
-              {openPlatform === 'TELEGRAM' && <TelegramConnect />}
-              {(openPlatform === 'BALE' || openPlatform === 'RUBIKA') && <ChannelConnect />}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {manage && (
-        <div className="modal-backdrop" onClick={() => setManage(null)} role="dialog" aria-modal="true" aria-label="مدیریت حساب">
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
-            <div className="modal-head">
-              <div className="card-title">مدیریت {manage.displayName}</div>
-              <button type="button" className="btn btn-ghost btn-icon" onClick={() => setManage(null)} aria-label="بستن"><IconX size={16} /></button>
-            </div>
-            <div className="modal-body" style={{ display: 'grid', gap: 10 }}>
-              <div className="kv-row"><span>وضعیت</span><strong>{statusChip(manage.status).label}</strong></div>
-              <div className="kv-row"><span>آخرین فعالیت</span><strong>{manage.lastSeenAt ? relativeTime(manage.lastSeenAt) : '—'}</strong></div>
-              {manage.lastError && <div className="alert alert-error"><span>{manage.lastError}</span></div>}
-              <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-outline btn-sm" onClick={() => { setOpenPlatform(manage.platform); setManage(null); }}>اتصال مجدد</button>
-                <button type="button" className="btn btn-outline btn-sm" onClick={async () => {
-                  try { await api.disconnectChannel(manage.id); toastOk(); setManage(null); void load(); }
-                  catch { /* ignore */ }
-                }}>غیرفعال‌کردن</button>
-                {!confirmDisconnect ? (
-                  <button type="button" className="btn btn-outline btn-sm" style={{ color: 'var(--danger)' }} onClick={() => setConfirmDisconnect(true)}>قطع اتصال</button>
-                ) : (
-                  <>
-                    <span className="small">مطمئن هستید؟ مشتری دیگر از این حساب به فروشگاه نمی‌رسد.</span>
-                    <button type="button" className="btn btn-primary btn-sm" onClick={async () => {
-                      try { await api.deleteChannel(manage.id); setManage(null); void load(); }
-                      catch { /* ignore */ }
-                    }}>بله، قطع کن</button>
-                  </>
-                )}
-              </div>
+              {openPlatform === 'INSTAGRAM' && <InstagramConnect onChanged={load} />}
+              {openPlatform === 'TELEGRAM' && <TelegramConnect onChanged={load} />}
+              {openPlatform === 'BALE' && <ChannelConnect platform="BALE" onChanged={load} />}
+              {openPlatform === 'RUBIKA' && <ChannelConnect platform="RUBIKA" onChanged={load} />}
             </div>
           </div>
         </div>
@@ -156,5 +139,3 @@ export default function AccountsPage() {
     </div>
   );
 }
-
-function toastOk() { /* feedback via reload */ }

@@ -320,7 +320,7 @@ export default function AdminOverviewPage() {
                 {data.recentAudit.map(row => (
                   <tr key={row.id}>
                     <td className="act">{row.action}</td>
-                    <td className="mono hide-sm">{row.path}</td>
+                    <td className="path hide-sm" dir="ltr">{row.path}</td>
                     <td>
                       <span className={`dotst${row.success ? '' : ' bad'}`}><i />{row.statusCode}</span>
                     </td>

@@ -21,21 +21,21 @@ const PLATFORM_INFO: Record<Platform, { label: string; hint: string; tokenHint: 
 };
 
 /**
- * اتصال کانال‌های بله و روبیکا.
- * اینستاگرام و تلگرام کارت‌های جدا و کامل دارند؛ این‌جا فقط دو کانال
- * پیام‌رسان ایرانی که با توکن بات وصل می‌شوند.
+ * اتصال یک کانال پیام‌رسان ایرانی (بله یا روبیکا) — هر پلتفرم مودال جدا دارد.
+ * `platform` مشخص می‌کند فقط همان پلتفرم نمایش داده شود.
  */
-export function ChannelConnect() {
+export function ChannelConnect({ platform, onChanged }: { platform: Platform; onChanged?: () => void }) {
   const toast = useToast();
   const [connections, setConnections] = useState<ChannelConnection[] | null>(null);
-  const [open, setOpen] = useState<Platform | null>(null);
+  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const info = PLATFORM_INFO[platform];
 
   const load = () => {
-    api.channels().then(setConnections).catch(() => setConnections([]));
+    api.channels().then(all => setConnections(all.filter(c => c.platform === platform))).catch(() => setConnections([]));
   };
 
-  useEffect(load, []);
+  useEffect(load, [platform]);
 
   async function disconnect(connection: ChannelConnection) {
     setBusy(true);
@@ -43,6 +43,7 @@ export function ChannelConnect() {
       await api.disconnectChannel(connection.id);
       toast.success('اتصال قطع شد.');
       load();
+      onChanged?.();
     } catch (problem) {
       toast.error('قطع اتصال انجام نشد', problem instanceof ApiError ? problem.message : undefined);
     } finally {
@@ -50,67 +51,41 @@ export function ChannelConnect() {
     }
   }
 
-  const byPlatform = (platform: Platform) =>
-    connections?.filter(connection => connection.platform === platform) ?? [];
-
   return (
-    <section className="card">
-      <div className="card-head">
-        <div className="row" style={{ gap: 10 }}>
-          <span className="stat-ico"><IconCheckCircle size={15} /></span>
+    <div style={{ display: 'grid', gap: 12 }}>
+      {connections === null && <SkeletonBlock height={60} />}
+      {connections !== null && connections.length === 0 && (
+        <p className="small muted" style={{ margin: 0, lineHeight: 1.9 }}>{info.hint}</p>
+      )}
+      {connections?.map(connection => (
+        <div key={connection.id} className="row-between" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
           <div>
-            <div className="card-title">کانال‌های پیام‌رسان (بله / روبیکا)</div>
-            <div className="card-desc">مشتری در بله یا روبیکا هم می‌تواند سؤال بپرسد و سفارش بدهد؛ پاسخ‌ها از همین دستیار می‌آید.</div>
-          </div>
-        </div>
-        <span className="card-index num">۰۵</span>
-      </div>
-      <div className="card-body" style={{ display: 'grid', gap: 14 }}>
-        {connections === null && <SkeletonBlock height={60} />}
-        {(['BALE', 'RUBIKA'] as Platform[]).map(platform => {
-          const info = PLATFORM_INFO[platform];
-          const list = byPlatform(platform);
-          return (
-            <div key={platform} style={{ display: 'grid', gap: 8 }}>
-              <div className="row-between">
-                <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>{info.label}</div>
-                <button className="btn btn-outline btn-sm" onClick={() => setOpen(platform)}>
-                  <IconPlus size={14} />اتصال {info.label}
-                </button>
-              </div>
-              {list.length === 0 && connections !== null && (
-                <p className="small muted" style={{ margin: 0 }}>{info.hint}</p>
-              )}
-              {list.map(connection => (
-                <div key={connection.id} className="row-between" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
-                  <div>
-                    <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>
-                      {connection.displayName || connection.username || connection.externalId}
-                    </div>
-                    <div className="small muted">
-                      {connection.status === 'CONNECTED' ? 'وصل است' : connection.status === 'DISCONNECTED' ? 'قطع شده' : connection.status}
-                      {connection.hasSecret ? ' · توکن ثبت شده' : ''}
-                      {connection.lastError ? ` · ${connection.lastError}` : ''}
-                    </div>
-                  </div>
-                  <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void disconnect(connection)} style={{ color: 'var(--danger)' }}>
-                    قطع اتصال
-                  </button>
-                </div>
-              ))}
+            <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>
+              {connection.displayName || connection.username || connection.externalId}
             </div>
-          );
-        })}
-      </div>
+            <div className="small muted">
+              {connection.status === 'CONNECTED' ? 'وصل است' : connection.status === 'DISCONNECTED' ? 'قطع شده' : connection.status}
+              {connection.hasSecret ? ' · توکن ثبت شده' : ''}
+              {connection.lastError ? ` · ${connection.lastError}` : ''}
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void disconnect(connection)} style={{ color: 'var(--danger)' }}>
+            قطع اتصال
+          </button>
+        </div>
+      ))}
+      <button className="btn btn-primary" onClick={() => setOpen(true)} style={{ width: '100%' }}>
+        <IconPlus size={15} />اتصال {info.label}
+      </button>
 
       {open && (
         <ConnectModal
-          platform={open}
-          onClose={() => setOpen(null)}
-          onSaved={() => { setOpen(null); load(); }}
+          platform={platform}
+          onClose={() => setOpen(false)}
+          onSaved={() => { setOpen(false); load(); onChanged?.(); }}
         />
       )}
-    </section>
+    </div>
   );
 }
 

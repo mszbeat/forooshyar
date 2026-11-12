@@ -1,24 +1,19 @@
 /* ==========================================================================
    صفحه‌ی ورود و ثبت‌نام v4 «Aurora» — دو نیمه با پنل گرادیانی
-   چیدمان پایدار است: هر دو نیمه همیشه در جای خودشان می‌مانند و فقط محتوای
-   داخلی (عنوان، فیلدها، متن پنل) با یک کراس‌فید کوتاه عوض می‌شود. هیچ
-   جابه‌جایی با transform انجام نمی‌شود تا در RTL صفحه خالی/جدا نشود.
+   جابه‌جایی با transform واقعی انجام می‌شود: هر دو پنل همیشه در DOM هستند
+   و با translateX به سمت دیگر می‌لغزند تا کاربر حرکت را ببیند. در RTL فرم
+   اول (راست) و پنل دوم (چپ) است؛ در ثبت‌نام فرم به چپ و پنل به راست می‌رود.
    ========================================================================== */
 .authx {
-  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  min-height: 100dvh; background: var(--bg); isolation: isolate;
+  position: relative; display: flex;
+  min-height: 100dvh; background: var(--bg); isolation: isolate; overflow: hidden;
 }
-/* در حالت ورود: فرم راست، پنل خوش‌آمد چپ. در ثبت‌نام برعکس.
-   order جابه‌جا می‌شود و هر دو پنل با اسلاید+فید وارد می‌شوند؛
-   هیچ‌کدام unmount نمی‌شوند تا صفحه هرگز خالی نشود. */
-.authx-form-side { order: 1; }
-.authx-visual { order: 2; }
-.authx.register .authx-form-side { order: 2; }
-.authx.register .authx-visual { order: 1; }
-.authx.register .authx-form-side { animation: authx-slide-in .6s cubic-bezier(.22,1.2,.36,1) both; }
-.authx.register .authx-visual { animation: authx-slide-in .6s cubic-bezier(.22,1.2,.36,1) both; }
-.authx.login .authx-form-side { animation: authx-slide-in .6s cubic-bezier(.22,1.2,.36,1) both; }
-.authx.login .authx-visual { animation: authx-slide-in .6s cubic-bezier(.22,1.2,.36,1) both; }
+.authx-form-side, .authx-visual { flex: 0 0 50%; min-width: 0; }
+.authx-form-side { position: relative; z-index: 1; transition: transform .65s cubic-bezier(.22,1,.36,1); will-change: transform; }
+.authx-visual { position: relative; z-index: 2; transition: transform .65s cubic-bezier(.22,1,.36,1); will-change: transform; }
+/* در ثبت‌نام: فرم به چپ (جای پنل) و پنل به راست (جای فرم) می‌لغزد. */
+.authx.register .authx-form-side { transform: translateX(-100%); }
+.authx.register .authx-visual { transform: translateX(100%); }
 @keyframes authx-slide-in {
   from { opacity: 0; transform: translateY(10px) scale(.985); filter: blur(2px); }
   to { opacity: 1; transform: none; filter: none; }
@@ -35,8 +30,12 @@
 }
 .authx-form-card { width: min(400px, 100%); position: relative; z-index: 1; }
 .authx-visual {
-  position: relative; margin: 14px; border-radius: 28px; overflow: hidden; color: #f7f8f8;
-  min-height: calc(100dvh - 28px);
+  color: #f7f8f8;
+  min-height: 100dvh;
+}
+.authx-visual-card {
+  position: relative; margin: 14px; border-radius: 28px; overflow: hidden;
+  min-height: calc(100dvh - 28px); height: calc(100% - 28px);
   background:
     radial-gradient(80% 55% at 80% 8%, rgba(124,108,255,.5), transparent 70%),
     radial-gradient(70% 60% at 8% 94%, rgba(34,211,238,.22), transparent 68%),
@@ -108,9 +107,13 @@
 .authx-demo { margin-top: 20px; padding: 13px 15px; border-radius: var(--r-md); border: 1px dashed var(--line-strong); background: var(--surface-2); font-size: 12px; line-height: 1.9; color: var(--ink-2); }
 .authx-demo b { color: var(--ink); }
 @media (max-width: 900px) {
-  .authx { grid-template-columns: minmax(0, 1fr); }
+  .authx { flex-direction: column; }
+  .authx-form-side, .authx-visual { flex: none; }
+  /* در موبایل جابه‌جایی ترنسفورم ندارد؛ فقط کراس‌فید محتوا. */
+  .authx.register .authx-form-side, .authx.register .authx-visual { transform: none; }
   /* در موبایل کارت خوش‌آمد به بنر فشرده‌ی بالای فرم تبدیل می‌شود (حذف نمی‌شود). */
-  .authx-visual { margin: 0; border-radius: 0 0 24px 24px; min-height: 0; }
+  .authx-visual { min-height: 0; }
+  .authx-visual-card { margin: 0; border-radius: 0 0 24px 24px; min-height: 0; height: auto; }
   .authx-visual-inner { padding: 22px 20px 18px; gap: 14px; }
   .authx-visual .authx-feats, .authx-visual .authx-chat, .authx-visual .authx-foot { display: none; }
   .authx-visual .authx-copy p { margin-top: 8px; }
@@ -120,5 +123,5 @@
   .authx-tabs .thumb { transition: none; }
   .authx-glow { animation: none; }
   .authx-pane, .authx-copy { animation: none; }
-  .authx-form-side, .authx-visual { animation: none; }
+  .authx-form-side, .authx-visual { animation: none; transition: none; }
 }

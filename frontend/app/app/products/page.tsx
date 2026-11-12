@@ -330,7 +330,7 @@ useEffect(() => { void load(); }, [load]);
                       <IconPlus size={14} />سایز / رنگ
                     </button>
                     <button className="btn btn-outline btn-sm" onClick={() => setAttributesFor(product)} disabled={busyId === product.id}>
-                      <IconTag size={14} />ویژگی‌ها
+                      <IconTag size={14} />واریانت از ویژگی‌ها
                     </button>
                     {product.active ? (
                       <button
@@ -689,66 +689,70 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
   );
   const [suggestions, setSuggestions] = useState<{ names: string[]; valuesByName: Record<string, string[]> } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     api.attributeSuggestions().then(setSuggestions).catch(() => setSuggestions(null));
   }, []);
 
-  const totalCombos = drafts.reduce((acc, draft) => acc * Math.max(1, draft.values.length), 1);
+  const cleaned = drafts
+    .map(draft => ({ name: draft.name.trim(), values: draft.values.map(v => v.trim()).filter(Boolean) }))
+    .filter(draft => draft.name && draft.values.length > 0);
+
+  // پیش‌نمایش زنده‌ی ترکیب‌ها: ضرب دکارتی ویژگی‌ها (مثل رنگ × سایز).
+  const preview = useMemo(() => {
+    if (cleaned.length === 0) return [] as Record<string, string>[];
+    let combos: Record<string, string>[] = [{}];
+    for (const attr of cleaned) {
+      const next: Record<string, string>[] = [];
+      for (const base of combos) {
+        for (const value of attr.values) next.push({ ...base, [attr.name]: value });
+      }
+      combos = next;
+    }
+    return combos;
+  }, [drafts]);
+
+  const totalCombos = preview.length;
 
   function updateDraft(index: number, patch: Partial<AttrDraft>) {
     setDrafts(current => current.map((draft, i) => (i === index ? { ...draft, ...patch } : draft)));
   }
 
-  async function save() {
-    const cleaned = drafts
-      .map(draft => ({ name: draft.name.trim(), values: draft.values.map(v => v.trim()).filter(Boolean) }))
-      .filter(draft => draft.name && draft.values.length > 0);
+  /** یک جریان واحد: اول ویژگی‌ها ذخیره می‌شوند، بعد واریانت‌ها از روی همان‌ها ساخته می‌شوند. */
+  async function saveAndGenerate() {
     if (cleaned.length === 0) { toast.error('حداقل یک ویژگی با حداقل یک مقدار لازم است.'); return; }
+    if (totalCombos > 100) { toast.error(`تعداد ترکیب‌ها (${faNum(totalCombos)}) از سقف ۱۰۰ گذشته است.`); return; }
+    if (product.variants.length > 0 && !window.confirm('واریانت‌ها از روی این ویژگی‌ها ساخته می‌شوند. ترکیب‌های موجود و قیمت/موجودی ویرایش‌شده حفظ می‌شوند و ترکیب‌های حذف‌شده غیرفعال می‌شوند. ادامه می‌دهید؟')) return;
     setBusy(true);
     try {
       await api.setAttributes(product.id, cleaned);
-      toast.success('ویژگی‌ها ذخیره شدند. حالا می‌توانید ترکیب‌ها را تولید کنید.');
+      const result = await api.generateVariants(product.id);
+      toast.success(`واریانت‌ها ساخته شدند: ${faNum(result.created)} جدید، ${faNum(result.kept)} حفظ شد، ${faNum(result.deactivated)} غیرفعال شد.`);
       onSaved();
     } catch (problem) {
-      toast.error('ذخیره ویژگی‌ها انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+      toast.error('ساخت واریانت انجام نشد', problem instanceof ApiError ? problem.message : undefined);
     } finally {
       setBusy(false);
     }
   }
 
-  async function generate() {
-    if (product.variants.length > 0 && !window.confirm('ترکیب‌ها دوباره تولید می‌شوند. ترکیب‌های موجود و قیمت/موجودی ویرایش‌شده حفظ می‌شوند و ترکیب‌های حذف‌شده غیرفعال می‌شوند. ادامه می‌دهید؟')) return;
-    setGenerating(true);
-    try {
-      const result = await api.generateVariants(product.id);
-      toast.success(`ترکیب‌ها ساخته شدند: ${faNum(result.created)} جدید، ${faNum(result.kept)} حفظ شد، ${faNum(result.deactivated)} غیرفعال شد.`);
-      onSaved();
-    } catch (problem) {
-      toast.error('تولید ترکیب انجام نشد', problem instanceof ApiError ? problem.message : undefined);
-    } finally {
-      setGenerating(false);
-    }
-  }
-
   return (
     <Modal
-      open onClose={onClose} size="lg" title="ویژگی‌های محصول"
-      description={`${product.title} — ویژگی‌ها را تعریف کنید، بعد با «تولید ترکیب» واریانت‌ها را بسازید. ترکیب‌های موجود و ویرایش‌هایشان حفظ می‌شوند.`}
+      open onClose={onClose} size="lg" title="ساخت واریانت از ویژگی‌ها"
+      description={`${product.title} — ویژگی‌ها را بنویسید (مثل رنگ و سایز)؛ واریانت‌ها خودکار از ترکیب همه‌ی مقدارها ساخته می‌شوند.`}
       footer={
         <>
           <button className="btn btn-ghost" onClick={onClose}>انصراف</button>
-          <button className="btn btn-outline" onClick={() => void generate()} disabled={generating || busy}>
-            {generating && <Spinner size={14} />}تولید ترکیب ({faNum(totalCombos)})
-          </button>
-          <button className="btn btn-primary" onClick={() => void save()} disabled={busy || generating}>
-            {busy && <Spinner size={14} />}ذخیره ویژگی‌ها
+          <button className="btn btn-primary" onClick={() => void saveAndGenerate()} disabled={busy || cleaned.length === 0 || totalCombos > 100}>
+            {busy && <Spinner size={14} />}ذخیره و ساخت {faNum(totalCombos)} واریانت
           </button>
         </>
       }
     >
       <div className="stack">
+        <div className="small muted" style={{ lineHeight: 1.9 }}>
+          <strong>قدم ۱:</strong> هر ویژگی را با نام و مقدارهایش بنویسید. <strong>قدم ۲:</strong> ترکیب‌های ساخته‌شده را پایین ببینید. <strong>قدم ۳:</strong> دکمه‌ی «ذخیره و ساخت» را بزنید.
+        </div>
         {drafts.map((draft, index) => (
           <div key={index} className="card card-pad" style={{ display: 'grid', gap: 10 }}>
             <div className="row" style={{ gap: 8 }}>
@@ -763,7 +767,7 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
               </button>
             </div>
             <input
-              className="input" placeholder="مقادیر را با کاما جدا کنید: مشکی، سفید، قرمز"
+              className="input" placeholder="مقادیر را با کاما جدا کنید: مشکی، قهوه‌ای"
               value={draft.values.join('، ')}
               list={suggestions && draft.name ? 'attr-values' : undefined}
               onChange={event => updateDraft(index, { values: event.target.value.split(/[،,]/).map(v => v.trim()) })}
@@ -788,6 +792,23 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
         <button className="btn btn-outline btn-sm" onClick={() => setDrafts(current => [...current, { name: '', values: [] }])}>
           <IconPlus size={14} />افزودن ویژگی
         </button>
+
+        {cleaned.length > 0 && (
+          <div className="card card-pad" style={{ display: 'grid', gap: 8 }}>
+            <div className="row-between">
+              <strong style={{ fontSize: 'var(--fs-sm)' }}>پیش‌نمایش ترکیب‌ها ({faNum(totalCombos)} واریانت)</strong>
+              <span className="small muted">قیمت پیش‌فرض محصول و موجودی ۰ روی همه اعمال می‌شود</span>
+            </div>
+            <div className="row" style={{ gap: 6, flexWrap: 'wrap', maxHeight: 180, overflowY: 'auto' }}>
+              {preview.slice(0, 100).map((combo, i) => (
+                <span key={i} className="badge b-blue" style={{ fontWeight: 500 }}>
+                  {Object.entries(combo).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {totalCombos > 100 && (
           <div className="alert alert-error">
             <IconAlertCircle />
@@ -796,7 +817,7 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
         )}
         <div className="alert alert-info">
           <IconAlertCircle />
-          <span>تولید ترکیب حداکثر ۱۰۰ واریانت می‌سازد. ترکیب‌هایی که قبلاً ساخته‌اید (و قیمت/موجودی ویرایش‌شده‌شان) دست نمی‌خورند؛ ترکیب‌های حذف‌شده فقط غیرفعال می‌شوند.</span>
+          <span>حداکثر ۱۰۰ واریانت ساخته می‌شود. ترکیب‌هایی که قبلاً ساخته‌اید (و قیمت/موجودی ویرایش‌شده‌شان) دست نمی‌خورند؛ ترکیب‌های حذف‌شده فقط غیرفعال می‌شوند.</span>
         </div>
       </div>
     </Modal>
