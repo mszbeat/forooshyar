@@ -17,6 +17,7 @@ import { composeReply, type BrainShop } from '../src/telegram/brain';
 import type { CatalogProduct } from '../src/catalog/discovery';
 import { maskFacts, restoreFacts } from '../src/ai/mask';
 import { guardPolish } from '../src/ai/polish';
+import { validateGrounding } from '../src/ai/grounding';
 
 type Question = {
   q: string;
@@ -118,6 +119,15 @@ check('نگهبان: تغییر کد محصول رد می‌شود', !guardPolis
 
 const numberAdded = `${honestRewrite}\nارسال رایگان برای سفارش‌های بالای ۵۰۰٬۰۰۰ تومان!`;
 check('نگهبان: عدد تازه رد می‌شود', !guardPolish(sample, numberAdded).ok);
+
+/* --------------------------------------------------- ۴) اعتبارسنجی grounding */
+
+console.log('\nارزیابی grounding\n');
+
+const groundingFacts = { numbers: [], productTitles: ['مانتو کتان'], skus: [], urls: [] };
+check('grounding: متن صادقانه قبول می‌شود', validateGrounding(honestRewrite, sample, groundingFacts).ok);
+check('grounding: عدد ساخته‌شده رد می‌شود', !validateGrounding(`${honestRewrite} فقط ۹۹۹٬۰۰۰ تومان!`, sample, groundingFacts).ok);
+check('grounding: URL ساخته‌شده رد می‌شود', !validateGrounding(`${honestRewrite} https://example.com/pay`, sample, groundingFacts).ok);
 
 /* ------------------------------------------------------------------- خلاصه */
 

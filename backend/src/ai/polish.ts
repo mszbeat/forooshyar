@@ -4,6 +4,7 @@ import type { BotReply } from '../telegram/brain';
 import type { AiService } from './ai.service';
 import { escapeHtml } from '../telegram/order-flow';
 import { maskFacts, restoreFacts } from './mask';
+import { validateGrounding } from './grounding';
 
 /**
  * «جان دادن» به پاسخ‌های آماده — بدون تغییر واقعیت.
@@ -223,8 +224,9 @@ export async function polishReply(
     return { ok: false, reason: 'daily_cap' };
   }
 
-  // ماسک: مدل قیمت و کد را نمی‌بیند؛ فقط لحن را می‌سازد.
-  const { masked, facts } = maskFacts(reply.text);
+  // ماسک: مدل قیمت، کد، نام محصول، URL و تلفن را نمی‌بیند؛ فقط لحن را می‌سازد.
+  const productTitles = (shop as { products?: { title: string }[] }).products?.map(p => p.title) ?? [];
+  const { masked, facts } = maskFacts(reply.text, { productTitles });
 
   const raw = await ai.complete(systemPrompt(shop), userPrompt(masked, text), undefined, {
     temperature: 0.55,
@@ -252,6 +254,18 @@ export async function polishReply(
   if (!guard.ok) {
     logger.warn(`polish rejected by guard (shop=${shopKey}, reason=${guard.reason})`);
     return guard;
+  }
+
+  // اعتبارسنجی grounding: هیچ عدد/URL ساخته‌ای در متن نهایی نیست.
+  const grounding = validateGrounding(guard.text, reply.text, {
+    numbers: [],
+    productTitles,
+    skus: [],
+    urls: [],
+  });
+  if (!grounding.ok) {
+    logger.warn(`polish rejected by grounding (shop=${shopKey}, reason=${grounding.reason})`);
+    return { ok: false, reason: grounding.reason ?? 'grounding_failed' };
   }
 
   cacheSet(key, guard.text);

@@ -32,11 +32,20 @@ function placeholderFor(index: number): string {
 
 const PLACEHOLDER_RE = /⟦F[A-Z]+⟧/g;
 
+export interface MaskOptions {
+  /** نام‌های محصول که نباید مدل آن‌ها را عوض کند. */
+  productTitles?: string[];
+  /** SKUها و کدهای سفارش. */
+  skus?: string[];
+}
+
 /**
- * همه‌ی واقعیت‌های متن (کدهای محصول و عددها) را با جای‌نگه‌دار عوض می‌کند.
- * ترتیب ماسک مهم است: اول کدها (چون ممکن است عدد هم داشته باشند)، بعد عددها.
+ * همه‌ی واقعیت‌های متن (کدهای محصول، نام محصول، SKU، URL، تلفن و عددها)
+ * را با جای‌نگه‌دار عوض می‌کند.
+ * ترتیب ماسک مهم است: اول کدها و نام‌ها (چون ممکن است عدد هم داشته باشند)،
+ * بعد URL/تلفن، و در آخر عددها.
  */
-export function maskFacts(text: string): MaskResult {
+export function maskFacts(text: string, options: MaskOptions = {}): MaskResult {
   const facts: MaskedFact[] = [];
   let counter = 0;
   const push = (value: string): string => {
@@ -46,10 +55,32 @@ export function maskFacts(text: string): MaskResult {
     return placeholder;
   };
 
-  // ۱) محتوای داخل <code> — خود تگ دیده می‌ماند تا ساختار پیام حفظ شود.
-  let masked = text.replace(/<code>([^<]+)<\/code>/g, (_match, code: string) => `<code>${push(code)}</code>`);
+  let masked = text;
 
-  // ۲) همه‌ی عددها (فارسی و لاتین) — همان الگوی نگهبان بازنویسی.
+  // ۱) محتوای داخل <code> — خود تگ دیده می‌ماند تا ساختار پیام حفظ شود.
+  masked = masked.replace(/<code>([^<]+)<\/code>/g, (_match, code: string) => `<code>${push(code)}</code>`);
+
+  // ۲) نام محصولات و SKUها (از روی کاتالوگ داده می‌شوند).
+  const titles = (options.productTitles ?? [])
+    .filter(title => title.trim().length >= 2)
+    .sort((a, b) => b.length - a.length);
+  for (const title of titles) {
+    if (masked.includes(title)) {
+      masked = masked.split(title).join(push(title));
+    }
+  }
+  const skus = (options.skus ?? []).filter(sku => sku.trim().length >= 3);
+  for (const sku of skus) {
+    if (masked.includes(sku)) {
+      masked = masked.split(sku).join(push(sku));
+    }
+  }
+
+  // ۳) URLها و شماره‌های تلفن/موبایل.
+  masked = masked.replace(/https?:\/\/[^\s<]+/g, match => push(match));
+  masked = masked.replace(/(?:\+?98|0)?9\d{9}/g, match => push(match));
+
+  // ۴) همه‌ی عددها (فارسی و لاتین) — همان الگوی نگهبان بازنویسی.
   masked = masked.replace(/[0-9۰-۹][0-9۰-۹٬,.]*/g, match => push(match));
 
   return { masked, facts };
