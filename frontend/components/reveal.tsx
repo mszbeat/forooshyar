@@ -32,6 +32,9 @@ const SELECTORS = [
   '.rule',
   '.faq-item',
   '.tile',
+  '.plan-card',
+  '.land-robot-card',
+  '.sec-head',
 ];
 
 const reduced = () =>
@@ -65,7 +68,10 @@ export function MotionBoot() {
           if (seen.has(node)) return;
           seen.add(node);
           order += 1;
-          node.style.setProperty('--fx-delay', `${Math.min(order, 6) * 45}ms`);
+          // اگر عنصر خودش تأخیر صریح دارد (مثل کارت‌های پلن)، همان را نگه دار.
+          if (!node.style.getPropertyValue('--fx-delay')) {
+            node.style.setProperty('--fx-delay', `${Math.min(order, 6) * 45}ms`);
+          }
           node.classList.add('fx');
           observer.observe(node);
         });

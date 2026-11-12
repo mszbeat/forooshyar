@@ -350,3 +350,72 @@
 .legal h2 { font-size: 17px; font-weight: 800; margin: 30px 0 8px; }
 .legal p { color: var(--ink-2); line-height: 2; margin: 0; font-size: 14.5px; }
 .legal a { color: var(--brand-400); font-weight: 700; }
+
+/* ---------- حرکت‌های پریمیوم لندینگ (فاز ۴) ---------- */
+/* ورود مرحله‌ای هیرو: هر خط با تأخیر خودش بالا می‌آید (فقط با JS، بدون پنهان‌ماندن محتوا) */
+.hero-anim > * { opacity: 0; transform: translateY(26px); animation: hero-rise .9s cubic-bezier(.22,1,.36,1) forwards; animation-delay: var(--hd, 0ms); }
+@keyframes hero-rise { to { opacity: 1; transform: none; } }
+
+/* گرادیان متحرک روی عنوان اصلی */
+.hero-title .ink {
+  background: linear-gradient(100deg, #7c6cff 0%, #4f7cff 35%, #22d3ee 60%, #7c6cff 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: grad-flow 7s ease-in-out infinite;
+}
+@keyframes grad-flow { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+/* خط زیر برند در هیرو — مثل قلم‌مو کشیده می‌شود */
+.hero-title .mark::after {
+  content: ""; position: absolute; inset-inline: 0; bottom: .06em; height: .09em;
+  background: linear-gradient(90deg, #7c6cff, #22d3ee); border-radius: 999px;
+  transform-origin: 100% 50%; transform: scaleX(0);
+  animation: mark-draw 1s .9s cubic-bezier(.22,1,.36,1) forwards;
+}
+@keyframes mark-draw { to { transform: scaleX(1); } }
+
+/* حلقه‌ی نوری پشت گوشی هیرو */
+.stage-glow {
+  position: absolute; inset: -12% -18%; z-index: 0; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(124,108,255,.28), rgba(79,124,255,.12) 55%, transparent 75%);
+  filter: blur(30px); animation: glow-pulse 6s ease-in-out infinite;
+}
+@keyframes glow-pulse { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+
+/* کارت‌های شناور هیرو — حرکت نرم بالا/پایین */
+
+
+/* نوار اعداد — شمارش نرم هنگام ورود */
+.fact-v { font-variant-numeric: tabular-nums; }
+
+/* دکمه‌های اصلی — برق نور هنگام هاور */
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.35) 50%, transparent 65%);
+  transform: translateX(120%); transition: transform .7s cubic-bezier(.22,1,.36,1);
+}
+.btn-primary:hover::after { transform: translateX(-120%); }
+
+/* کارت‌های امکانات — براقیت دنبال‌کننده‌ی نشانگر */
+.bento .tile, .land-robot-card { position: relative; overflow: hidden; }
+.bento .tile::before, .land-robot-card::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(124,108,255,.13), transparent 65%);
+  transition: opacity .35s;
+}
+.bento .tile:hover::before, .land-robot-card:hover::before { opacity: 1; }
+
+/* FAQ — بازشدن نرم */
+.faq details { transition: background .3s; }
+.faq details[open] { background: var(--surface); }
+.faq details p { animation: fx-in .35s var(--ease); }
+
+/* کاهش حرکت: همه‌ی حرکت‌های این بخش خاموش، محتوا کامل دیده می‌شود */
+@media (prefers-reduced-motion: reduce) {
+  .hero-anim > * { opacity: 1; transform: none; animation: none; }
+  .hero-title .ink { animation: none; }
+  .hero-title .mark::after { animation: none; transform: scaleX(1); }
+  .stage-glow { animation: none; }
+  .btn-primary::after { display: none; }
+}

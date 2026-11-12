@@ -156,13 +156,13 @@ export default function LandingPage() {
       {/* ------------------------------------------------------------- هیرو */}
       <header className="hero">
         <div className="land-wrap hero-grid">
-          <div>
-            <span className="hero-badge">
+          <div className="hero-anim">
+            <span className="hero-badge" style={{ '--hd': '0ms' } as React.CSSProperties}>
               <span className="pill"><span className="dot" /> کاتالوگ زنده</span>
               قیمت از دیتابیس خودت
             </span>
 
-            <h1 className="hero-title">
+            <h1 className="hero-title" style={{ '--hd': '90ms' } as React.CSSProperties}>
               مشتری می‌پرسد،
               <br />
               <span className="ink mark">فروش‌یار</span> جواب می‌دهد
@@ -170,13 +170,13 @@ export default function LandingPage() {
               <span className="quiet">با عددِ واقعی</span>
             </h1>
 
-            <p className="hero-lead">
+            <p className="hero-lead" style={{ '--hd': '180ms' } as React.CSSProperties}>
               دستیار فروش فارسی برای تلگرام: سؤال قیمت، موجودی، ارسال، پرداخت و مرجوعی را
               از دانش فروشگاه خودت جواب می‌دهد، سفارش را تا مرحله‌ی پرداخت می‌برد و هر جا
               واقعاً لازم بود، تحویل خودت می‌دهد.
             </p>
 
-            <div className="hero-actions">
+            <div className="hero-actions" style={{ '--hd': '270ms' } as React.CSSProperties}>
               <Link className="btn btn-primary btn-lg" href="/login?mode=register">
                 شروع رایگان
                 <IconArrowLeft size={17} />
@@ -184,7 +184,7 @@ export default function LandingPage() {
               <Link className="btn btn-outline btn-lg" href="/#plans">مشاهده پلن‌ها</Link><Link className="btn btn-outline btn-lg" href="/login">ورود به پنل</Link>
             </div>
 
-            <div className="hero-proof">
+            <div className="hero-proof" style={{ '--hd': '360ms' } as React.CSSProperties}>
               <span><IconCheckCircle size={15} /> بدون کارت بانکی</span>
               <span><IconClock size={15} /> پاسخ در همان لحظه</span>
               <span><IconShield size={15} /> داده‌ی هر فروشگاه جدا</span>
@@ -259,7 +259,7 @@ export default function LandingPage() {
             {robotScenes.map(scene => (
               <article className="land-robot-card" key={scene.src}>
                 <div className="land-robot-image">
-                  <Image src={scene.src} alt={`${scene.title} با ربات دستیار فروش‌یار`} width={480} height={480} />
+                  <Image src={scene.src} alt={`${scene.title} با ربات دستیار فروش‌یار`} width={480} height={480} loading="lazy" decoding="async" />
                 </div>
                 <div className="land-robot-copy">
                   <strong>{scene.title}</strong>
