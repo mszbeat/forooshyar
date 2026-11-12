@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
-import { encryptCard, isValidCardNumber, maskCard } from './card-crypto';
+import { encryptCard, hashCard, isValidCardNumber, maskCard } from './card-crypto';
 
 export interface PaymentMethodView {
   id: string;
@@ -83,6 +83,7 @@ export class ShopPaymentMethodsService {
         shopId,
         holderName,
         cardNumberEnc: encryptCard(digits),
+        cardHash: hashCard(digits),
         cardLast4: digits.slice(-4),
         bankName: (input.bankName ?? '').trim(),
         sheba,
@@ -118,6 +119,7 @@ export class ShopPaymentMethodsService {
       const digits = input.cardNumber.replace(/[\s-]/g, '');
       if (!isValidCardNumber(digits)) throw new BadRequestException('شماره کارت معتبر نیست.');
       data.cardNumberEnc = encryptCard(digits);
+      data.cardHash = hashCard(digits);
       data.cardLast4 = digits.slice(-4);
     }
     if (input.bankName !== undefined) data.bankName = input.bankName.trim();

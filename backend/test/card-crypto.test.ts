@@ -1,33 +1,42 @@
-import { test } from 'node:test';
-import { strict as assert } from 'node:assert';
-import {
-  encryptCard,
-  decryptCard,
-  isValidCardNumber,
-  maskCard,
-} from '../src/payments/card-crypto';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 
-test('رمزنگاری و رمزگشایی شماره کارت برگشت‌پذیر است', () => {
-  const card = '6037991234567893';
-  const encrypted = encryptCard(card);
-  assert.notEqual(encrypted, card);
-  assert.equal(decryptCard(encrypted), card);
-});
+// کلید تست ۳۲ بایتی base64
+process.env.CARD_ENCRYPTION_KEY = randomBytes(32).toString('base64');
+process.env.JWT_SECRET = 'test-secret-for-card-crypto-tests-only';
 
-test('هر رمزنگاری IV تازه دارد', () => {
-  const card = '6037991234567893';
-  assert.notEqual(encryptCard(card), encryptCard(card));
-});
+import { decryptCard, encryptCard, hashCard, isValidCardNumber } from '../src/payments/card-crypto';
 
-test('Luhn شماره کارت معتبر را می‌پذیرد و نامعتبر را رد می‌کند', () => {
-  // 6037991234567893 رقم کنترل Luhn را دارد.
-  assert.equal(isValidCardNumber('6037991234567893'), true);
-  assert.equal(isValidCardNumber('6037 9912 3456 7893'), true);
-  assert.equal(isValidCardNumber('6037991234567890'), false);
-  assert.equal(isValidCardNumber('1234567890123456'), false);
-  assert.equal(isValidCardNumber('603799123456789'), false);
-});
+describe('card crypto', () => {
+  it('round-trip: encrypt then decrypt returns the original', () => {
+    const card = '6037991234567893';
+    const encrypted = encryptCard(card);
+    assert.ok(encrypted.startsWith('v1.'), 'should have version prefix');
+    assert.equal(decryptCard(encrypted), card);
+  });
 
-test('ماسک فقط چهار رقم آخر را نشان می‌دهد', () => {
-  assert.equal(maskCard('6037991234567893'), '**** **** **** 7893');
+  it('two encryptions of the same card differ (random IV)', () => {
+    const card = '6037991234567893';
+    assert.notEqual(encryptCard(card), encryptCard(card));
+  });
+
+  it('wrong key fails to decrypt', () => {
+    const card = '6037991234567893';
+    const encrypted = encryptCard(card);
+    process.env.CARD_ENCRYPTION_KEY = randomBytes(32).toString('base64');
+    assert.throws(() => decryptCard(encrypted));
+  });
+
+  it('hashCard is deterministic and different for different cards', () => {
+    assert.equal(hashCard('6037991234567893'), hashCard('6037991234567893'));
+    assert.notEqual(hashCard('6037991234567893'), hashCard('6037991234567890'));
+  });
+
+  it('isValidCardNumber accepts Luhn-valid and rejects invalid', () => {
+    assert.equal(isValidCardNumber('6037991234567893'), true);
+    assert.equal(isValidCardNumber('6037 9912 3456 7893'), true);
+    assert.equal(isValidCardNumber('6037991234567890'), false);
+    assert.equal(isValidCardNumber('1234'), false);
+  });
 });

@@ -70,6 +70,12 @@ services:
         value: "false"
       - key: API_PROXY_TIMEOUT_MS
         value: "45000"
+      # کلید رمزنگاری شماره کارت (base64 از ۳۲ بایت؛ تولید با: openssl rand -base64 32)
+      # در production اجباری است — بدون آن ذخیره‌ی کارت با خطای ۵۰۰ می‌افتد.
+      - key: CARD_ENCRYPTION_KEY
+        sync: false
+      - key: CHANNEL_TOKEN_ENCRYPTION_KEY
+        sync: false
       # --- تلگرام: docs/TELEGRAM.md -------------------------------------------
       # توکن BotFather؛ در Dashboard مقدار بده (sync: false یعنی مخفی می‌ماند).
       - key: TELEGRAM_BOT_TOKEN

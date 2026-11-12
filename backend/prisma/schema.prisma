@@ -105,6 +105,8 @@ model ShopPaymentMethod {
   holderName   String
   /// شماره کارت رمزنگاری‌شده (AES-256-GCM با کلید `CARD_ENCRYPTION_KEY`).
   cardNumberEnc String
+  /// هش یک‌طرفه برای تشخیص کارت تکراری (بدون ذخیره‌ی plaintext).
+  cardHash     String   @default("")
   /// چهار رقم آخر برای نمایش ماسک‌شده.
   cardLast4    String
   /// نام بانک (اختیاری، مثل «ملی» یا «ملت»).

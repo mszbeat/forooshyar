@@ -4,11 +4,17 @@
  * شماره کارت داده‌ی حساس است: هرگز plaintext در DB/لاگ نمی‌نشیند.
  * کلید از `CARD_ENCRYPTION_KEY` (base64 از ۳۲ بایت) می‌آید؛ اگر ست نشده
  * باشد، در محیط توسعه از کلید ثابتِ ناامن استفاده می‌شود و هشدار داده
- * می‌شود (در production باید حتماً ست شود).
+ * می‌شود (در production باید حتماً ست شود — config.ts هم در استارتاپ
+ * اعتبارسنجی می‌کند).
+ *
+ * قالب ذخیره‌سازی: `v1.<iv>.<tag>.<ciphertext>` — پیشوند نسخه برای
+ * چرخش کلید در آینده (کلید جدید با v2 ذخیره می‌شود، قدیمی‌ها با همان
+ * نسخه‌ی خودشان خوانده می‌شوند).
  */
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
 const DEV_KEY = Buffer.alloc(32, 0x2a);
+const KEY_VERSION = 'v1';
 
 function key(): Buffer {
   const raw = (process.env.CARD_ENCRYPTION_KEY ?? '').trim();
@@ -30,17 +36,37 @@ export function encryptCard(cardNumber: string): string {
   const cipher = createCipheriv('aes-256-gcm', key(), iv);
   const ciphertext = Buffer.concat([cipher.update(cardNumber, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return [iv.toString('base64'), tag.toString('base64'), ciphertext.toString('base64')].join('.');
+  return [KEY_VERSION, iv.toString('base64'), tag.toString('base64'), ciphertext.toString('base64')].join('.');
 }
 
 export function decryptCard(payload: string): string {
-  const [ivB64, tagB64, dataB64] = payload.split('.');
+  const parts = payload.split('.');
+  // قالب قدیمی بدون نسخه: iv.tag.ciphertext
+  const [version, ivB64, tagB64, dataB64] = parts.length === 4
+    ? parts
+    : ['v0', parts[0], parts[1], parts[2]];
+  if (version !== 'v0' && version !== KEY_VERSION) {
+    throw new Error(`Unsupported card encryption version: ${version}`);
+  }
   const decipher = createDecipheriv('aes-256-gcm', key(), Buffer.from(ivB64, 'base64'));
   decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
   return Buffer.concat([
     decipher.update(Buffer.from(dataB64, 'base64')),
     decipher.final(),
   ]).toString('utf8');
+}
+
+/**
+ * هش یک‌طرفه‌ی شماره کارت برای تشخیص تکراری (بدون ذخیره‌ی plaintext).
+ * با کلید JWT ترکیب می‌شود تا هش بدون کلید قابل برگشت نباشد.
+ */
+export function hashCard(cardNumber: string): string {
+  return createHash('sha256').update(`${process.env.JWT_SECRET ?? 'forooshyar'}:${cardNumber}`).digest('hex');
+}
+
+export function maskCard(cardNumber: string): string {
+  const digits = cardNumber.replace(/\D/g, '');
+  return `**** **** **** ${digits.slice(-4)}`;
 }
 
 /** اعتبارسنجی شماره کارت ایرانی: ۱۶ رقم + Luhn. */
@@ -59,10 +85,4 @@ export function isValidCardNumber(raw: string): boolean {
     double = !double;
   }
   return sum % 10 === 0;
-}
-
-/** ماسک نمایشی: «**** **** **** 1234» */
-export function maskCard(cardNumber: string): string {
-  const digits = cardNumber.replace(/\D/g, '');
-  return `**** **** **** ${digits.slice(-4)}`;
 }

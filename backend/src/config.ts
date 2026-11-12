@@ -1,5 +1,30 @@
 import { z } from 'zod';
 
+/**
+ * اعتبارسنجی کلید رمزنگاری: base64 از ۳۲ بایت، بدون مقدار placeholder.
+ * در production اجباری است؛ در توسعه اگر نباشد، کلید ناامن استفاده می‌شود
+ * (با هشدار) تا تجربه‌ی محلی نشکند.
+ */
+function encryptionKeySchema(name: string) {
+  return z.string().optional().superRefine((value, context) => {
+    const raw = (value ?? '').trim();
+    if (!raw) {
+      if (process.env.NODE_ENV === 'production') {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} is required in production (base64 of 32 bytes; generate with: openssl rand -base64 32)` });
+      }
+      return;
+    }
+    if (raw.startsWith('replace-with-') || raw === 'change-me') {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} is still a placeholder; set a real base64 key (openssl rand -base64 32)` });
+      return;
+    }
+    const decoded = Buffer.from(raw, 'base64');
+    if (decoded.length !== 32) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: [name], message: `${name} must be base64 of exactly 32 bytes` });
+    }
+  });
+}
+
 const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATABASE_URL: z.string().url().refine((value) => value.startsWith('postgresql://') || value.startsWith('postgres://'), 'PostgreSQL URL required'),
@@ -7,6 +32,8 @@ const schema = z.object({
   REDIS_URL: z.string().optional(),
   CORS_ORIGINS: z.string().default(''),
   JWT_SECRET: z.string().min(32),
+  CARD_ENCRYPTION_KEY: encryptionKeySchema('CARD_ENCRYPTION_KEY'),
+  CHANNEL_TOKEN_ENCRYPTION_KEY: encryptionKeySchema('CHANNEL_TOKEN_ENCRYPTION_KEY'),
 }).superRefine((config, context) => {
   const origins = config.CORS_ORIGINS.split(',').map(value => value.trim()).filter(Boolean);
   for (const origin of origins) {
