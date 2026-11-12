@@ -501,6 +501,17 @@ export class InstagramService {
       return { status: 'handled', replies: items.length, kind: 'comments' };
     }
 
+    // نتیجه‌ی آسنکرون `show_profile`: نام/نام کاربری/عکس پروفایل مشتری.
+    // این تنها منبع رسمی نام مشتری است (Data API ممنوع).
+    if (type === 'show_profile' || type === 'profile') {
+      const profile = extractProfile(payload.data);
+      if (profile) {
+        await this.applyProfile(shopId, profile);
+        return { status: 'handled', replies: 0, kind: 'profile' };
+      }
+      return { status: 'ignored', reason: 'profile_empty' };
+    }
+
     // mention/action.* را می‌خوانیم و فقط ثبت می‌کنیم؛ پاسخ خودکار به mention
     // بدون درخواست صریح فروشنده، اسپم محسوب می‌شود.
     this.audit.record({ action: 'instagram.event_ignored', entity: 'webhook', shopId, meta: { eventType: type || 'unknown' } });
@@ -635,21 +646,47 @@ export class InstagramService {
    */
   private async enrichProfile(conversationId: string, igsid: string): Promise<boolean> {
     try {
-      const profile = await this.client.getUserInfoById(igsid);
-      const { username, fullName } = profile.ok && profile.data ? profile.data : { username: '', fullName: '' };
+      const conversation = await this.db.telegramConversation.findFirst({
+        where: { id: conversationId },
+        select: { shopId: true },
+      });
+      if (!conversation) return false;
+      const account = await this.account(conversation.shopId);
+      if (!account) return false;
+      // درخواست آسنکرون است؛ نتیجه از webhook `show_profile` برمی‌گردد.
+      const result = await this.client.requestProfile(account.id, igsid);
+      // حتی اگر درخواست ثبت نشد، کش را بزن تا هر پیام یک درخواست نسازد.
       await this.db.telegramConversation.update({
         where: { id: conversationId },
-        data: {
-          profileEnrichedAt: new Date(),
-          ...(username ? { username } : {}),
-          ...(fullName ? { firstName: fullName.slice(0, 80) } : {}),
-        },
+        data: { profileEnrichedAt: new Date() },
       });
-      return Boolean(username || fullName);
+      return result.ok;
     } catch {
       /* غنی‌سازی اختیاری است؛ خطا نباید هیچ‌چیز را بشکند. */
       return false;
     }
+  }
+
+  /**
+   * اعمال نتیجه‌ی `show_profile` روی گفتگوی مشتری.
+   * نام/نام کاربری واقعی مشتری این‌جا ذخیره می‌شود (کش در DB).
+   */
+  async applyProfile(shopId: string, profile: { senderId: string; username: string; name: string; profilePic: string }) {
+    const chatId = `${InstagramService.CHAT_PREFIX}${profile.senderId}`;
+    await this.db.telegramConversation.updateMany({
+      where: { shopId, chatId },
+      data: {
+        profileEnrichedAt: new Date(),
+        ...(profile.username ? { username: profile.username.slice(0, 80) } : {}),
+        ...(profile.name ? { firstName: profile.name.slice(0, 80) } : {}),
+      },
+    });
+    this.audit.record({
+      action: 'instagram.profile_applied',
+      entity: 'conversation',
+      shopId,
+      meta: { senderId: profile.senderId, username: profile.username || null },
+    });
   }
 
   /**
@@ -1451,6 +1488,28 @@ function safeJson(value: unknown): string {
  * مشتری رسید ولی سایت چیزی نشان نداد». این تابع تا چند سطح می‌گردد و هر شیئی
  * که هم فرستنده و هم متن/پیام دارد را نرمال می‌کند.
  */
+/**
+ * استخراج نتیجه‌ی `show_profile` از بدنه‌ی webhook.
+ * شکل دقیق بدنه در مستندات نیست؛ پس چند کلید رایج را امتحان می‌کنیم و
+ * هرچه پیدا نشد، خالی برمی‌گردیم (بدون حدس‌زدن).
+ */
+function extractProfile(data: unknown): { senderId: string; username: string; name: string; profilePic: string } | null {
+  const root = (data ?? {}) as Record<string, unknown>;
+  const candidates: Record<string, unknown>[] = [root];
+  for (const key of ['profile', 'user', 'data', 'result']) {
+    const value = root[key];
+    if (value && typeof value === 'object') candidates.push(value as Record<string, unknown>);
+  }
+  for (const candidate of candidates) {
+    const senderId = String(candidate.sender_id ?? candidate.id ?? candidate.igsid ?? '').trim();
+    const username = String(candidate.username ?? '').trim();
+    const name = String(candidate.name ?? candidate.full_name ?? '').trim();
+    const profilePic = String(candidate.profile_pic ?? candidate.profile_pic_url ?? candidate.profile_picture ?? '').trim();
+    if (senderId && (username || name)) return { senderId, username, name, profilePic };
+  }
+  return null;
+}
+
 export function collectMessages(payload: unknown): InstagramMessaging[] {
   const found: InstagramMessaging[] = [];
   const seen = new Set<unknown>();

@@ -27,6 +27,7 @@ import { ReportsService } from './reports/reports.service';
 import { TelegramModule } from './telegram/telegram.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ChannelsModule } from './channels/channels.module';
 import { AiModule } from './ai/ai.module';
 import { AdminModule } from './admin/admin.module';
 import { InstagramModule } from './instagram/instagram.module';
@@ -62,7 +63,7 @@ class HealthController {
   @Get() health() { return { status: 'ok' }; }
 }
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), RealtimeModule, CacheModule, DatabaseModule, LoggingModule, JwtModule.registerAsync({ global: true, useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]), AiModule, AdminModule, TelegramModule, OrdersModule, InstagramModule, SubscriptionsModule, SmsModule, PaymentsModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), RealtimeModule, CacheModule, DatabaseModule, LoggingModule, JwtModule.registerAsync({ global: true, useFactory: () => ({ secret: loadConfig(process.env).JWT_SECRET, signOptions: { expiresIn: '1h', algorithm: 'HS256' } }) }), ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]), AiModule, AdminModule, TelegramModule, OrdersModule, InstagramModule, SubscriptionsModule, SmsModule, PaymentsModule, ChannelsModule],
   controllers: [RootController, HealthController, AuthController, ShopController, CatalogController, ImportController, FreshController, ReportsController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }, PrismaService, AuthGuard, AuthService, CatalogService, ImportService, ReportsService, { provide: APP_GUARD, useClass: PersianThrottlerGuard }],
 })

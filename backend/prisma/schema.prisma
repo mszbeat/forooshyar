@@ -74,6 +74,7 @@ model Shop {
   stockAlerts    StockAlert[]
   paymentMethods ShopPaymentMethod[]
   shippingMethods ShippingMethod[]
+  channelConnections ChannelConnection[]
   /// سیاست رسید پرداخت (فاز V2-3): تأیید خودکار روشن است یا نه، سقف مبلغ
   /// تأیید خودکار و مهلت انتظار پرداخت (ساعت) قبل از آزادشدن موجودی.
   receiptAutoConfirm Boolean @default(true)
@@ -618,4 +619,51 @@ model AppSetting {
   secret    Boolean  @default(false)
   updatedAt DateTime @updatedAt
   updatedBy String?  @db.Uuid
+}
+
+/// پلتفرم کانال پیام‌رسانی.
+enum ChannelPlatform {
+  INSTAGRAM
+  TELEGRAM
+  BALE
+  RUBIKA
+}
+
+/// وضعیت اتصال کانال.
+enum ChannelConnectionStatus {
+  CONNECTED
+  EXPIRED
+  DISCONNECTED
+  ERROR
+}
+
+/// اتصال یک فروشگاه به یک حساب در یک پلتفرم.
+/// این مدل کنار مدل قدیمی `Channel` می‌نشیند تا اتصال‌های موجود نشکنند؛
+/// اتصال‌های تازه از همین‌جا مدیریت می‌شوند.
+model ChannelConnection {
+  id          String                @id @default(uuid()) @db.Uuid
+  shopId      String                @db.Uuid
+  shop        Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  platform    ChannelPlatform
+  status      ChannelConnectionStatus @default(CONNECTED)
+  /// نام نمایشی حساب (نام پیج/بات).
+  displayName String                @default("")
+  /// نام کاربری حساب.
+  username    String                @default("")
+  /// عکس پروفایل حساب.
+  avatarUrl   String                @default("")
+  /// شناسه‌ی حساب در پلتفرم (account_id اینستاگرام، chat_id بات و…).
+  externalId  String                @default("")
+  /// توکن/سکرت رمزنگاری‌شده (تلگرام/بله/روبیکا)؛ برای اینستاگرام خالی است
+  /// چون احراز هویت با کلید سراسری BoxAPI انجام می‌شود.
+  secretEnc   String                @default("")
+  expiresAt   DateTime?
+  lastSeenAt  DateTime?
+  lastError   String                @default("")
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([shopId, platform, externalId])
+  @@index([shopId, platform])
+  @@index([platform, externalId])
 }

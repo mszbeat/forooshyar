@@ -140,6 +140,12 @@ export type ShippingMethod = {
   baseCost: number; freeOver: number | null; rulesJson: Record<string, number>;
   active: boolean; sortOrder: number;
 };
+export type ChannelConnection = {
+  id: string; platform: 'INSTAGRAM' | 'TELEGRAM' | 'BALE' | 'RUBIKA';
+  status: string; displayName: string; username: string; avatarUrl: string;
+  externalId: string; hasSecret: boolean; expiresAt: string | null;
+  lastSeenAt: string | null; lastError: string;
+};
 export type ReceiptCheck = { check: string; ok: boolean; detail: string };
 export type PaymentReceipt = {
   id: string; orderId: string; verdict: 'CONFIRMED' | 'NEEDS_REVIEW' | 'REJECTED';
@@ -429,6 +435,14 @@ export const api = {
     request<ShippingMethod>(`/shipping-methods/${id}`, { method: 'PATCH', body }),
   deleteShippingMethod: (id: string) =>
     request<{ ok: true }>(`/shipping-methods/${id}`, { method: 'DELETE' }),
+
+  channels: () => request<ChannelConnection[]>('/channels'),
+  connectChannel: (body: { platform: ChannelConnection['platform']; externalId: string; displayName?: string; username?: string; avatarUrl?: string; secret?: string; expiresAt?: string }) =>
+    request<ChannelConnection>('/channels/connect', { method: 'POST', body }),
+  disconnectChannel: (id: string) =>
+    request<{ ok: true }>(`/channels/${id}/disconnect`, { method: 'PATCH' }),
+  deleteChannel: (id: string) =>
+    request<{ ok: true }>(`/channels/${id}`, { method: 'DELETE' }),
 
   receiptQueue: () => request<PaymentReceipt[]>('/receipts/review-queue'),
   reviewReceipt: (id: string, decision: 'CONFIRMED' | 'REJECTED', note?: string) =>

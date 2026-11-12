@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { api, request, ApiError, type PaymentMethod, type ReceiptPolicy, type ShippingMethod, type Shop } from '@/lib/api';
 import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { TelegramConnect } from '@/components/telegram-connect';
+import { ChannelConnect } from '@/components/channel-connect';
 import { InstagramConnect } from '@/components/instagram-connect';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
 
@@ -169,6 +170,8 @@ export default function SettingsPage() {
         <PaymentMethodsSection />
 
         <ShippingMethodsSection />
+
+        <ChannelConnect />
 
         <div className="stack">
           <section className="card card-pad">

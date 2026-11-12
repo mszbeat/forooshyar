@@ -134,13 +134,27 @@ export class InstagramClient {
   }
 
   /**
+   * درخواست پروفایل کاربر با اکشن رسمی `show_profile`.
+   *
+   * مستندات: `POST /service/actions/show_profile` با `{ account_id, sender_id }`.
+   * این اکشن **آسنکرون** است: نتیجه (username/name/profile_pic) از طریق
+   * webhook برمی‌گردد، نه در پاسخ مستقیم HTTP. پس این متد فقط درخواست را
+   * ثبت می‌کند و پردازش نتیجه در webhook انجام می‌شود.
+   *
+   * ⚠️ Data API (اسکریپری) برای نام مشتری ممنوع است؛ فقط همین مسیر رسمی.
+   */
+  async requestProfile(accountId: string, senderId: string): Promise<InstagramResult> {
+    const id = senderId.trim();
+    if (!id) return { ok: false, error: 'شناسه خالی است.' };
+    return this.post(accountId, 'show_profile', { sender_id: id });
+  }
+
+  /**
    * اطلاعات عمومی یک کاربر اینستاگرام از روی شناسه‌ی عددی (IGSID).
    *
-   * مستندات BoxAPI Data API: `POST https://boxapi.ir/api/instagram/user/get_info_by_id`
-   * با بدنه‌ی `{ id }` و هدر `Authorization: Bearer <BOXAPI_DATA_TOKEN>`؛ خروجی
-   * `response.body.user` شامل `username` و `full_name` است. این توکن با کلید DM
-   * (`INSTAGRAM_API_KEY`) فرق دارد؛ اگر ست نشده باشد، نتیجه «غیرفعال» برمی‌گردد
-   * و صدا زده نمی‌شود.
+   * @deprecated مسیر رسمی `show_profile` است (آسنکرون، از طریق webhook).
+   * این متد فقط برای سازگاری با اسکریپت backfill قدیمی نگه داشته شده و
+   * در مسیر اصلی استفاده نمی‌شود.
    */
   async getUserInfoById(igsid: string): Promise<InstagramResult<{ username: string; fullName: string }>> {
     const token = this.config.dataToken;

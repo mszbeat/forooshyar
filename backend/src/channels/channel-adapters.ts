@@ -1,0 +1,139 @@
+/**
+ * آداپتورهای پیام‌رسان‌های ایرانی (بله و روبیکا).
+ *
+ * هر دو بر پایه‌ی Bot API کار می‌کنند و قراردادشان شبیه تلگرام است:
+ *  - بله: `https://tapi.bale.ai/bot<token>/sendMessage` و webhook با
+ *    `update_id` (مستندات: https://docs.bale.ai).
+ *  - روبیکا: بات روبیکا از طریق `https://botapi.rubika.ir` با متدهای
+ *    `sendMessage`/`getUpdates` کار می‌کند (مستندات: https://rubika.ir/bot).
+ *
+ * این آداپتورها عمداً کم‌ضخامت‌اند: فقط ارسال پیام و نرمال‌سازی ورودی.
+ * منطق پاسخ‌گویی (مغز بات) در سرویس‌های کانال می‌ماند.
+ */
+
+export interface IncomingMessage {
+  platform: 'BALE' | 'RUBIKA';
+  chatId: string;
+  text: string;
+  senderName: string;
+  senderUsername: string;
+  updateId?: string;
+  hasPhoto: boolean;
+}
+
+export interface OutgoingMessage {
+  chatId: string;
+  text: string;
+  parseMode?: 'HTML' | 'Markdown';
+}
+
+export type AdapterResult = { ok: true } | { ok: false; error: string };
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+export class BaleAdapter {
+  constructor(private readonly token: string) {}
+
+  get configured(): boolean {
+    return this.token.length > 0;
+  }
+
+  private url(method: string): string {
+    return `https://tapi.bale.ai/bot${this.token}/${method}`;
+  }
+
+  async send(message: OutgoingMessage): Promise<AdapterResult> {
+    if (!this.configured) return { ok: false, error: 'توکن بات بله تنظیم نشده است.' };
+    try {
+      const response = await fetch(this.url('sendMessage'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: message.chatId,
+          text: message.parseMode === 'HTML' ? message.text : escapeHtml(message.text),
+          parse_mode: message.parseMode === 'HTML' ? 'HTML' : undefined,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) return { ok: false, error: `بله پاسخ ${response.status} داد.` };
+      const payload = (await response.json().catch(() => null)) as { ok?: boolean; description?: string } | null;
+      if (payload && payload.ok === false) return { ok: false, error: payload.description ?? 'ارسال ناموفق بود.' };
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'خطای شبکه' };
+    }
+  }
+
+  /** نرمال‌سازی update بله به IncomingMessage. */
+  static normalize(update: unknown): IncomingMessage | null {
+    const root = (update ?? {}) as Record<string, unknown>;
+    const message = (root.message ?? root.edited_message ?? {}) as Record<string, unknown>;
+    const chat = (message.chat ?? {}) as Record<string, unknown>;
+    const from = (message.from ?? {}) as Record<string, unknown>;
+    const chatId = String(chat.id ?? '');
+    if (!chatId) return null;
+    const text = String(message.text ?? message.caption ?? '').trim();
+    return {
+      platform: 'BALE',
+      chatId,
+      text,
+      senderName: String(from.first_name ?? '').trim(),
+      senderUsername: String(from.username ?? '').trim(),
+      updateId: root.update_id != null ? String(root.update_id) : undefined,
+      hasPhoto: Boolean(message.photo),
+    };
+  }
+}
+
+export class RubikaAdapter {
+  constructor(private readonly token: string) {}
+
+  get configured(): boolean {
+    return this.token.length > 0;
+  }
+
+  private url(method: string): string {
+    return `https://botapi.rubika.ir/${method}`;
+  }
+
+  async send(message: OutgoingMessage): Promise<AdapterResult> {
+    if (!this.configured) return { ok: false, error: 'توکن بات روبیکا تنظیم نشده است.' };
+    try {
+      const response = await fetch(this.url('sendMessage'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'Auth-Token': this.token },
+        body: JSON.stringify({
+          chat_id: message.chatId,
+          text: message.text,
+        }),
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!response.ok) return { ok: false, error: `روبیکا پاسخ ${response.status} داد.` };
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'خطای شبکه' };
+    }
+  }
+
+  /** نرمال‌سازی update روبیکا به IncomingMessage. */
+  static normalize(update: unknown): IncomingMessage | null {
+    const root = (update ?? {}) as Record<string, unknown>;
+    const message = (root.message ?? root) as Record<string, unknown>;
+    const chat = (message.chat ?? {}) as Record<string, unknown>;
+    const sender = (message.sender ?? {}) as Record<string, unknown>;
+    const chatId = String(chat.chat_id ?? chat.id ?? message.chat_id ?? '');
+    if (!chatId) return null;
+    const text = String(message.text ?? '').trim();
+    return {
+      platform: 'RUBIKA',
+      chatId,
+      text,
+      senderName: String(sender.first_name ?? '').trim(),
+      senderUsername: String(sender.username ?? '').trim(),
+      updateId: root.update_id != null ? String(root.update_id) : undefined,
+      hasPhoto: Boolean(message.file),
+    };
+  }
+}
