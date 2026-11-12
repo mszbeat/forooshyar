@@ -10,6 +10,8 @@ import {
 } from '@/components/icons';
 import { ThemeToggle } from '@/components/theme';
 import { LandingPlans } from '@/components/landing-plans';
+import { faqs as faqItems, faqJsonLd } from '@/lib/faq';
+import { brand } from '@/lib/brand';
 
 const facts = [
   { v: '۱۱ مرحله', l: 'سفارش‌گیری مرحله‌به‌مرحله در بات' },
@@ -59,28 +61,7 @@ const steps = [
   },
 ];
 
-const faqs = [
-  {
-    q: 'اگر بات منظورش را نفهمد چه می‌شود؟',
-    a: 'اول با یک سؤال روشن‌کننده و چند دکمه («قیمت و موجودی»، «ارسال»، «پرداخت»، «ساعت کاری») از مشتری می‌خواهد دقیق‌تر بگوید. اگر بعد از چند بار تلاش هم روشن نشد، مکالمه با متن کامل و چند پیام آخر به تو ارجاع داده می‌شود. یعنی هیچ‌وقت «سریع به بن‌بست» نمی‌خورد.',
-  },
-  {
-    q: 'قیمت و موجودی از کجا می‌آید؟',
-    a: 'همیشه از پایگاه داده فروشگاه خودت. هیچ عددی از مدل زبانی ساخته نمی‌شود؛ اگر داده‌ای در کاتالوگ نباشد، بات حدس نمی‌زند.',
-  },
-  {
-    q: '«تایم کاری» و «ساعت کاری» فرق دارند؟',
-    a: 'برای بات نه. جمله‌ها با ریشه‌ی کلمه‌ها و معادل‌های محاوره‌ای سنجیده می‌شوند، پس «تایم کاری»، «ساعت کاریتون چنده» و «تا کی بازید» یک جواب می‌گیرند.',
-  },
-  {
-    q: 'می‌توانم از داخل بات به مشتری پیام بدهم؟',
-    a: 'بله. روی اعلان همان مکالمه «پاسخ» می‌زنی، یا از پنل → سفارش‌ها → جزئیات، در کادر گفتگو می‌نویسی. هر دو مسیر یکی است و پیام در تاریخچه ثبت می‌شود.',
-  },
-  {
-    q: 'داده‌های فروشگاه من با بقیه قاطی نمی‌شود؟',
-    a: 'هر رکورد به فروشگاه خودش قفل است و هر کوئری با شناسه‌ی فروشگاه فیلتر می‌شود؛ جداسازی در سطح دیتابیس اعمال می‌شود، نه فقط در رابط کاربری.',
-  },
-];
+const faqs = faqItems;
 
 const bento = [
   {
@@ -143,6 +124,7 @@ export default function LandingPage() {
 
   return (
     <div className="land">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd()) }} />
       <nav className={`land-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="land-wrap land-nav-in">
           <Link className="brand" href="/">
@@ -157,7 +139,7 @@ export default function LandingPage() {
             <a href="#features">امکانات</a>
             <a href="#how">چطور کار می‌کند</a>
             <a href="#rules">اصول</a>
-            <a href="#faq">پرسش‌ها</a>
+            <a href="#faq">سوالات پرتکرار</a>
           </div>
           <div className="land-nav-actions">
             <ThemeToggle />
@@ -277,7 +259,7 @@ export default function LandingPage() {
             {robotScenes.map(scene => (
               <article className="land-robot-card" key={scene.src}>
                 <div className="land-robot-image">
-                  <Image src={scene.src} alt={`${scene.title} با ربات دستیار فروشیار`} width={480} height={480} />
+                  <Image src={scene.src} alt={`${scene.title} با ربات دستیار فروش‌یار`} width={480} height={480} />
                 </div>
                 <div className="land-robot-copy">
                   <strong>{scene.title}</strong>
@@ -433,7 +415,7 @@ export default function LandingPage() {
       <section className="sec" id="faq">
         <div className="land-wrap">
           <div className="sec-head">
-            <span className="eyebrow">پرسش‌ها</span>
+            <span className="eyebrow">سوالات پرتکرار</span>
             <h2 className="sec-title">چیزهایی که <span className="dim">زیاد پرسیده می‌شود</span></h2>
           </div>
           <div className="faq">
@@ -513,7 +495,7 @@ export default function LandingPage() {
             <div>
               <h4>راهنما</h4>
               <ul>
-                <li><a href="#faq">پرسش‌های متداول</a></li>
+                <li><a href="#faq">سوالات پرتکرار</a></li>
                 <li><Link href="/app/assistant">تست پاسخ بات</Link></li>
                 <li><Link href="/app/settings">تنظیمات فروشگاه</Link></li>
               </ul>
@@ -522,9 +504,9 @@ export default function LandingPage() {
           <div className="foot-bottom">
             <span>© ۱۴۰۵ فروش‌یار — دستیار فروش فارسی</span>
             <div className="links">
-              <a href="#faq">حریم خصوصی</a>
-              <a href="#faq">شرایط استفاده</a>
-              <a href="#faq">پشتیبانی</a>
+              <Link href={brand.paths.privacy}>حریم خصوصی</Link>
+              <Link href={brand.paths.terms}>شرایط استفاده</Link>
+              <Link href={brand.paths.support}>پشتیبانی</Link>
             </div>
           </div>
         </div>

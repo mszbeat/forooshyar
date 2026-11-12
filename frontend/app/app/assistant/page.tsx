@@ -208,7 +208,7 @@ export default function AssistantPage() {
           {ASSISTANT_VISUALS.map(item => (
             <article className="assistant-visual-card" key={item.src}>
               <div className="assistant-visual-image">
-                <Image src={item.src} alt={`${item.title} — ربات دستیار فروشیار`} width={480} height={480} />
+                <Image src={item.src} alt={`${item.title} — ربات دستیار فروش‌یار`} width={480} height={480} />
               </div>
               <div className="assistant-visual-copy">
                 <strong>{item.title}</strong>

@@ -7,11 +7,28 @@ import { ToastProvider } from '@/components/ui';
 import { MotionBoot } from '@/components/reveal';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'https://forooshyar.ir'),
   title: 'فروش‌یار — دستیار فروش فارسی برای فروشگاه‌های آنلاین',
   description:
     'فروش‌یار به سؤال‌های مشتریان شما در تلگرام و اینستاگرام از کاتالوگ زنده فروشگاه پاسخ می‌دهد؛ قیمت و موجودی همیشه از دیتابیس خودتان می‌آید.',
   applicationName: 'فروش‌یار',
   keywords: ['فروش‌یار', 'دستیار فروش', 'فروشگاه اینستاگرام', 'پاسخ خودکار', 'پنل فروشنده'],
+  openGraph: {
+    type: 'website',
+    locale: 'fa_IR',
+    siteName: 'فروش‌یار',
+    title: 'فروش‌یار — دستیار فروش فارسی',
+    description:
+      'پاسخ خودکار به مشتریان در تلگرام و اینستاگرام، از کاتالوگ زنده فروشگاه شما؛ قیمت و موجودی همیشه واقعی.',
+    images: ['/brand/robot-face-mark.png'],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'فروش‌یار — دستیار فروش فارسی',
+    description:
+      'پاسخ خودکار به مشتریان در تلگرام و اینستاگرام، از کاتالوگ زنده فروشگاه شما؛ قیمت و موجودی همیشه واقعی.',
+    images: ['/brand/robot-face-mark.png'],
+  },
 };
 
 export const viewport: Viewport = {
