@@ -164,6 +164,25 @@ export type PaymentReceipt = {
   reviewNote: string; reviewedAt: string | null; createdAt: string;
   order?: { id: string; code: string; total: number; customerName: string; customerPhone: string; status: OrderStatus; createdAt: string };
 };
+export type CreditPack = {
+  id: string;
+  slug: string;
+  name: string;
+  credits: number;
+  price: number;
+  listPrice: number;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type CreditEntry = {
+  id: string;
+  delta: number;
+  reason: string;
+  refId: string;
+  createdAt: string;
+};
+
 export type ChatMessage = {
   id: string; chatId: string; direction: 'in' | 'out'; text: string;
   /** نویسنده: 'customer' | 'bot' | 'seller' */
@@ -506,6 +525,12 @@ export const api = {
       `/chat/conversations/${encodeURIComponent(chatId)}/takeover`, { method: 'PATCH', body: { takeover } },
     ),
   customers: () => request<Customers>('/chat/customers'),
+
+  creditBalance: () => request<number>('/credits/balance'),
+  creditPacks: () => request<CreditPack[]>('/credits/packs'),
+  creditRecent: () => request<CreditEntry[]>('/credits/recent'),
+  buyCreditPack: (packSlug: string) =>
+    request<{ balance: number; pack: { slug: string; credits: number } }>('/credits/buy', { method: 'POST', body: { packSlug } }),
 
   summary: () => request<Summary>('/reports/summary'),
   attention: () => request<AttentionItem[]>('/reports/attention'),

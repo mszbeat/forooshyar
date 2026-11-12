@@ -79,6 +79,7 @@ model Shop {
   automations Automation[]
   knowledgeItems KnowledgeItem[]
   assistantPrompts AssistantPrompt[]
+  aiCreditLedger AiCreditLedger[]
   /// سیاست رسید پرداخت (فاز V2-3): تأیید خودکار روشن است یا نه، سقف مبلغ
   /// تأیید خودکار و مهلت انتظار پرداخت (ساعت) قبل از آزادشدن موجودی.
   receiptAutoConfirm Boolean @default(true)
@@ -775,4 +776,39 @@ model AssistantPrompt {
 
   @@unique([shopId, id])
   @@index([shopId, tab, version])
+}
+
+/// بسته‌ی اعتبار پاسخ AI که فروشنده می‌خرد (درگاه پلتفرم).
+/// قیمت‌ها placeholder و قابل ویرایش از پنل ادمین‌اند.
+model CreditPack {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// شناسه‌ی پایدار برای URL.
+  slug        String   @unique
+  name        String
+  /// تعداد پاسخ AI در بسته.
+  credits     Int
+  price       Int
+  /// قیمت قبل از تخفیف؛ صفر یعنی بدون تخفیف.
+  listPrice   Int      @default(0)
+  active      Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/// دفتر اعتبار پاسخ AI هر فروشگاه.
+/// هر پاسخ AI یک ردیف منفی می‌نویسد؛ خرید بسته یک ردیف مثبت.
+/// مانده = مجموع delta. این جدول هم حسابداری است هم گزارش مصرف.
+model AiCreditLedger {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @db.Uuid
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// مثبت = خرید/هدیه، منفی = مصرف پاسخ AI.
+  delta     Int
+  reason    String
+  /// شناسه‌ی مرجع (سفارش خرید، گفتگو…).
+  refId     String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([shopId, createdAt])
 }

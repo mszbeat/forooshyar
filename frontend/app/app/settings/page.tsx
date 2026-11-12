@@ -9,6 +9,7 @@ import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } fr
 import { TelegramConnect } from '@/components/telegram-connect';
 import { ChannelConnect } from '@/components/channel-connect';
 import { AutomationSection } from '@/components/automation-section';
+import { CreditsSection } from '@/components/credits-section';
 import { InstagramConnect } from '@/components/instagram-connect';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
 
@@ -175,6 +176,7 @@ export default function SettingsPage() {
         <ChannelConnect />
 
         <AutomationSection />
+        <CreditsSection />
 
         <div className="stack">
           <section className="card card-pad">
