@@ -210,7 +210,12 @@ export const adminApi = {
   restart: () => call<{ ok: true; restarting: true }>('/admin/restart', { method: 'POST', body: {} }),
 };
 
-export type AdminPlan = { id: string; name: string; monthlyPrice: number; instagramLimit: number; telegramLimit: number; active: boolean; sortOrder: number };
+export type AdminPlan = {
+  id: string; slug: string; name: string; tagline: string; description: string;
+  features: string[]; monthlyPrice: number; listMonthlyPrice: number;
+  instagramLimit: number; telegramLimit: number; monthlyMessageLimit: number;
+  productLimit: number; isPopular: boolean; active: boolean; sortOrder: number;
+};
 export const plansAdminApi = {
   list: () => call<AdminPlan[]>('/admin/plans'),
   save: (plan: Omit<AdminPlan, 'id'> & { id?: string }) => call<AdminPlan>('/admin/plans', { method: 'POST', body: plan }),

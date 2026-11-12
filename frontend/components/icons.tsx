@@ -31,6 +31,9 @@ export const IconPlus = make('IconPlus', <><path d="M12 5v14M5 12h14" /></>);
 export const IconMinus = make('IconMinus', <><path d="M5 12h14" /></>);
 export const IconCheck = make('IconCheck', <><path d="m20 6-11 11-5-5" /></>);
 export const IconCheckCircle = make('IconCheckCircle', <><circle cx="12" cy="12" r="9" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>);
+export const IconGift = make('IconGift', <><rect x="3" y="8" width="18" height="4" rx="1" /><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" /><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5" /></>);
+export const IconCrown = make('IconCrown', <><path d="m3 8 4.5 3.5L12 5l4.5 6.5L21 8l-1.8 10H4.8L3 8Z" /><path d="M5 21h14" /></>);
+export const IconGraduationCap = make('IconGraduationCap', <><path d="m2 9 10-5 10 5-10 5L2 9Z" /><path d="M6 11.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-4.5" /><path d="M22 9v5" /></>);
 export const IconX = make('IconX', <><path d="M18 6 6 18M6 6l12 12" /></>);
 export const IconChevronDown = make('IconChevronDown', <><path d="m6 9 6 6 6-6" /></>);
 export const IconChevronLeft = make('IconChevronLeft', <><path d="m15 18-6-6 6-6" /></>);
@@ -52,6 +55,8 @@ export const IconExternal = make('IconExternal', <><path d="M18 13v6a2 2 0 0 1-2
 export const IconClock = make('IconClock', <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>);
 export const IconReply = make('IconReply', <><path d="m9 14-5-5 5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-4" /></>);
 export const IconSend = make('IconSend', <><path d="m22 2-7 20-4-9-9-4 20-7Z" /><path d="M22 2 11 13" /></>);
+export const IconTelegram = make('IconTelegram', <><circle cx="12" cy="12" r="9" /><path d="m8.5 13.5 7.5-4-2.5 7-1.8-2.4-3.2-.6Z" /></>);
+export const IconLock = make('IconLock', <><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>);
 export const IconRefresh = make('IconRefresh', <><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v6h-6" /></>);
 export const IconShield = make('IconShield', <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></>);
 export const IconBolt = make('IconBolt', <><path d="M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12l1-8.5Z" /></>);

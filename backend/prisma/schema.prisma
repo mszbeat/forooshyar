@@ -354,17 +354,29 @@ model TelegramUpdate {
 /// ادمین فروشگاه ندارد؛ به همین دلیل AuthGuard فروشنده هرگز توکن او را قبول
 /// نمی‌کند و برعکس. رمز با scrypt ذخیره می‌شود، هرگز به‌صورت متن.
 model SubscriptionPlan {
-  id             String   @id @default(uuid()) @db.Uuid
-  name           String
-  description    String   @default("")
-  monthlyPrice   Int      @default(0)
-  instagramLimit Int
-  telegramLimit  Int
-  active         Boolean  @default(false)
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  subscriptions  Subscription[]
+  id                  String   @id @default(uuid()) @db.Uuid
+  /// شناسه‌ی پایدار برای URL صفحه‌ی جزئیات (`/plans/[slug]`).
+  slug                String   @unique
+  name                String
+  tagline             String   @default("")
+  description         String   @default("")
+  /// فهرست امکانات برای نمایش در کارت‌ها (آرایه‌ی رشته).
+  features            Json     @default("[]")
+  monthlyPrice        Int      @default(0)
+  /// قیمت قبل از تخفیف (برای نمایش خط‌خورده)؛ صفر یعنی بدون تخفیف.
+  listMonthlyPrice    Int      @default(0)
+  instagramLimit      Int
+  telegramLimit       Int
+  /// سقف پیام ماهانه‌ی هوش مصنوعی؛ صفر یعنی نامحدود.
+  monthlyMessageLimit Int      @default(0)
+  /// سقف تعداد محصول؛ صفر یعنی نامحدود.
+  productLimit        Int      @default(0)
+  isPopular           Boolean  @default(false)
+  active              Boolean  @default(false)
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  subscriptions       Subscription[]
 
   @@index([active, sortOrder])
 }
@@ -378,6 +390,9 @@ model Subscription {
   status         String   @default("PENDING")
   months         Int
   amount         Int
+  /// تعداد پیج اینستاگرام اضافه‌ی خریداری‌شده (افزودنیِ هر پیج هزینه دارد).
+  extraInstagram Int      @default(0)
+  discountCode   String   @default("")
   authority      String?  @unique
   referenceId    String   @default("")
   startsAt       DateTime?
@@ -386,6 +401,15 @@ model Subscription {
   updatedAt      DateTime @updatedAt
 
   @@index([shopId, status, endsAt])
+}
+
+/// کد تخفیف اشتراک؛ درصد تخفیف روی جمع کل اعمال می‌شود.
+model DiscountCode {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  percent   Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 }
 
 model PlatformAdmin {
