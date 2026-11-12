@@ -12,8 +12,6 @@ import { listModels } from './model-catalog';
 
 export type AdminIdentity = { id: string; email: string; name: string };
 
-const DEFAULT_ADMIN_EMAIL = 'admin@forooshyar.local';
-
 /**
  * منطق پنل ادمین: ورود، نمای کلی پلتفرم، و آزمون‌های اتصال.
  *
@@ -34,30 +32,44 @@ export class AdminService implements OnModuleInit {
   ) {}
 
   /**
-   * ساخت حساب ادمین در اولین اجرا.
+   * seed حساب ادمین در هر استارتاپ (idempotent).
    *
-   * رمز **فقط** از `ADMIN_PASSWORD` خوانده می‌شود؛ هیچ رمز پیش‌فرضی در کد نیست
-   * (رمز ثابت در مخزن یعنی هر نصب تازه با همان رمز باز می‌شود). اگر متغیر خالی
-   * باشد حساب ساخته نمی‌شود و در لاگ توضیح داده می‌شود. رمز فقط به‌صورت هش
-   * ذخیره می‌شود و لاگ هم متن رمز را نمی‌نویسد.
+   * تنها مکانیزم: `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD`. اگر حساب نباشد
+   * ساخته می‌شود؛ اگر باشد و رمز با مقدار env نخواند، به‌روزرسانی می‌شود
+   * (تا تغییر رمز در env روی deploy بعدی اعمال شود). ایمیل نرمال می‌شود
+   * (trim + lowercase) تا تفاوت حروف/فاصله ورود را نشکند.
+   * هیچ رمز پیش‌فرضی در کد نیست و رمز هرگز لاگ نمی‌شود.
    */
   async onModuleInit() {
-    const email = (process.env.ADMIN_EMAIL ?? DEFAULT_ADMIN_EMAIL).trim().toLowerCase();
-    const password = (process.env.ADMIN_PASSWORD ?? '').trim();
-    if (!password) {
-      this.logger.warn('ADMIN_PASSWORD تنظیم نشده است؛ حساب ادمین ساخته نشد. برای ساخت، ADMIN_EMAIL و ADMIN_PASSWORD را بگذارید و سرویس را دوباره بالا بیاورید.');
+    const email = (process.env.ADMIN_SEED_EMAIL ?? '').trim().toLowerCase();
+    const password = (process.env.ADMIN_SEED_PASSWORD ?? '').trim();
+    if (!email || !password) {
+      this.logger.warn('ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD تنظیم نشده است؛ seed ادمین رد شد.');
       return;
     }
     try {
       const existing = await this.db.platformAdmin.findUnique({ where: { email } });
-      if (existing) return;
-      await this.db.platformAdmin.create({
-        data: { email, passwordHash: await hashPassword(password), name: 'مدیر سامانه', mustChangePassword: true },
-      });
-      this.logger.log(`حساب ادمین ساخته شد (${email}). رمز را از پنل ادمین عوض کنید.`);
-      this.audit.record({ action: 'admin.bootstrap', entity: 'admin', meta: { email } });
+      if (!existing) {
+        await this.db.platformAdmin.create({
+          data: { email, passwordHash: await hashPassword(password), name: 'مدیر سامانه', mustChangePassword: true },
+        });
+        this.logger.log(`حساب ادمین ساخته شد (${email}). رمز را از پنل ادمین عوض کنید.`);
+        this.audit.record({ action: 'admin.bootstrap', entity: 'admin', meta: { email } });
+        return;
+      }
+      // اگر رمز env با هش ذخیره‌شده نخواند، یعنی رمز عوض شده و باید به‌روز شود.
+      if (!(await verifyPassword(password, existing.passwordHash))) {
+        await this.db.platformAdmin.update({
+          where: { id: existing.id },
+          data: { passwordHash: await hashPassword(password), mustChangePassword: true },
+        });
+        this.logger.log(`رمز ادمین (${email}) از روی env به‌روزرسانی شد.`);
+        this.audit.record({ action: 'admin.bootstrap_update', entity: 'admin', meta: { email } });
+      } else {
+        this.logger.log(`حساب ادمین (${email}) موجود است و رمز آن با env می‌خواند.`);
+      }
     } catch (error) {
-      this.logger.warn(`ساخت حساب ادمین انجام نشد: ${error instanceof Error ? error.message : 'unknown'}`);
+      this.logger.warn(`seed ادمین انجام نشد: ${error instanceof Error ? error.message : 'unknown'}`);
     }
   }
 

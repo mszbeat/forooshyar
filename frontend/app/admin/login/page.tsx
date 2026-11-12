@@ -214,7 +214,7 @@ export default function AdminLoginPage() {
 
           <div className="small muted" style={{ textAlign: 'center', lineHeight: 2 }}>
             نشست ادمین ۸ ساعت اعتبار دارد. اگر رمز را گم کردید، مقدار
-            <b> ADMIN_PASSWORD </b> را در متغیرهای محیطی سرور عوض کنید.
+            <b> ADMIN_SEED_PASSWORD </b> را در متغیرهای محیطی سرور عوض کنید و سرویس را دوباره راه بیندازید.
           </div>
         </form>
         )}
