@@ -1061,3 +1061,15 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .empty-state { display: grid; justify-items: center; text-align: center; gap: 6px; padding: 36px 20px; color: var(--ink-3); }
 .empty-state strong { color: var(--ink); font-size: 13px; }
 .empty-state span { font-size: 12px; line-height: 1.8; }
+
+/* ---------- لوگوی برند متحرک ---------- */
+.brand-logo { display: block; flex-shrink: 0; }
+.brand-logo .brand-eyes { transform-box: fill-box; transform-origin: center; }
+.brand-logo-animated .brand-eyes { animation: brand-blink 4.6s ease-in-out infinite; }
+@keyframes brand-blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94.5% { transform: scaleY(0.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-animated .brand-eyes { animation: none; }
+}

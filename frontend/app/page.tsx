@@ -10,6 +10,7 @@ import {
 } from '@/components/icons';
 import { ThemeToggle } from '@/components/theme';
 import { LandingPlans } from '@/components/landing-plans';
+import { BrandLogo } from '@/components/brand-logo';
 import { faqs as faqItems, faqJsonLd } from '@/lib/faq';
 import { brand } from '@/lib/brand';
 
@@ -128,7 +129,7 @@ export default function LandingPage() {
       <nav className={`land-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="land-wrap land-nav-in">
           <Link className="brand" href="/">
-            <span className="brand-mark"><Image src="/brand/robot-face-mark.png" alt="" width={30} height={30} priority style={{ width: 30, height: 30, objectFit: 'contain' }} /></span>
+            <span className="brand-mark"><BrandLogo size={30} /></span>
             <span>
               <span className="brand-name" style={{ display: 'block' }}>فروش‌یار</span>
               <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>
@@ -463,7 +464,7 @@ export default function LandingPage() {
           <div className="foot-cols">
             <div className="foot-brand">
               <Link className="brand" href="/">
-                <span className="brand-mark"><Image src="/brand/robot-face-mark.png" alt="" width={30} height={30} priority style={{ width: 30, height: 30, objectFit: 'contain' }} /></span>
+                <span className="brand-mark"><BrandLogo size={30} /></span>
                 <span>
                   <span className="brand-name" style={{ display: 'block' }}>فروش‌یار</span>
                   <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>

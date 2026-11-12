@@ -18,4 +18,18 @@ export const brand = {
     terms: '/terms',
     support: '/support',
   },
+  /** نشان برند */
+  logo: {
+    /** نسخه‌ی PNG برای OG و جاهایی که SVG ممکن نیست */
+    markPng: '/brand/robot-face-mark.png',
+    /** نسخه‌ی SVG متحرک — کامپوننت `BrandLogo` در components/brand-logo.tsx */
+    animated: true,
+  },
+  /** رنگ‌های اصلی برند */
+  colors: {
+    primary: '#6d5cff',
+    accent: '#4f7cff',
+    cyan: '#22d3ee',
+    ink: '#0b0d12',
+  },
 } as const;

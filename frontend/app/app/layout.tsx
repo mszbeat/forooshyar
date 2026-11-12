@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { BrandLogo } from '@/components/brand-logo';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui';
@@ -85,7 +85,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
   const sidebar = (
     <aside className={`sidebar ${drawer ? 'open' : ''}`}>
       <Link href="/" className="brand" aria-label="فروش‌یار — رفتن به صفحهٔ اصلی">
-        <span className="brand-mark"><Image src="/brand/robot-face-mark.png" alt="" width={30} height={30} priority style={{ width: 30, height: 30, objectFit: 'contain' }} /></span>
+        <span className="brand-mark"><BrandLogo size={30} /></span>
         <div>
           <div className="brand-name">فروش‌یار</div>
           <div className="brand-sub">رفتن به سایت اصلی</div>
