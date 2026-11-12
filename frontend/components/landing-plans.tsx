@@ -54,7 +54,7 @@ function PlanCard({ plan, index }: { plan: Plan; index: number }) {
         {plan.instagramLimit} اتصال اینستاگرام · {plan.telegramLimit} اتصال تلگرام
       </span>
       <span className="plan-card-feats">
-        {plan.features.slice(0, 5).map(feature => (
+        {(plan.features ?? []).slice(0, 5).map(feature => (
           <span key={feature} className="plan-feat">
             <IconCheckCircle size={15} className="plan-feat-ico" />
             {feature}

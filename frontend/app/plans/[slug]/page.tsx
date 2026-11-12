@@ -129,7 +129,7 @@ export default function PlanDetailPage() {
             </div>
 
             <ul className="plan-detail-feats">
-              {plan.features.map(feature => (
+              {(plan.features ?? []).map(feature => (
                 <li key={feature}><IconCheckCircle size={16} className="plan-feat-ico" />{feature}</li>
               ))}
             </ul>
