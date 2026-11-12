@@ -6,6 +6,7 @@ import { AuditService } from '../logging/audit.service';
 import { AiService } from '../ai/ai.service';
 import { OrdersService } from '../orders/orders.service';
 import { ShopPaymentMethodsService } from '../payments/shop-payment-methods.service';
+import { AutomationService } from '../automation/automation.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { discover, productCodeOf, type CatalogProduct } from '../catalog/discovery';
 import {
@@ -151,6 +152,7 @@ export class InstagramService {
     private readonly ai: AiService,
     private readonly orders: OrdersService,
     private readonly paymentMethods: ShopPaymentMethodsService,
+    private readonly automation: AutomationService,
     private readonly telegram: TelegramService,
     private readonly subscriptions: SubscriptionsService,
   ) {
@@ -497,7 +499,17 @@ export class InstagramService {
 
     if (type === 'comments') {
       const items = asArray<InstagramComment>(extract(payload.data, 'comments'));
-      for (const item of items) await this.handleComment(shopId, item).catch(() => undefined);
+      for (const item of items) {
+        // ثبت رویداد خام + اتوماسیون کامنت→دایرکت (idempotent روی comment_id).
+        await this.automation.processComment(shopId, {
+          commentId: (item.comment_id ?? item.id ?? '').trim(),
+          mediaId: (item.media?.id ?? '').trim(),
+          senderId: (item.sender?.id ?? '').trim(),
+          text: (item.text ?? '').trim(),
+          rawJson: item,
+        }).catch(() => undefined);
+        await this.handleComment(shopId, item).catch(() => undefined);
+      }
       return { status: 'handled', replies: items.length, kind: 'comments' };
     }
 

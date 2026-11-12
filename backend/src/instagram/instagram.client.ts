@@ -59,7 +59,7 @@ export class InstagramClient {
    * پس شناسه باید در هر درخواست از فروشگاهِ درست بیاید. اگر در کلاینت قفل شود،
    * پیام یک فروشگاه با پیج فروشگاه دیگر می‌رود — بدترین باگ ممکن در چندمستأجری.
    */
-  private async post<T = unknown>(accountId: string, action: string, body: Record<string, unknown>): Promise<InstagramResult<T>> {
+  async post<T = unknown>(accountId: string, action: string, body: Record<string, unknown>): Promise<InstagramResult<T>> {
     if (!this.configured) {
       return { ok: false, error: 'INSTAGRAM_API_KEY ست نشده است.' };
     }

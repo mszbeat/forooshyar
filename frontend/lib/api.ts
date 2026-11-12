@@ -140,6 +140,11 @@ export type ShippingMethod = {
   baseCost: number; freeOver: number | null; rulesJson: Record<string, number>;
   active: boolean; sortOrder: number;
 };
+export type Automation = {
+  id: string; name: string; active: boolean; scope: string;
+  mediaIds: string[]; triggerWords: string[]; publicReplies: string[];
+  dmTemplate: string; requireFollow: boolean; dailyCap: number;
+};
 export type ChannelConnection = {
   id: string; platform: 'INSTAGRAM' | 'TELEGRAM' | 'BALE' | 'RUBIKA';
   status: string; displayName: string; username: string; avatarUrl: string;
@@ -435,6 +440,16 @@ export const api = {
     request<ShippingMethod>(`/shipping-methods/${id}`, { method: 'PATCH', body }),
   deleteShippingMethod: (id: string) =>
     request<{ ok: true }>(`/shipping-methods/${id}`, { method: 'DELETE' }),
+
+  automations: () => request<Automation[]>('/automations'),
+  createAutomation: (body: Partial<Automation>) =>
+    request<Automation>('/automations', { method: 'POST', body }),
+  updateAutomation: (id: string, body: Partial<Automation>) =>
+    request<Automation>(`/automations/${id}`, { method: 'PATCH', body }),
+  deleteAutomation: (id: string) =>
+    request<{ ok: true }>(`/automations/${id}`, { method: 'DELETE' }),
+  testAutomationTrigger: (id: string, text: string) =>
+    request<{ matched: boolean }>(`/automations/${id}/test-trigger`, { method: 'POST', body: { text } }),
 
   channels: () => request<ChannelConnection[]>('/channels'),
   connectChannel: (body: { platform: ChannelConnection['platform']; externalId: string; displayName?: string; username?: string; avatarUrl?: string; secret?: string; expiresAt?: string }) =>

@@ -8,6 +8,7 @@ import { api, request, ApiError, type PaymentMethod, type ReceiptPolicy, type Sh
 import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { TelegramConnect } from '@/components/telegram-connect';
 import { ChannelConnect } from '@/components/channel-connect';
+import { AutomationSection } from '@/components/automation-section';
 import { InstagramConnect } from '@/components/instagram-connect';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
 
@@ -172,6 +173,8 @@ export default function SettingsPage() {
         <ShippingMethodsSection />
 
         <ChannelConnect />
+
+        <AutomationSection />
 
         <div className="stack">
           <section className="card card-pad">

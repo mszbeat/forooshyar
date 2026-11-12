@@ -75,6 +75,8 @@ model Shop {
   paymentMethods ShopPaymentMethod[]
   shippingMethods ShippingMethod[]
   channelConnections ChannelConnection[]
+  inboundCommentEvents InboundCommentEvent[]
+  automations Automation[]
   /// سیاست رسید پرداخت (فاز V2-3): تأیید خودکار روشن است یا نه، سقف مبلغ
   /// تأیید خودکار و مهلت انتظار پرداخت (ساعت) قبل از آزادشدن موجودی.
   receiptAutoConfirm Boolean @default(true)
@@ -666,4 +668,71 @@ model ChannelConnection {
   @@unique([shopId, platform, externalId])
   @@index([shopId, platform])
   @@index([platform, externalId])
+}
+
+/// رویداد خام کامنت اینستاگرام — قبل از هر پارسی، همان‌طور که از webhook
+/// آمده ذخیره می‌شود تا هیچ فیلدی حدس زده نشود و برای عیب‌یابی بماند.
+model InboundCommentEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  shopId      String   @db.Uuid
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// شناسه‌ی کامنت در اینستاگرام (برای idempotency).
+  commentId   String
+  /// شناسه‌ی پست/مدیا.
+  mediaId     String   @default("")
+  /// شناسه‌ی نویسنده‌ی کامنت.
+  senderId    String   @default("")
+  text        String   @default("")
+  /// بدنه‌ی خام رویداد.
+  rawJson     Json     @default("{}")
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([shopId, commentId])
+  @@index([shopId, createdAt])
+}
+
+/// موجودیت اتوماسیون کامنت→دایرکت.
+model Automation {
+  id              String   @id @default(uuid()) @db.Uuid
+  shopId          String   @db.Uuid
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name            String   @default("اتوماسیون کامنت به دایرکت")
+  active          Boolean  @default(true)
+  /// دامنه: ALL = همه‌ی پست‌ها، SELECTED = فقط پست‌های انتخاب‌شده.
+  scope           String   @default("ALL")
+  /// شناسه‌های پست برای scope=SELECTED.
+  mediaIdsJson    Json     @default("[]")
+  /// کلمات/عبارت‌های تریگر (نرمال‌سازی فارسی در کد).
+  triggerWordsJson Json    @default("[]")
+  /// پاسخ عمومی کامنت (تا ۳ گونه؛ یکی تصادفی انتخاب می‌شود).
+  publicRepliesJson Json  @default("[]")
+  /// قالب پیام DM با متغیرها: {product_title} {price} {stock} {shop_name}
+  dmTemplate      String   @default("")
+  /// گیت «اول فالو کن» روشن است یا نه.
+  requireFollow   Boolean  @default(false)
+  /// سقف پاسخ در روز برای هر پیج.
+  dailyCap        Int      @default(200)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  runs            AutomationRun[]
+
+  @@unique([shopId, id])
+  @@index([shopId, active])
+}
+
+/// لاگ اجرای اتوماسیون برای هر کامنت.
+model AutomationRun {
+  id           String     @id @default(uuid()) @db.Uuid
+  shopId       String     @db.Uuid
+  automationId String     @db.Uuid
+  automation   Automation @relation(fields: [shopId, automationId], references: [shopId, id], onDelete: Cascade)
+  commentId    String
+  /// وضعیت: SKIPPED / PUBLIC_REPLIED / DM_SENT / FOLLOW_WAIT / FAILED / DEAD_LETTER
+  status       String
+  detail       String     @default("")
+  createdAt    DateTime   @default(now())
+
+  @@index([shopId, automationId, createdAt])
+  @@index([shopId, commentId])
 }
