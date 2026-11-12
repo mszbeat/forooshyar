@@ -1270,7 +1270,7 @@ export class InstagramService {
   private async shop(shopId: string): Promise<BrainShop> {
     return this.db.shop.findUniqueOrThrow({
       where: { id: shopId },
-      select: { shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
+      select: { id: true, shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
     }) as unknown as BrainShop;
   }
 

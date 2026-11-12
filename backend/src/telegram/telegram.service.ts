@@ -344,7 +344,7 @@ export class TelegramService {
 
     const shop = await this.db.shop.findUniqueOrThrow({
       where: { id: conversation.shopId },
-      select: { shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
+      select: { id: true, shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
     });
 
     await this.db.telegramConversation.update({
@@ -740,7 +740,7 @@ export class TelegramService {
       const intent = data.slice(3) as IntentId;
       const shop = await this.db.shop.findUniqueOrThrow({
         where: { id: conversation.shopId },
-        select: { shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
+        select: { id: true, shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
       });
       const products = await this.catalog(conversation.shopId);
       const answer = answerIntent(intent, shop as BrainShop, products);

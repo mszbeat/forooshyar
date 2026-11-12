@@ -34,7 +34,7 @@ export class FreshController {
     const [shop, products] = await Promise.all([
       this.db.shop.findUniqueOrThrow({
         where: { id: shopId },
-        select: { shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
+        select: { id: true, shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },
       }),
       this.db.product.findMany({
         where: { shopId, active: true },

@@ -1,0 +1,93 @@
+{
+  "shop": {
+    "name": "بوتیک باران",
+    "shipping": "ارسال با پست پیشتاز انجام می‌شود؛ معمولاً ۲ تا ۴ روز کاری.",
+    "payment": "پرداخت از طریق درگاه بانکی یا کارت به کارت.",
+    "workingHours": "هر روز از ساعت ۹ تا ۲۳.",
+    "returns": "تا ۷ روز پس از تحویل، در صورت سالم بودن کالا.",
+    "handoffMessage": "برای پاسخ دقیق‌تر، فروشنده به‌زودی جواب می‌دهد."
+  },
+  "products": [
+    {
+      "id": "prod-manto",
+      "title": "مانتو کتان",
+      "variants": [
+        { "id": "v1", "size": "۳۸", "color": "کرم", "price": 640000, "stock": 3 },
+        { "id": "v2", "size": "۴۰", "color": "کرم", "price": 640000, "stock": 0 }
+      ]
+    },
+    {
+      "id": "prod-kafsh",
+      "title": "کفش لوفر چرم",
+      "variants": [
+        { "id": "v3", "size": "۴۱", "color": "مشکی", "price": 890000, "stock": 5 }
+      ]
+    },
+    {
+      "id": "prod-kif",
+      "title": "کیف چرم دست‌دوز",
+      "variants": [
+        { "id": "v4", "size": "", "color": "", "price": 1250000, "stock": 2 }
+      ]
+    },
+    {
+      "id": "prod-shal",
+      "title": "شال نخی",
+      "variants": [
+        { "id": "v5", "size": "", "color": "", "price": 180000, "stock": 0 }
+      ]
+    }
+  ],
+  "questions": [
+    { "q": "قیمت مانتو کتان چنده؟", "kind": "clarify", "reason": "price", "mustContain": ["۶۴۰٬۰۰۰"] },
+    { "q": "مانتو کتان چند تومنه؟", "kind": "clarify", "reason": "price", "mustContain": ["۶۴۰٬۰۰۰"] },
+    { "q": "قیمت کفش لوفر چرم رو بگو", "kind": "clarify", "reason": "price", "mustContain": ["۸۹۰٬۰۰۰"] },
+    { "q": "کیف چرم دست‌دوز چنده؟", "kind": "clarify", "reason": "price", "mustContain": ["۱٬۲۵۰٬۰۰۰"] },
+    { "q": "قیمتش چنده؟", "kind": "clarify", "reason": "answer_price" },
+    { "q": "قیمت مانتو چنده؟", "kind": "clarify", "reason": "price", "mustContain": ["۶۴۰٬۰۰۰"] },
+    { "q": "قیمت کفش چنده؟", "kind": "clarify", "reason": "price", "mustContain": ["۸۹۰٬۰۰۰"] },
+    { "q": "قیمت شال نخی چنده؟", "kind": "clarify", "reason": "out_of_stock", "mustContain": ["تمام شده"] },
+    { "q": "قیمت مانتو کتان سایز ۳۸ چنده؟", "kind": "clarify", "reason": "price", "mustContain": ["۶۴۰٬۰۰۰"] },
+    { "q": "قیمت مانتو کتان سایز ۴۲ چنده؟", "kind": "clarify", "reason": "variant_not_found" },
+    { "q": "مانتو کتان موجود دارید؟", "kind": "clarify", "reason": "stock", "mustContain": ["۳ عدد"] },
+    { "q": "شال نخی موجوده؟", "kind": "clarify", "reason": "out_of_stock" },
+    { "q": "کفش لوفر چرم هنوز هست؟", "kind": "clarify", "reason": "stock", "mustContain": ["۵ عدد"] },
+    { "q": "کیف چرم موجودی داره؟", "kind": "clarify", "reason": "stock", "mustContain": ["۲ عدد"] },
+    { "q": "موجودی مانتو کتان چقدره؟", "kind": "clarify", "reason": "price" },
+    { "q": "سایز ۴۱ کفش لوفر چرم موجوده؟", "kind": "clarify", "reason": "stock" },
+    { "q": "ارسال چند روزه است؟", "kind": "answer", "reason": "~answer_shipping", "mustContain": ["پیشتاز"] },
+    { "q": "هزینه ارسال چقدره؟", "kind": "answer", "reason": "~answer_shipping", "mustContain": ["پیشتاز"] },
+    { "q": "ارسال رایگان دارید؟", "kind": "handoff", "reason": "shipping_free_not_specified" },
+    { "q": "پرداخت چطوره؟", "kind": "answer", "reason": "~answer_payment", "mustContain": ["درگاه"] },
+    { "q": "کارت به کارت هم می‌شود؟", "kind": "answer", "reason": "~answer_payment", "mustContain": ["کارت به کارت"] },
+    { "q": "ساعت کاریتون چنده؟", "kind": "answer", "reason": "~answer_hours", "mustContain": ["۹"] },
+    { "q": "تایم کاری", "kind": "answer", "reason": "~answer_hours", "mustContain": ["۹"] },
+    { "q": "تا کی بازید؟", "kind": "answer", "reason": "~answer_hours", "mustContain": ["۲۳"] },
+    { "q": "مرجوعی دارید؟", "kind": "answer", "reason": "~answer_returns", "mustContain": ["۷ روز"] },
+    { "q": "شرایط مرجوعی چیه؟", "kind": "answer", "reason": "~answer_returns", "mustContain": ["۷ روز"] },
+    { "q": "سلام", "kind": "answer", "reason": "greeting", "mustContain": ["بوتیک باران"] },
+    { "q": "درود بر شما", "kind": "answer", "reason": "greeting" },
+    { "q": "ممنون", "kind": "answer", "reason": "thanks" },
+    { "q": "مرسی", "kind": "answer", "reason": "thanks" },
+    { "q": "قیمت کتونی چنده؟", "kind": "clarify", "reason": "product_not_found", "mustContain": ["در کاتالوگ فروشگاه نیست"] },
+    { "q": "قیمت عینک آفتابی چنده؟", "kind": "clarify", "reason": "product_not_found", "mustContain": ["در کاتالوگ فروشگاه نیست"] },
+    { "q": "یه چیزی می‌خوام", "kind": "clarify", "reason": "~unclear" },
+    { "q": "چطوره؟", "kind": "clarify", "reason": "~unclear" },
+    { "q": "می‌خوام بخرم", "kind": "clarify", "reason": "answer_order" },
+    { "q": "سفارش می‌خوام بدم", "kind": "clarify", "reason": "answer_order" },
+    { "q": "کفش", "kind": "answer", "reason": "~unclear" },
+    { "q": "مانتو", "kind": "answer", "reason": "~unclear" },
+    { "q": "می‌خوام با خود فروشنده حرف بزنم", "kind": "handoff", "reason": "human_request" },
+    { "q": "ادمین کجاست؟", "kind": "handoff", "reason": "human_request" },
+    { "q": "از دستتون خیلی ناراحتم، سفارشم نرسیده", "kind": "handoff", "reason": "~human_request" },
+    { "q": "کلاهبردارید!", "kind": "handoff", "reason": "~human_request" },
+    { "q": "تخفیف دارید؟", "kind": "answer", "reason": "~answer_discount", "mustContain": ["تخفیف"] },
+    { "q": "کد تخفیف دارید؟", "kind": "answer", "reason": "~answer_discount", "mustContain": ["تخفیف"] },
+    { "q": "قیمت مانتو کتان چنده و ارسال چند روزه است؟", "kind": "clarify", "reason": "~answer_", "mustContain": ["۶۴۰٬۰۰۰", "پیشتاز"] },
+    { "q": "ساعت کاریتون چنده و پرداخت چطوره؟", "kind": "answer", "reason": "~answer_", "mustContain": ["۹", "درگاه"] },
+    { "q": "سلام، قیمت کیف چرم چنده؟", "kind": "clarify", "reason": "price", "mustContain": ["۱٬۲۵۰٬۰۰۰"] },
+    { "q": "قیمت چرم چنده؟", "kind": "clarify", "reason": "answer_price", "mustContain": ["کفش لوفر چرم", "کیف چرم دست‌دوز"] },
+    { "q": "مانتو کتان چه سایزهایی دارید؟", "kind": "clarify", "reason": "stock", "mustContain": ["۳۸"] },
+    { "q": "کفش لوفر چرم رنگ مشکی موجوده؟", "kind": "clarify", "reason": "stock", "mustContain": ["مشکی"] }
+  ]
+}

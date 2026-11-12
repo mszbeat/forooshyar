@@ -1,23 +1,87 @@
+import { Logger } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import type { BotReply } from '../telegram/brain';
 import type { AiService } from './ai.service';
 import { escapeHtml } from '../telegram/order-flow';
+import { maskFacts, restoreFacts } from './mask';
 
 /**
  * «جان دادن» به پاسخ‌های آماده — بدون تغییر واقعیت.
  *
  * چرا لازم است: پاسخ‌های قاعده‌محور دقیق‌اند ولی خشک؛ مشتری حس می‌کند با یک
  * منو حرف می‌زند، نه با فروشنده. اینجا همان پاسخ **به مدل داده می‌شود** تا با
- * لحن فروشگاه بازنویسی شود — ولی با یک نگهبان سخت‌گیر:
+ * لحن فروشگاه بازنویسی شود — ولی با سه لایه‌ی نگهبان:
  *
- *  - هیچ عددی اضافه یا حذف نمی‌شود (قیمت، موجودی، تعداد، درصد تخفیف).
- *  - کد محصول (`<code>ABC123</code>`) دست‌نخورده می‌ماند.
- *  - ساختار پیام (خط‌ها، تگ‌های `<b>`/`<i>`) حفظ می‌شود؛ خروجی مارک‌داون یا
- *    متن خالی جایگزین ساختار نمی‌شود.
- *  - هیچ واقعیت تازه‌ای (ارسال رایگان، تخفیف، زمان تحویل) ساخته نمی‌شود.
- *  - اگر نگهبان رد کند، **همان متن اصلی** به مشتری می‌رسد.
+ *  ۱) **ماسک پیش از فرستادن** (`mask.ts`): هر عدد و کد محصول با جای‌نگه‌دار
+ *     (`⟦FA⟧`) عوض می‌شود؛ مدل اصلاً قیمت را نمی‌بیند تا نتواند آن را عوض کند.
+ *  ۲) **بازیابی سخت‌گیر**: هر جای‌نگه‌دار باید دقیقاً یک‌بار و به همان ترتیب
+ *     برگردد؛ وگرنه بازنویسی رد می‌شود.
+ *  ۳) **نگهبان بعد از بازنویسی** (`guardPolish`): عددها، کدها، تگ‌ها و طول
+ *     متن دوباره با متن اصلی مقایسه می‌شوند.
  *
- * یعنی مدل آزاد است لحن بسازد، ولی داده در اختیار او نیست.
+ * روی این سه لایه، دو کنترل هزینه هم هست: **سقف روزانه‌ی فراخوانی مدل برای
+ * هر فروشگاه** (`AI_POLISH_DAILY_CAP`) و **کش بازنویسی‌های موفق** (پاسخ
+ * تکراری به مدل نمی‌رود). تصمیم هر بازنویسی هم لاگ می‌شود تا در پنل/لاگ
+ * سرور قابل ردیابی باشد.
+ *
+ * اگر هر لایه‌ای رد کند، **همان متن اصلی** به مشتری می‌رسد؛ یعنی خروجی این
+ * ماژول همیشه امن است.
  */
+
+const logger = new Logger('AiPolish');
+
+/* ------------------------------------------------------------------ سقف روزانه */
+
+/** شمارنده‌ی فراخوانی‌های مدل در حافظه (به‌ازای هر فروشگاه و هر روز). */
+const usage = new Map<string, { day: string; count: number }>();
+
+function dailyCap(): number {
+  const value = Number(process.env.AI_POLISH_DAILY_CAP ?? 1000);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1000;
+}
+
+/** اگر سقف پر نشده باشد یک واحد کم می‌کند و `true` برمی‌گرداند. */
+function consumeCap(shopKey: string): boolean {
+  const day = new Date().toISOString().slice(0, 10);
+  const entry = usage.get(shopKey);
+  if (!entry || entry.day !== day) {
+    usage.set(shopKey, { day, count: 1 });
+    return true;
+  }
+  if (entry.count >= dailyCap()) return false;
+  entry.count += 1;
+  return true;
+}
+
+/* ------------------------------------------------------------------ کش بازنویسی */
+
+/** کش کوتاه‌مدت بازنویسی‌های موفق؛ کلید = فروشگاه + لحن + هش متن اصلی. */
+const CACHE_TTL_MS = 10 * 60_000;
+const CACHE_MAX = 500;
+const polishCache = new Map<string, { text: string; at: number }>();
+
+function cacheKey(shopKey: string, tone: string, text: string): string {
+  const hash = createHash('sha1').update(text).digest('hex').slice(0, 16);
+  return `${shopKey}|${tone}|${hash}`;
+}
+
+function cacheGet(key: string): string | null {
+  const entry = polishCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at > CACHE_TTL_MS) {
+    polishCache.delete(key);
+    return null;
+  }
+  return entry.text;
+}
+
+function cacheSet(key: string, text: string): void {
+  if (polishCache.size >= CACHE_MAX) {
+    const oldest = polishCache.keys().next().value;
+    if (oldest) polishCache.delete(oldest);
+  }
+  polishCache.set(key, { text, at: Date.now() });
+}
 
 /** دلایلی که بازنویسی می‌شوند: پاسخ‌های اطلاعاتی، نه مراحل سفارش و نه ارجاع. */
 export const POLISHABLE = new Set([
@@ -95,6 +159,9 @@ function systemPrompt(shop: { name: string; tone?: string }): string {
     '',
     `لحن فروشگاه: ${(shop.tone ?? '').trim() || 'صمیمی، محترمانه، کوتاه و مطمئن'}`,
     '',
+    'در متن، جای‌نگه‌دارهایی مثل ⟦FA⟧ می‌بینی؛ آن‌ها قیمت، موجودی و کد واقعی‌اند که برایت پنهان شده‌اند.',
+    'هر جای‌نگه‌دار را دقیقاً همان‌جا و به همان ترتیب نگه دار؛ آن را ترجمه، حذف یا جابه‌جا نکن.',
+    '',
     'قواعد سخت (نقض هرکدام = خروجی بی‌اعتبار):',
     '۱) هیچ عددی را عوض، اضافه یا حذف نکن؛ قیمت، موجودی و شماره‌ها را عیناً نگه دار.',
     '۲) متن داخل <code> را هرگز تغییر نده و <code> تازه نساز.',
@@ -120,13 +187,16 @@ function userPrompt(original: string, question: string): string {
 /**
  * بازنویسی یک پاسخ آماده.
  *
+ * ترتیب کار: کش → سقف روزانه → ماسک واقعیت‌ها → فراخوانی مدل → بازیابی
+ * جای‌نگه‌دارها → نگهبان نهایی → کش‌کردن نتیجه‌ی موفق.
+ *
  * @param ai     سرویس مدل (اگر خاموش باشد، متن اصلی برمی‌گردد)
  * @param reply  پاسخ قاعده‌محور/تطبیق‌شده
  * @param text   پیام مشتری، برای زمینه
  */
 export async function polishReply(
   ai: AiService,
-  shop: { name: string; tone?: string },
+  shop: { id?: string; name: string; tone?: string },
   reply: BotReply,
   text: string,
 ): Promise<PolishResult> {
@@ -136,7 +206,27 @@ export async function polishReply(
   // پاسخ‌های خیلی کوتاه («باشه»، «در خدمتم») نیازی به بازنویسی ندارند.
   if (reply.text.trim().length < 24) return { ok: false, reason: 'too_short' };
 
-  const raw = await ai.complete(systemPrompt(shop), userPrompt(reply.text, text), undefined, {
+  const shopKey = shop.id ?? shop.name;
+  const tone = (shop.tone ?? '').trim();
+
+  // کش: پاسخ تکراری (مثلاً سؤال قیمتِ پرتکرار) دوباره به مدل نمی‌رود.
+  const key = cacheKey(shopKey, tone, reply.text);
+  const cached = cacheGet(key);
+  if (cached) {
+    logger.debug(`polish cache hit (shop=${shopKey}, reason=${reply.reason ?? ''})`);
+    return { ok: true, text: cached };
+  }
+
+  // سقف روزانه: بعد از پرشدن سقف، متن آماده می‌رود و مدل صدا زده نمی‌شود.
+  if (!consumeCap(shopKey)) {
+    logger.warn(`polish daily cap reached (shop=${shopKey}, cap=${dailyCap()})`);
+    return { ok: false, reason: 'daily_cap' };
+  }
+
+  // ماسک: مدل قیمت و کد را نمی‌بیند؛ فقط لحن را می‌سازد.
+  const { masked, facts } = maskFacts(reply.text);
+
+  const raw = await ai.complete(systemPrompt(shop), userPrompt(masked, text), undefined, {
     temperature: 0.55,
     maxTokens: Math.min(700, Math.max(240, Math.round(reply.text.length / 2))),
   });
@@ -149,8 +239,23 @@ export async function polishReply(
     .replace(/^["'«]\s*/, '')
     .replace(/\s*["'»]$/, '')
     .trim();
-  const guard = guardPolish(reply.text, cleaned);
-  if (!guard.ok) return guard;
+
+  // بازیابی: هر جای‌نگه‌دار باید دقیقاً یک‌بار و به همان ترتیب برگردد.
+  const restored = restoreFacts(cleaned, facts);
+  if (!restored.ok) {
+    logger.warn(`polish rejected at restore (shop=${shopKey}, reason=${restored.reason})`);
+    return { ok: false, reason: restored.reason };
+  }
+
+  // نگهبان نهایی: عددها، کدها، تگ‌ها و طول با متن اصلی مقایسه می‌شوند.
+  const guard = guardPolish(reply.text, restored.text);
+  if (!guard.ok) {
+    logger.warn(`polish rejected by guard (shop=${shopKey}, reason=${guard.reason})`);
+    return guard;
+  }
+
+  cacheSet(key, guard.text);
+  logger.debug(`polished (shop=${shopKey}, reason=${reply.reason ?? ''}, facts=${facts.length})`);
   return { ok: true, text: guard.text };
 }
 

@@ -13,6 +13,14 @@ import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } f
 type Form = Pick<Shop, 'name' | 'tone' | 'shipping' | 'payment' | 'workingHours' | 'returns' | 'handoffMessage'>;
 const EMPTY: Form = { name: '', tone: '', shipping: '', payment: '', workingHours: '', returns: '', handoffMessage: '' };
 
+/** پیش‌فرض‌های لحن — با یک کلیک در کادر لحن می‌نشینند؛ متن آزاد هم ممکن است. */
+const TONE_PRESETS = [
+  { label: 'صمیمی و دوستانه', value: 'صمیمی، گرم و مؤدبانه؛ مثل یک فروشنده‌ی آشنا. کوتاه و بدون اغراق.' },
+  { label: 'رسمی و حرفه‌ای', value: 'رسمی، مؤدبانه و دقیق؛ بدون ایموجی و بدون خودمانی‌شدن.' },
+  { label: 'پرانرژی و مشتاقانه', value: 'پرانرژی و مشتاقانه؛ مشتری را به خرید تشویق می‌کند ولی قیمت و موجودی را عوض نمی‌کند.' },
+  { label: 'مینیمال و مستقیم', value: 'خیلی کوتاه و مستقیم؛ فقط اطلاعات، بدون مقدمه و تشریفات.' },
+];
+
 export default function SettingsPage() {
   const { shop, reloadShop } = useAuth();
   const toast = useToast();
@@ -94,9 +102,22 @@ export default function SettingsPage() {
               <Field label="نام فروشگاه" required htmlFor="name">
                 <input id="name" className="input" required maxLength={200} value={form.name} onChange={set('name')} />
               </Field>
-              <Field label="لحن پاسخ" htmlFor="tone" hint="مثال: صمیمی و مؤدبانه، بدون اغراق. این لحن در پاسخ‌ها لحاظ می‌شود.">
+              <Field label="لحن پاسخ" htmlFor="tone" hint="لحن فقط نحوه‌ی گفتن را عوض می‌کند؛ قیمت و موجودی همیشه از کاتالوگ می‌آید و هرگز با لحن عوض نمی‌شود.">
                 <input id="tone" className="input" maxLength={2000} value={form.tone} onChange={set('tone')} placeholder="صمیمی و مؤدبانه، بدون اغراق" />
               </Field>
+              <div className="tone-presets" role="group" aria-label="پیش‌فرض‌های لحن">
+                {TONE_PRESETS.map(preset => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    className={`chip-btn ${form.tone === preset.value ? 'on' : ''}`}
+                    aria-pressed={form.tone === preset.value}
+                    onClick={() => setForm(previous => ({ ...previous, tone: preset.value }))}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
 

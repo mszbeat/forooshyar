@@ -1,6 +1,6 @@
 export type FreshVariant = { price: number; stock: number; size: string; color: string };
 export type FreshProduct = { title: string; variants: FreshVariant[] };
-export type FreshShop = { shipping: string; payment: string; workingHours: string; handoffMessage: string };
+export type FreshShop = { id?: string; shipping: string; payment: string; workingHours: string; handoffMessage: string };
 export type FreshResult = { kind: 'answer' | 'clarify' | 'handoff'; text: string };
 
 export function normalizePersian(input: string): string {

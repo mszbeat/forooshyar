@@ -1073,3 +1073,6 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 @media (prefers-reduced-motion: reduce) {
   .brand-logo-animated .brand-eyes { animation: none; }
 }
+
+/* ---------- پیش‌فرض‌های لحن (تنظیمات فروشگاه) ---------- */
+.tone-presets { display: flex; flex-wrap: wrap; gap: 8px; }

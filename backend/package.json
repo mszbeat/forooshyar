@@ -13,6 +13,7 @@
     "test:integration": "node --import tsx --test test/integration.test.ts",
     "start": "node dist/main.js",
     "audit:prune": "node -r ts-node/register scripts/prune-audit.ts",
+    "eval": "node -r ts-node/register eval/run.ts",
     "telegram:setup": "node -r ts-node/register scripts/telegram-setup.ts",
     "instagram:setup": "node -r ts-node/register scripts/instagram-setup.ts"
   },

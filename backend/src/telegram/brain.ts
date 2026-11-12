@@ -439,7 +439,7 @@ export function composeReply(
     if (has('returns')) shopPart('returns', shop.returns ?? '', '↩️');
   }
 
-  if (has('discount') && !shop.returns?.trim()) {
+  if (has('discount')) {
     parts.push('🎁 برای تخفیف و کدهای ویژه، فروشنده بهترین گزینه را می‌گوید — همین‌جا پیام بگذارید.');
   }
 
