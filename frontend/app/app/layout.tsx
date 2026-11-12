@@ -36,6 +36,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'مشتریان',
     items: [
       { href: '/app/conversations', label: 'گفت‌وگوها', icon: IconChat },
+      { href: '/app/customers', label: 'مشتریان', icon: IconUsers },
     ],
   },
   {
@@ -52,6 +53,7 @@ const TITLES: Record<string, { title: string; sub: string }> = {
   '/app': { title: 'داشبورد', sub: 'تصویر کلی فروشگاه در یک نگاه' },
   '/app/products': { title: 'محصولات و موجودی', sub: 'کاتالوگ، واریانت‌ها و دفتر گردش' },
   '/app/conversations': { title: 'گفت‌وگوها', sub: 'همه‌ی چت‌های تلگرام، بی‌واسطه و از همین‌جا' },
+  '/app/customers': { title: 'مشتریان', sub: 'سابقه‌ی خرید و وفاداری مشتریان' },
   '/app/accounts': { title: 'اکانت‌ها', sub: 'حساب‌های متصل فروشگاه' },
   '/app/automation': { title: 'اتوماسیون', sub: 'کامنت به دایرکت اینستاگرام' },
   '/app/import': { title: 'ورود کاتالوگ', sub: 'بارگذاری گروهی از فایل اکسل یا CSV' },
@@ -166,7 +168,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="page">{children}</main>
-        <FloatingMascot />
+        {pathname !== '/app/conversations' && <FloatingMascot />}
       </div>
     </div>
   );

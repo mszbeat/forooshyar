@@ -4,15 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import {
-  api, ApiError, type ConversationSummary, type ConversationThread, type CustomerRow, type Customers, type ThreadMessage,
+  api, ApiError, type ConversationSummary, type ConversationThread, type ThreadMessage,
 } from '@/lib/api';
 import { useRealtime } from '@/lib/realtime';
 import { faNum, relativeTime, toman } from '@/lib/format';
-import { EmptyState, Segmented, SkeletonBlock, Spinner, useToast } from '@/components/ui';
-import { IconAlertCircle, IconChat, IconRefresh, IconSearch, IconSend, IconUsers } from '@/components/icons';
+import { EmptyState, SkeletonBlock, Spinner, useToast } from '@/components/ui';
+import { IconAlertCircle, IconChat, IconRefresh, IconSearch, IconSend } from '@/components/icons';
 
 type Filter = 'all' | 'pending';
-type Pane = 'chats' | 'customers';
 
 /**
  * گفت‌وگوها — چیدمان تمام‌صفحه مثل تلگرام/واتس‌اپ وب.
@@ -23,16 +22,12 @@ type Pane = 'chats' | 'customers';
  */
 export default function ConversationsPage() {
   const toast = useToast();
-  const [pane, setPane] = useState<Pane>('chats');
   const [items, setItems] = useState<ConversationSummary[]>([]);
   const [counts, setCounts] = useState({ all: 0, pending: 0, open: 0 });
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
-
-  const [customers, setCustomers] = useState<Customers | null>(null);
-  const [customersLoading, setCustomersLoading] = useState(false);
 
   const [active, setActive] = useState<string | null>(null);
   const [targetMsg, setTargetMsg] = useState<string | null>(null);
@@ -60,22 +55,7 @@ export default function ConversationsPage() {
     }
   }, [toast]);
 
-  const loadCustomers = useCallback(async () => {
-    setCustomersLoading(true);
-    try {
-      setCustomers(await api.customers());
-    } catch {
-      setCustomers(null);
-    } finally {
-      setCustomersLoading(false);
-    }
-  }, []);
-
   useEffect(() => { void load(); }, [load]);
-
-  useEffect(() => {
-    if (pane === 'customers' && !customers && !customersLoading) void loadCustomers();
-  }, [pane, customers, customersLoading, loadCustomers]);
 
   /** انتخاب گفتگو + باز کردن از روی اعلان (پیوند عمیق). */
   const open = useCallback(async (chatId: string, messageId?: string | null) => {
@@ -168,14 +148,6 @@ export default function ConversationsPage() {
     });
   }, [items, query, filter]);
 
-  const visibleCustomers = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    const rows = (customers?.items ?? []).filter(row => {
-      if (!term) return true;
-      return row.name.toLowerCase().includes(term) || (row.username ?? '').toLowerCase().includes(term);
-    });
-    return [...rows].sort((a, b) => (a.lastActivityAt < b.lastActivityAt ? 1 : -1));
-  }, [customers, query]);
 
   return (
     <div className="conv-full">
@@ -183,15 +155,7 @@ export default function ConversationsPage() {
         {/* ------------------------------------------------------------ فهرست */}
         <div className="conv-list">
           <div className="conv-list-head">
-            <Segmented
-              value={pane}
-              onChange={next => setPane(next)}
-              ariaLabel="گفتگوها یا مشتریان"
-              options={[
-                { value: 'chats', label: `گفتگوها (${faNum(counts.all)})` },
-                { value: 'customers', label: 'مشتریان' },
-              ]}
-            />
+            <div className="conv-list-title">گفتگوها ({faNum(counts.all)})</div>
             <div className="input-wrap">
               <IconSearch className="input-ico" size={15} />
               <input
@@ -199,22 +163,18 @@ export default function ConversationsPage() {
                 value={query} onChange={event => setQuery(event.target.value)} aria-label="جستجو"
               />
             </div>
-            {pane === 'chats' && (
-              <div className="chip-tabs" role="group" aria-label="فیلتر گفتگوها">
-                <button type="button" className={`chip-btn ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
-                  همه {faNum(counts.all)}
-                </button>
-                <button type="button" className={`chip-btn ${filter === 'pending' ? 'on' : ''}`} onClick={() => setFilter('pending')}>
-                  <span className="dot" style={{ background: 'var(--amber)' }} />
-                  بی‌پاسخ {faNum(counts.pending)}
-                </button>
-              </div>
-            )}
+            <div className="chip-tabs" role="group" aria-label="فیلتر گفتگوها">
+              <button type="button" className={`chip-btn ${filter === 'all' ? 'on' : ''}`} onClick={() => setFilter('all')}>
+                همه {faNum(counts.all)}
+              </button>
+              <button type="button" className={`chip-btn ${filter === 'pending' ? 'on' : ''}`} onClick={() => setFilter('pending')}>
+                <span className="dot" style={{ background: 'var(--amber)' }} />
+                بی‌پاسخ {faNum(counts.pending)}
+              </button>
+            </div>
           </div>
 
           <div className="conv-list-body">
-            {pane === 'chats' && (
-              <>
                 {loading && [0, 1, 2, 3].map(index => <SkeletonBlock key={index} height={64} />)}
                 {!loading && loadError && items.length === 0 && (
                   <div className="conv-empty" role="alert">
@@ -259,45 +219,6 @@ export default function ConversationsPage() {
                     </span>
                   </button>
                 ))}
-              </>
-            )}
-
-            {pane === 'customers' && (
-              <>
-                {customersLoading && [0, 1, 2, 3].map(index => <SkeletonBlock key={index} height={64} />)}
-                {!customersLoading && customers && visibleCustomers.length === 0 && (
-                  <div className="conv-empty">
-                    <IconUsers size={22} />
-                    <p>{customers.items.length === 0 ? 'هنوز مشتری‌ای ثبت نشده است.' : 'مشتری‌ای با این جستجو نیست.'}</p>
-                  </div>
-                )}
-                {visibleCustomers.map(row => (
-                  <button
-                    key={row.chatId}
-                    type="button"
-                    className={`conv-row ${active === row.chatId ? 'active' : ''}`}
-                    onClick={() => row.chatId && void open(row.chatId)}
-                  >
-                    <span className="avatar avatar-brand conv-av">{initials(row.name)}</span>
-                    <span className="conv-row-main">
-                      <span className="conv-row-top">
-                        <span className="conv-name">{row.name}</span>
-                        <span className="conv-time">{relativeTime(row.lastActivityAt)}</span>
-                      </span>
-                      <span className="conv-snippet">
-                        {row.username ? `@${row.username}` : 'بدون نام کاربری'}
-                        {row.orders > 0 ? ` · ${faNum(row.orders)} سفارش · ${toman(row.value)}` : ''}
-                      </span>
-                      <span className="conv-tags">
-                        {row.segments.buyer && <span className="badge b-green">خریدار</span>}
-                        {row.segments.repeat && <span className="badge b-blue">خرید تکراری</span>}
-                        {row.segments.quiet && <span className="badge b-gray">ساکت</span>}
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </>
-            )}
           </div>
         </div>
 

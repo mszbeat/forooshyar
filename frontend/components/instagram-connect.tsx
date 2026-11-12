@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, type InstagramAccount, type InstagramStatus } from '@/lib/api';
 import { SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import {
-  IconAlertCircle, IconCheck, IconCheckCircle, IconCopy, IconInstagram, IconRefresh, IconSend,
+  IconAlertCircle, IconCheck, IconCheckCircle, IconInstagram, IconRefresh, IconSend,
 } from '@/components/icons';
 
 /** پیامی که تا رسیدن لینک، داخل پنجره‌ی انتظار دیده می‌شود (انگلیسیِ بی‌ربط نباشد). */
@@ -18,10 +18,9 @@ const WAITING_PAGE = `<!doctype html><html lang="fa" dir="rtl"><head><meta chars
 </div><style>@keyframes spin{to{transform:rotate(360deg)}}</style></body></html>`;
 
 /**
- * اتصال پیج اینستاگرامِ **همین فروشگاه** (BoxAPI).
+ * اتصال پیج اینستاگرامِ **همین فروشگاه**.
  *
- * چرا این کارت دو حالت کاملاً متفاوت دارد: از دید فروشنده، «اینستاگرام» یعنی
- * پیج خودش. سرور فقط حساب باکس‌ای‌پی پلتفرم را دارد؛ پیج را فروشنده وصل می‌کند.
+ * از دید فروشنده، «اینستاگرام» یعنی پیج خودش: یک کلیک، اجازه، و کارت وصل‌شده.
  * پس تا وقتی پیجی وصل نشده، کارت یک کار می‌خواهد: باز کردن لینک ورود و انتخاب
  * پیج. بعد از اتصال، همان کارت هویت پیج (نام کاربری، عکس، انقضای دسترسی) و
  * ابزار آزمایش را نشان می‌دهد.
@@ -49,8 +48,6 @@ export function InstagramConnect() {
    * کاربر حدس بزند، همان مقدارِ ثبت‌شده را با یک کلیک می‌فرستیم.
    */
   const [recent, setRecent] = useState<{ chatId: string; name: string; igsid: string }[]>([]);
-  /** رویدادهای خام webhook؛ فقط وقتی گفتگویی نیست تا علت پیدا شود. */
-  const [events, setEvents] = useState<{ eventType: string; at: string; summary: string }[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -66,12 +63,6 @@ export function InstagramConnect() {
   useEffect(() => { void load(); }, [load]);
 
   const loadRecent = useCallback(async () => {
-    try {
-      const board = await api.instagramEvents();
-      setEvents(board.items ?? []);
-    } catch {
-      setEvents([]);
-    }
     try {
       const list = await api.conversations();
       setRecent(
@@ -142,7 +133,7 @@ export function InstagramConnect() {
     }
   }
 
-  /** فهرست پیج‌ها را از BoxAPI می‌گیرد؛ نتیجه‌اش ربطی به «وصل‌شدن» ندارد. */
+  /** فهرست پیج‌های قابل اتصال را می‌گیرد. */
   const refreshAccounts = useCallback(async () => {
     setBusy('accounts');
     setError('');
@@ -277,23 +268,7 @@ export function InstagramConnect() {
         {!status?.configured && (
           <div className="alert alert-warn">
             <IconAlertCircle />
-            <span>
-              اتصال اینستاگرام هنوز روی سرور پیکربندی نشده است. مدیر سیستم باید
-              <span className="mono"> INSTAGRAM_API_KEY </span>
-              و برای امنیت
-              <span className="mono"> INSTAGRAM_WEBHOOK_SECRET</span>
-              را در Environment سرویس API بگذارد. (پیج هر فروشگاه این‌جا نیست؛ از همین صفحه وصل می‌شود.)
-            </span>
-          </div>
-        )}
-
-        {status?.configured && !status.signatureEnforced && (
-          <div className="alert alert-warn">
-            <IconAlertCircle />
-            <span>
-              <span className="mono">INSTAGRAM_WEBHOOK_SECRET</span> ست نشده، پس امضای webhook بررسی نمی‌شود.
-              هر کسی که آدرس را بداند می‌تواند پیام جعلی بفرستد.
-            </span>
+            <span>اتصال اینستاگرام هنوز روی سرور فعال نشده است. لطفاً با پشتیبانی در تماس باشید.</span>
           </div>
         )}
 
@@ -324,8 +299,7 @@ export function InstagramConnect() {
               </div>
               {!status?.connectable && status?.configured && (
                 <span className="small" style={{ color: 'var(--amber, #b45309)', lineHeight: 1.9 }}>
-                  لینک ورود فروشگاه‌ها روی سرور تنظیم نشده است
-                  (<span className="mono">INSTAGRAM_LOGIN_URL</span>).
+                  لینک ورود روی سرور تنظیم نشده است؛ با پشتیبانی در تماس باشید.
                 </span>
               )}
             </div>
@@ -433,37 +407,6 @@ export function InstagramConnect() {
 
             <div style={{ height: 1, background: 'var(--line)' }} />
 
-            {/* ------------------------------------------------------ آدرس webhook */}
-            <div className="stack" style={{ gap: 8 }}>
-              <div className="kv-k">آدرس webhook (در داشبورد BoxAPI ثبت کنید)</div>
-              <code
-                dir="ltr"
-                aria-label="آدرس webhook اینستاگرام"
-                style={{
-                  display: 'block', padding: '10px 12px', border: '1px solid var(--line)',
-                  borderRadius: 10, background: 'var(--surface-2, rgba(0,0,0,.02))',
-                  fontSize: 12.5, lineHeight: 1.8, overflowWrap: 'anywhere', wordBreak: 'break-all',
-                  textAlign: 'left',
-                }}
-              >
-                {status?.webhookUrl || '—'}
-              </code>
-              <div style={{ display: 'grid', gap: 8 }}>
-                <button className="btn btn-outline btn-sm" type="button" style={{ width: '100%' }} disabled={!status?.webhookUrl}
-                  onClick={() => copy(status?.webhookUrl ?? '', 'آدرس webhook کپی شد.')}>
-                  <IconCopy size={15} />
-                  کپی آدرس
-                </button>
-                {!status?.webhookUrlIsHttps && (
-                  <span className="small" style={{ color: 'var(--amber, #b45309)', lineHeight: 1.9 }}>
-                    BoxAPI فقط آدرس <span className="mono">https</span> می‌پذیرد.
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div style={{ height: 1, background: 'var(--line)' }} />
-
             {/* ------------------------------------------------------------ آزمایش */}
             <div>
               <div className="kv-k">آزمایش اتصال</div>
@@ -503,21 +446,7 @@ export function InstagramConnect() {
                     یک دایرکت بفرستید؛ چند ثانیه بعد در «گفتگوها» و در همین فهرست ظاهر می‌شود.
                     <br />
                     دایرکت از خودِ پیج به خودش گفتگو نمی‌سازد، و اگر چند ثانیه بعد هم چیزی نیامد
-                    یعنی webhook به سرور نمی‌رسد (آدرس بالا باید در داشبورد BoxAPI ثبت شده باشد).
-                    {events.length > 0 && (
-                      <div style={{ marginTop: 10, borderTop: '1px dashed var(--line)', paddingTop: 8 }}>
-                        <div style={{ marginBottom: 4 }}>آخرین رویدادهایی که از BoxAPI رسیده:</div>
-                        {events.slice(0, 3).map((item, index) => (
-                          <div key={`${item.at}-${index}`} className="row" style={{ gap: 6, alignItems: 'baseline' }}>
-                            <span className="mono" dir="ltr" style={{ fontSize: 12 }}>{item.eventType}</span>
-                            <span style={{ fontSize: 12 }}>· {item.summary}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {events.length === 0 && (
-                      <div style={{ marginTop: 8 }}>هنوز هیچ رویدادی از BoxAPI به سرور نرسیده.</div>
-                    )}
+                    اگر چند ثانیه بعد هم چیزی نیامد، با پشتیبانی در تماس باشید.
                   </div>
                 ) : (
                   recent.slice(0, 4).map(item => (

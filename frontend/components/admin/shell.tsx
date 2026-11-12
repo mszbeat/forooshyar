@@ -17,6 +17,7 @@ const NAV = [
   { href: '/admin/shops', label: 'فروشگاه‌ها', icon: IconStore, note: 'shops' },
   { href: '/admin/ai', label: 'هوش مصنوعی', icon: IconSparkles, note: 'ai' },
   { href: '/admin/telegram', label: 'تلگرام و ربات', icon: IconBolt, note: 'telegram' },
+  { href: '/admin/integrations', label: 'یکپارچه‌سازی‌ها', icon: IconBolt, note: 'integrations' },
   { href: '/admin/payments', label: 'پرداخت', icon: IconWallet, note: 'payments' },
   { href: '/admin/otp', label: 'SMS و OTP', icon: IconShield, note: 'otp' },
   { href: '/admin/plans', label: 'پلن‌ها', icon: IconWallet, note: 'plans' },
