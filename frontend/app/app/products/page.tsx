@@ -12,7 +12,7 @@ import {
 } from '@/components/icons';
 import Link from 'next/link';
 
-type Filter = 'all' | 'attention' | 'inactive';
+type Filter = 'all' | 'attention' | 'inactive' | 'services';
 
 const REASONS: Record<string, string> = { sale: 'فروش', restock: 'شارژ موجودی', manual: 'اصلاح دستی', initial: 'موجودی اولیه' };
 
@@ -28,6 +28,8 @@ export default function ProductsPage() {
 
   const [newOpen, setNewOpen] = useState(false);
   const [variantFor, setVariantFor] = useState<Product | null>(null);
+  const [attributesFor, setAttributesFor] = useState<Product | null>(null);
+  const [bulkFor, setBulkFor] = useState<Product | null>(null);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [editVariant, setEditVariant] = useState<{ product: Product; variant: Variant } | null>(null);
   const [stockFor, setStockFor] = useState<{ product: Product; variant: Variant } | null>(null);
@@ -90,6 +92,7 @@ useEffect(() => { void load(); }, [load]);
       if (!matchQuery) return false;
       if (filter === 'attention') return product.active && needsAttention(product);
       if (filter === 'inactive') return !product.active;
+      if (filter === 'services') return product.type === 'SERVICE';
       return true;
     });
   }, [products, query, filter]);
@@ -122,12 +125,26 @@ useEffect(() => { void load(); }, [load]);
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const title = String(data.get('title') ?? '').trim();
+    const type = String(data.get('type') ?? 'PRODUCT') === 'SERVICE' ? 'SERVICE' as const : 'PRODUCT' as const;
+    const num = (key: string) => {
+      const raw = String(data.get(key) ?? '').trim();
+      return raw === '' ? null : Number(raw);
+    };
     const body = {
       title,
       category: String(data.get('category') ?? '').trim(),
       description: String(data.get('description') ?? '').trim(),
+      type,
+      isShippable: type === 'SERVICE' ? false : String(data.get('isShippable') ?? '') === 'on',
+      defaultPrice: num('defaultPrice'),
+      defaultStock: type === 'SERVICE' ? null : num('defaultStock'),
+      compareAtPrice: num('compareAtPrice'),
+      serviceDurationMinutes: type === 'SERVICE' ? num('serviceDurationMinutes') : null,
+      serviceRequiresBooking: type === 'SERVICE' && String(data.get('serviceRequiresBooking') ?? '') === 'on',
+      serviceCapacity: type === 'SERVICE' ? num('serviceCapacity') : null,
     };
-    const ok = await run('new', () => api.createProduct(body), 'محصول ساخته شد؛ حالا سایز و موجودی را اضافه کنید.');
+    const ok = await run('new', () => api.createProduct(body),
+      type === 'SERVICE' ? 'خدمت ساخته شد؛ قیمت و ظرفیت را تنظیم کنید.' : 'محصول ساخته شد؛ حالا ویژگی‌ها و واریانت‌ها را اضافه کنید.');
     if (ok) { setNewOpen(false); }
   }
 
@@ -216,6 +233,7 @@ useEffect(() => { void load(); }, [load]);
           options={[
             { value: 'all', label: 'همه' },
             { value: 'attention', label: 'کم‌موجود' },
+            { value: 'services', label: 'خدمات' },
             { value: 'inactive', label: 'غیرفعال' },
           ]}
         />
@@ -278,6 +296,7 @@ useEffect(() => { void load(); }, [load]);
                     <div className="small muted product-meta">
                       {product.category || 'بدون دسته'} · {faNum(activeVariants.length)} واریانت
                       {activeVariants.length > 0 && ` · ${priceRange(activeVariants)}`}
+                      {product.type === 'SERVICE' && <span className="badge b-blue product-status">خدمت</span>}
                       {!product.active && <span className="badge b-gray product-status">غیرفعال</span>}
                       {product.active && stock === 0 && <span className="badge b-red product-status">ناموجود</span>}
                       {product.active && stock > 0 && needsAttention(product) && <span className="badge b-amber product-status">موجودی کم</span>}
@@ -306,6 +325,9 @@ useEffect(() => { void load(); }, [load]);
                     </button>
                     <button className="btn btn-soft btn-sm" onClick={() => setVariantFor(product)} disabled={busyId === product.id}>
                       <IconPlus size={14} />سایز / رنگ
+                    </button>
+                    <button className="btn btn-outline btn-sm" onClick={() => setAttributesFor(product)} disabled={busyId === product.id}>
+                      <IconTag size={14} />ویژگی‌ها
                     </button>
                     {product.active ? (
                       <button
@@ -411,7 +433,14 @@ useEffect(() => { void load(); }, [load]);
                       </tbody>
                     </table>
                     <div className="card-foot row-between" style={{ borderTop: '1px solid var(--line)' }}>
-                      <span className="small muted">{product.description || 'بدون توضیح'}</span>
+                      <span className="row" style={{ gap: 6 }}>
+                        <span className="small muted">{product.description || 'بدون توضیح'}</span>
+                        {activeVariants.length > 1 && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => setBulkFor(product)} disabled={busyId === product.id}>
+                            <IconEdit size={13} />عملیات گروهی
+                          </button>
+                        )}
+                      </span>
                       {product.active ? (
                         <button
                           className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}
@@ -449,11 +478,46 @@ useEffect(() => { void load(); }, [load]);
           <Field label="نام محصول" required htmlFor="title">
             <input id="title" name="title" className="input" required maxLength={200} placeholder="مثلاً مانتو کتان تابستانه" autoFocus />
           </Field>
+          <Field label="نوع" htmlFor="type" hint="خدمت‌ها موجودی و ارسال ندارند؛ قیمت و ظرفیت دارند.">
+            <select id="type" name="type" className="input" defaultValue="PRODUCT">
+              <option value="PRODUCT">کالای فیزیکی</option>
+              <option value="SERVICE">خدمت</option>
+            </select>
+          </Field>
           <Field label="دسته‌بندی" htmlFor="category" hint="اختیاری — برای جستجو و فیلتر مفید است.">
             <input id="category" name="category" className="input" maxLength={200} placeholder="مانتو، شال، کیف…" />
           </Field>
           <Field label="توضیح" htmlFor="description">
             <textarea id="description" name="description" className="textarea" maxLength={2000} placeholder="جنس، برش، نکات نگهداری…" />
+          </Field>
+          <div className="grid g-2">
+            <Field label="قیمت پیش‌فرض (تومان)" htmlFor="defaultPrice" hint="در «تولید ترکیب» در همه‌ی واریانت‌ها پیش‌پر می‌شود.">
+              <input id="defaultPrice" name="defaultPrice" type="number" min={0} max={2147483647} className="input input-ltr" placeholder="890000" />
+            </Field>
+            <Field label="موجودی پیش‌فرض" htmlFor="defaultStock">
+              <input id="defaultStock" name="defaultStock" type="number" min={0} max={2147483647} className="input input-ltr" placeholder="10" />
+            </Field>
+          </div>
+          <div className="grid g-2">
+            <Field label="قیمت قبل از تخفیف (تومان)" htmlFor="compareAtPrice">
+              <input id="compareAtPrice" name="compareAtPrice" type="number" min={0} max={2147483647} className="input input-ltr" placeholder="اختیاری" />
+            </Field>
+            <Field label="مدت خدمت (دقیقه)" htmlFor="serviceDurationMinutes" hint="فقط برای خدمت.">
+              <input id="serviceDurationMinutes" name="serviceDurationMinutes" type="number" min={1} max={100000} className="input input-ltr" placeholder="60" />
+            </Field>
+          </div>
+          <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
+            <label className="row" style={{ gap: 6 }}>
+              <input type="checkbox" name="isShippable" defaultChecked />
+              <span className="small">قابل ارسال است</span>
+            </label>
+            <label className="row" style={{ gap: 6 }}>
+              <input type="checkbox" name="serviceRequiresBooking" />
+              <span className="small">نیاز به نوبت/رزرو دارد</span>
+            </label>
+          </div>
+          <Field label="ظرفیت هر نوبت" htmlFor="serviceCapacity" hint="فقط برای خدمتِ رزروی.">
+            <input id="serviceCapacity" name="serviceCapacity" type="number" min={1} max={100000} className="input input-ltr" placeholder="5" />
           </Field>
         </form>
       </Modal>
@@ -544,6 +608,22 @@ useEffect(() => { void load(); }, [load]);
         </form>
       </Modal>
 
+      {attributesFor && (
+        <AttributesModal
+          product={attributesFor}
+          onClose={() => setAttributesFor(null)}
+          onSaved={() => { setAttributesFor(null); void load(); }}
+        />
+      )}
+
+      {bulkFor && (
+        <BulkModal
+          product={bulkFor}
+          onClose={() => setBulkFor(null)}
+          onSaved={() => { setBulkFor(null); void load(); }}
+        />
+      )}
+
       {historyFor && (
         <MovementsModal
           target={historyFor}
@@ -585,6 +665,213 @@ useEffect(() => { void load(); }, [load]);
         </div>
       </Modal>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------ attributes */
+
+type AttrDraft = { name: string; values: string[] };
+
+function AttributesModal({ product, onClose, onSaved }: { product: Product; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [drafts, setDrafts] = useState<AttrDraft[]>(() =>
+    (product.attributes ?? []).map(attr => ({ name: attr.name, values: attr.values.map(v => v.value) })),
+  );
+  const [suggestions, setSuggestions] = useState<{ names: string[]; valuesByName: Record<string, string[]> } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    api.attributeSuggestions().then(setSuggestions).catch(() => setSuggestions(null));
+  }, []);
+
+  const totalCombos = drafts.reduce((acc, draft) => acc * Math.max(1, draft.values.length), 1);
+
+  function updateDraft(index: number, patch: Partial<AttrDraft>) {
+    setDrafts(current => current.map((draft, i) => (i === index ? { ...draft, ...patch } : draft)));
+  }
+
+  async function save() {
+    const cleaned = drafts
+      .map(draft => ({ name: draft.name.trim(), values: draft.values.map(v => v.trim()).filter(Boolean) }))
+      .filter(draft => draft.name && draft.values.length > 0);
+    if (cleaned.length === 0) { toast.error('حداقل یک ویژگی با حداقل یک مقدار لازم است.'); return; }
+    setBusy(true);
+    try {
+      await api.setAttributes(product.id, cleaned);
+      toast.success('ویژگی‌ها ذخیره شدند. حالا می‌توانید ترکیب‌ها را تولید کنید.');
+      onSaved();
+    } catch (problem) {
+      toast.error('ذخیره ویژگی‌ها انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generate() {
+    setGenerating(true);
+    try {
+      const result = await api.generateVariants(product.id);
+      toast.success(`ترکیب‌ها ساخته شدند: ${faNum(result.created)} جدید، ${faNum(result.kept)} حفظ شد، ${faNum(result.deactivated)} غیرفعال شد.`);
+      onSaved();
+    } catch (problem) {
+      toast.error('تولید ترکیب انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <Modal
+      open onClose={onClose} size="lg" title="ویژگی‌های محصول"
+      description={`${product.title} — ویژگی‌ها را تعریف کنید، بعد با «تولید ترکیب» واریانت‌ها را بسازید. ترکیب‌های موجود و ویرایش‌هایشان حفظ می‌شوند.`}
+      footer={
+        <>
+          <button className="btn btn-ghost" onClick={onClose}>انصراف</button>
+          <button className="btn btn-outline" onClick={() => void generate()} disabled={generating || busy}>
+            {generating && <Spinner size={14} />}تولید ترکیب ({faNum(totalCombos)})
+          </button>
+          <button className="btn btn-primary" onClick={() => void save()} disabled={busy || generating}>
+            {busy && <Spinner size={14} />}ذخیره ویژگی‌ها
+          </button>
+        </>
+      }
+    >
+      <div className="stack">
+        {drafts.map((draft, index) => (
+          <div key={index} className="card card-pad" style={{ display: 'grid', gap: 10 }}>
+            <div className="row" style={{ gap: 8 }}>
+              <input
+                className="input" style={{ maxWidth: 220 }} placeholder="نام ویژگی (رنگ، سایز، جنس…)"
+                value={draft.name} list={suggestions ? 'attr-names' : undefined}
+                onChange={event => updateDraft(index, { name: event.target.value })}
+                aria-label={`نام ویژگی ${faNum(index + 1)}`}
+              />
+              <button className="btn btn-ghost btn-sm" onClick={() => setDrafts(current => current.filter((_, i) => i !== index))} aria-label="حذف ویژگی">
+                <IconTrash size={14} />
+              </button>
+            </div>
+            <input
+              className="input" placeholder="مقادیر را با کاما جدا کنید: مشکی، سفید، قرمز"
+              value={draft.values.join('، ')}
+              list={suggestions && draft.name ? 'attr-values' : undefined}
+              onChange={event => updateDraft(index, { values: event.target.value.split(/[،,]/).map(v => v.trim()) })}
+              aria-label={`مقادیر ویژگی ${draft.name || faNum(index + 1)}`}
+            />
+            {suggestions && draft.name && suggestions.valuesByName[draft.name] && (
+              <div className="row" style={{ gap: 5, flexWrap: 'wrap' }}>
+                {suggestions.valuesByName[draft.name].map(value => (
+                  <button key={value} type="button" className="badge b-gray" style={{ cursor: 'pointer' }} onClick={() => updateDraft(index, { values: [...new Set([...draft.values.filter(Boolean), value])] })}>
+                    + {value}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {suggestions && (
+          <datalist id="attr-names">
+            {suggestions.names.map(name => <option key={name} value={name} />)}
+          </datalist>
+        )}
+        <button className="btn btn-outline btn-sm" onClick={() => setDrafts(current => [...current, { name: '', values: [] }])}>
+          <IconPlus size={14} />افزودن ویژگی
+        </button>
+        <div className="alert alert-info">
+          <IconAlertCircle />
+          <span>تولید ترکیب حداکثر ۲۰۰ واریانت می‌سازد. ترکیب‌هایی که قبلاً ساخته‌اید (و قیمت/موجودی ویرایش‌شده‌شان) دست نمی‌خورند؛ ترکیب‌های حذف‌شده فقط غیرفعال می‌شوند.</span>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------ bulk */
+
+function BulkModal({ product, onClose, onSaved }: { product: Product; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [priceMode, setPriceMode] = useState<'set' | 'percent'>('set');
+  const [priceValue, setPriceValue] = useState('');
+  const [stockMode, setStockMode] = useState<'set' | 'add'>('set');
+  const [stockValue, setStockValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  const variants = product.variants.filter(v => v.active);
+
+  async function apply() {
+    const body: Parameters<typeof api.bulkVariants>[1] = {
+      variantIds: selected.size > 0 ? [...selected] : undefined,
+    };
+    if (priceValue.trim() !== '') { body.priceMode = priceMode; body.priceValue = Number(priceValue); }
+    if (stockValue.trim() !== '') { body.stockMode = stockMode; body.stockValue = Number(stockValue); }
+    if (body.priceMode === undefined && body.stockMode === undefined) {
+      toast.error('حداقل قیمت یا موجودی را وارد کنید.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.bulkVariants(product.id, body);
+      toast.success(`${faNum(result.updated)} واریانت به‌روزرسانی شد.`);
+      onSaved();
+    } catch (problem) {
+      toast.error('عملیات گروهی انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open onClose={onClose} size="lg" title="عملیات گروهی روی واریانت‌ها"
+      description={`${product.title} — اگر واریانتی را انتخاب نکنید، روی همه اعمال می‌شود.`}
+      footer={
+        <>
+          <button className="btn btn-ghost" onClick={onClose}>انصراف</button>
+          <button className="btn btn-primary" onClick={() => void apply()} disabled={busy}>
+            {busy && <Spinner size={14} />}اعمال روی {faNum(selected.size > 0 ? selected.size : variants.length)} واریانت
+          </button>
+        </>
+      }
+    >
+      <div className="stack">
+        <div className="grid g-2">
+          <Field label="قیمت" htmlFor="bulk-price-mode">
+            <div className="row" style={{ gap: 6 }}>
+              <select id="bulk-price-mode" className="select" value={priceMode} onChange={event => setPriceMode(event.target.value as 'set' | 'percent')}>
+                <option value="set">تنظیم مستقیم (تومان)</option>
+                <option value="percent">درصد تغییر</option>
+              </select>
+              <input className="input input-ltr" type="number" placeholder={priceMode === 'set' ? '890000' : '10'} value={priceValue} onChange={event => setPriceValue(event.target.value)} aria-label="مقدار قیمت" />
+            </div>
+          </Field>
+          <Field label="موجودی" htmlFor="bulk-stock-mode">
+            <div className="row" style={{ gap: 6 }}>
+              <select id="bulk-stock-mode" className="select" value={stockMode} onChange={event => setStockMode(event.target.value as 'set' | 'add')}>
+                <option value="set">تنظیم مستقیم</option>
+                <option value="add">افزودن/کاهش</option>
+              </select>
+              <input className="input input-ltr" type="number" placeholder="10" value={stockValue} onChange={event => setStockValue(event.target.value)} aria-label="مقدار موجودی" />
+            </div>
+          </Field>
+        </div>
+        <div className="stack" style={{ gap: 6 }}>
+          {variants.map(variant => (
+            <label key={variant.id} className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <input
+                type="checkbox" checked={selected.has(variant.id)}
+                onChange={event => setSelected(current => {
+                  const next = new Set(current);
+                  if (event.target.checked) next.add(variant.id); else next.delete(variant.id);
+                  return next;
+                })}
+              />
+              <span className="small">{variantLabel(variant)}</span>
+              <span className="small muted">{toman(variant.price)} · {faNum(variant.stock)} عدد</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

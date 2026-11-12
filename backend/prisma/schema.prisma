@@ -74,6 +74,12 @@ model Shop {
   stockAlerts    StockAlert[]
 }
 
+/// نوع کالا: فیزیکی یا خدمت. یک فروشگاه می‌تواند هر دو را داشته باشد.
+enum ProductType {
+  PRODUCT
+  SERVICE
+}
+
 model Product {
   id          String    @id @default(uuid()) @db.Uuid
   shopId      String    @db.Uuid
@@ -82,13 +88,57 @@ model Product {
   description String    @default("")
   category    String    @default("")
   active      Boolean   @default(true)
+  /// PRODUCT = کالای فیزیکی، SERVICE = خدمت (بدون موجودی/ارسال پیش‌فرض).
+  type        ProductType @default(PRODUCT)
+  /// کالای فیزیکی قابل ارسال است یا فقط تحویل حضوری/دیجیتال؟
+  isShippable Boolean   @default(true)
+  /// قیمت و موجودی پیش‌فرض محصول؛ هنگام «تولید ترکیب» در همه‌ی واریانت‌ها
+  /// پیش‌پر می‌شود و فروشنده می‌تواند هر واریانت را جدا ویرایش کند.
+  defaultPrice Int?
+  defaultStock Int?
+  /// قیمت قبل از تخفیف (برای نمایش «٪ تخفیف»)؛ اختیاری.
+  compareAtPrice Int?
+  /// فیلدهای خدمت: مدت انجام (دقیقه)، نیاز به نوبت/رزرو، ظرفیت هر نوبت.
+  serviceDurationMinutes Int?
+  serviceRequiresBooking Boolean @default(false)
+  serviceCapacity        Int?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   variants    Variant[]
+  attributes  ProductAttribute[]
   alerts      StockAlert[]
 
   @@unique([shopId, id])
   @@index([shopId, title])
+}
+
+/// یک ویژگی آزاد محصول (مثل «رنگ» یا «جنس») با مقادیرش.
+/// نام و مقدار متن آزادند؛ از ورودی‌های قبلی پیشنهاد داده می‌شوند.
+model ProductAttribute {
+  id        String                 @id @default(uuid()) @db.Uuid
+  shopId    String                 @db.Uuid
+  productId String                 @db.Uuid
+  product   Product                @relation(fields: [shopId, productId], references: [shopId, id], onDelete: Cascade)
+  name      String
+  sortOrder Int                    @default(0)
+  values    ProductAttributeValue[]
+
+  @@unique([shopId, id])
+  @@unique([shopId, productId, name])
+  @@index([shopId, productId])
+}
+
+model ProductAttributeValue {
+  id          String           @id @default(uuid()) @db.Uuid
+  shopId      String           @db.Uuid
+  attributeId String           @db.Uuid
+  attribute   ProductAttribute @relation(fields: [shopId, attributeId], references: [shopId, id], onDelete: Cascade)
+  value       String
+  sortOrder   Int              @default(0)
+
+  @@unique([shopId, id])
+  @@unique([shopId, attributeId, value])
+  @@index([shopId, attributeId])
 }
 
 model Variant {
@@ -100,6 +150,10 @@ model Variant {
   sku            String?
   size           String           @default("")
   color          String           @default("")
+  /// نگاشت گزینه‌ها از ویژگی‌های محصول، مثل {"رنگ": "مشکی", "سایز": "M"}.
+  /// منبع حقیقت برای واریانت‌های تولیدشده از ترکیب است؛ size/color برای
+  /// سازگاری با کدهای قدیمی (بات، سفارش) همگام نگه داشته می‌شوند.
+  optionsJson    Json             @default("{}")
   price          Int
   stock          Int              @default(0)
   active         Boolean          @default(true)

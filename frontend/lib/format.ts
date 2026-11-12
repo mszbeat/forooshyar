@@ -89,7 +89,14 @@ export const daysSince = (input: string | Date): number => {
   return Math.max(0, Math.floor((Date.now() - date.getTime()) / 86_400_000));
 };
 
-export const variantLabel = (variant: { size?: string; color?: string }): string => {
+export const variantLabel = (variant: {
+  size?: string; color?: string; optionsJson?: Record<string, string> | null;
+}): string => {
+  const options = variant.optionsJson ?? {};
+  const optionParts = Object.entries(options)
+    .filter(([, value]) => value && value.trim())
+    .map(([name, value]) => `${name}: ${value}`);
+  if (optionParts.length) return optionParts.join(' · ');
   const parts = [variant.color, variant.size].filter((part): part is string => Boolean(part && part.trim()));
   return parts.length ? parts.join(' · ') : 'تک‌سایز';
 };

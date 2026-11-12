@@ -80,6 +80,7 @@ const aliases: Record<string, string> = {
   title: 'title', name: 'title', 'نام': 'title', 'نام محصول': 'title',
   price: 'price', 'قیمت': 'price', stock: 'stock', 'موجودی': 'stock',
   size: 'size', 'سایز': 'size', color: 'color', 'رنگ': 'color', sku: 'sku',
+  type: 'type', 'نوع': 'type', category: 'category', 'دسته': 'category',
 };
 function normalizeHeader(value: Cell): string {
   return String(value ?? '').trim().toLowerCase().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' ');
@@ -92,7 +93,18 @@ function normalizeNumber(value: Cell): number | null {
   return Number(normalized);
 }
 const integer = z.number().int().min(0).max(2147483647);
-const schema = z.object({ title: z.string().trim().min(1).max(200), price: integer, stock: integer, size: z.string().trim().max(2000), color: z.string().trim().max(2000), sku: z.string().trim().max(200).optional() });
+const schema = z.object({
+  title: z.string().trim().min(1).max(200),
+  price: integer,
+  stock: integer,
+  size: z.string().trim().max(2000),
+  color: z.string().trim().max(2000),
+  sku: z.string().trim().max(200).optional(),
+  type: z.enum(['PRODUCT', 'SERVICE']).optional(),
+  category: z.string().trim().max(200).optional(),
+  /** ویژگی‌های آزاد: هر ستون اضافه با نام دلخواه یک ویژگی است. */
+  attributes: z.record(z.string(), z.string().trim().max(2000)).optional(),
+});
 type ValidRow = z.infer<typeof schema>;
 
 @Injectable()
@@ -101,21 +113,38 @@ export class ImportService {
   async importFile(shopId: string, actorId: string, filename: string, buffer: Buffer) {
     const rows = await readRows(filename, buffer);
     if (rows.length === 0) throw new BadRequestException('File is empty');
-    const headers = rows[0].cells.map(value => aliases[normalizeHeader(value)] ?? '');
+    // ستون‌های شناخته‌شده + ستون‌های اضافه (ویژگی آزاد). نام ویژگی از هدر اصلی حفظ می‌شود.
+    const rawHeaders = rows[0].cells.map(value => String(value ?? '').trim());
+    const headers = rawHeaders.map(value => aliases[normalizeHeader(value)] ?? '');
     const populated = headers.filter(Boolean);
     if (new Set(populated).size !== populated.length || !['title', 'price', 'stock'].every(key => populated.includes(key))) {
       throw new BadRequestException('Headers must include title, price and stock without duplicates');
     }
     const results: { row: number; status: 'imported' | 'error'; productId?: string; variantId?: string; errors?: string[] }[] = [];
     for (const row of rows.slice(1)) {
-      if (row.unsupported?.some(index => Boolean(headers[index]))) {
+      if (row.unsupported?.some(index => Boolean(headers[index]) || rawHeaders[index] !== '')) {
         results.push({ row: row.number, status: 'error', errors: ['Formula or unsupported cell value'] });
         continue;
       }
       if (row.cells.every(cell => cell === '' || cell === null || cell === undefined)) continue;
       const input: Record<string, Cell> = {};
-      headers.forEach((header, index) => { if (header) input[header] = row.cells[index]; });
-      const parsed = schema.safeParse({ title: typeof input.title === 'string' ? input.title : '', price: normalizeNumber(input.price), stock: normalizeNumber(input.stock), size: input.size == null ? '' : String(input.size), color: input.color == null ? '' : String(input.color), sku: input.sku == null || String(input.sku).trim() === '' ? undefined : String(input.sku) });
+      const attributeValues: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        if (header) input[header] = row.cells[index];
+        else if (rawHeaders[index] !== '') attributeValues[rawHeaders[index]] = row.cells[index] == null ? '' : String(row.cells[index]);
+      });
+      const typeRaw = typeof input.type === 'string' ? input.type.trim().toUpperCase() : undefined;
+      const parsed = schema.safeParse({
+        title: typeof input.title === 'string' ? input.title : '',
+        price: normalizeNumber(input.price),
+        stock: normalizeNumber(input.stock),
+        size: input.size == null ? '' : String(input.size),
+        color: input.color == null ? '' : String(input.color),
+        sku: input.sku == null || String(input.sku).trim() === '' ? undefined : String(input.sku),
+        type: typeRaw === 'SERVICE' || typeRaw === 'خدمت' ? 'SERVICE' : typeRaw === 'PRODUCT' || typeRaw === 'کالا' ? 'PRODUCT' : undefined,
+        category: input.category == null || String(input.category).trim() === '' ? undefined : String(input.category),
+        attributes: Object.keys(attributeValues).length ? attributeValues : undefined,
+      });
       if (!parsed.success) {
         results.push({ row: row.number, status: 'error', errors: parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`) });
         continue;
@@ -150,10 +179,86 @@ export class ImportService {
     });
     return summary;
   }
+  /**
+   * اکسپورت کاتالوگ به CSV (UTF-8 با BOM برای اکسل فارسی):
+   * هر ردیف یک واریانت است؛ ستون‌های ویژگی از روی `optionsJson` ساخته می‌شوند
+   * تا فایل دوباره قابل ایمپورت باشد (round-trip).
+   */
+  async exportCsv(shopId: string): Promise<{ filename: string; content: string }> {
+    const products = await this.db.product.findMany({
+      where: { shopId },
+      include: { variants: { where: { active: true }, orderBy: { createdAt: 'asc' } } },
+      orderBy: { createdAt: 'asc' },
+      take: 1000,
+    });
+    const attributeNames: string[] = [];
+    for (const product of products) {
+      for (const variant of product.variants) {
+        const options = (variant.optionsJson as Record<string, string>) ?? {};
+        for (const name of Object.keys(options)) {
+          if (!attributeNames.includes(name)) attributeNames.push(name);
+        }
+      }
+    }
+    const escape = (value: string | number | null | undefined) => {
+      const text = value == null ? '' : String(value);
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const header = ['نام', 'نوع', 'دسته', 'قیمت', 'موجودی', 'سایز', 'رنگ', 'SKU', ...attributeNames];
+    const lines = [header.map(escape).join(',')];
+    for (const product of products) {
+      for (const variant of product.variants) {
+        const options = (variant.optionsJson as Record<string, string>) ?? {};
+        const row = [
+          product.title,
+          product.type === 'SERVICE' ? 'خدمت' : 'کالا',
+          product.category,
+          variant.price,
+          variant.stock,
+          variant.size,
+          variant.color,
+          variant.sku ?? '',
+          ...attributeNames.map((name) => options[name] ?? ''),
+        ];
+        lines.push(row.map(escape).join(','));
+      }
+    }
+    this.audit.record({ action: 'catalog.export', entity: 'catalog', shopId, meta: { products: products.length } });
+    return { filename: 'catalog.csv', content: '\uFEFF' + lines.join('\r\n') };
+  }
+
   private createRow(shopId: string, actorId: string, data: ValidRow) {
     return this.db.$transaction(async tx => {
-      const product = await tx.product.create({ data: { shopId, title: data.title } });
-      const variant = await tx.variant.create({ data: { shopId, productId: product.id, price: data.price, stock: data.stock, size: data.size, color: data.color, sku: data.sku } });
+      const product = await tx.product.create({
+        data: {
+          shopId,
+          title: data.title,
+          type: data.type ?? 'PRODUCT',
+          category: data.category ?? '',
+          defaultPrice: data.price,
+          defaultStock: data.stock,
+        },
+      });
+      // ویژگی‌های آزاد + size/color به‌عنوان ویژگی‌های «سایز»/«رنگ»
+      const options: Record<string, string> = { ...(data.attributes ?? {}) };
+      if (data.size) options['سایز'] = data.size;
+      if (data.color) options['رنگ'] = data.color;
+      const names = Object.keys(options).filter(name => options[name] !== '');
+      for (let i = 0; i < names.length; i++) {
+        await tx.productAttribute.create({
+          data: {
+            shopId, productId: product.id, name: names[i], sortOrder: i,
+            values: { create: [{ value: options[names[i]], sortOrder: 0 }] },
+          },
+        });
+      }
+      const variant = await tx.variant.create({
+        data: {
+          shopId, productId: product.id, price: data.price, stock: data.stock,
+          size: data.size, color: data.color, sku: data.sku,
+          optionsJson: options as Prisma.InputJsonValue,
+        },
+      });
       if (data.stock > 0) await tx.stockMovement.create({ data: { shopId, variantId: variant.id, actorId, delta: data.stock, reason: 'import' } });
       return { productId: product.id, variantId: variant.id };
     });

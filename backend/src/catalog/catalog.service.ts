@@ -1,9 +1,14 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, ProductType } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
+import {
+  diffCombinations,
+  generateCombinations,
+  sizeColorFromOptions,
+} from './variant-combinations';
 
 @Injectable()
 export class CatalogService {
@@ -16,21 +21,45 @@ export class CatalogService {
     private readonly realtime: RealtimeService,
   ) {}
   async product(shopId: string, id: string) {
-    const product = await this.db.product.findFirst({ where: { shopId, id }, include: { variants: true } });
+    const product = await this.db.product.findFirst({
+      where: { shopId, id },
+      include: {
+        variants: true,
+        attributes: { include: { values: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } },
+      },
+    });
     if (!product) throw new NotFoundException('Product not found');
     return product;
   }
   list(shopId: string) {
-    return this.db.product.findMany({ where: { shopId }, include: { variants: true }, orderBy: { createdAt: 'desc' }, take: 100 });
+    return this.db.product.findMany({
+      where: { shopId },
+      include: {
+        variants: true,
+        attributes: { include: { values: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
   }
-  async createProduct(shopId: string, input: { title: string; description?: string; category?: string }) {
+  async createProduct(shopId: string, input: {
+    title: string; description?: string; category?: string;
+    type?: ProductType; isShippable?: boolean;
+    defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
+    serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
+  }) {
     const product = await this.db.product.create({ data: { ...input, shopId } });
-    this.audit.record({ action: 'product.create', entity: 'product', entityId: product.id, shopId, meta: { title: product.title, category: product.category } });
+    this.audit.record({ action: 'product.create', entity: 'product', entityId: product.id, shopId, meta: { title: product.title, category: product.category, type: product.type } });
     this.realtime.emitShop(shopId, 'product', { id: product.id, reason: 'created' });
     this.realtime.emitAdmin('product', { shopId, reason: 'created' });
     return product;
   }
-  async updateProduct(shopId: string, id: string, data: { title?: string; description?: string; category?: string; active?: boolean }) {
+  async updateProduct(shopId: string, id: string, data: {
+    title?: string; description?: string; category?: string; active?: boolean;
+    type?: ProductType; isShippable?: boolean;
+    defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
+    serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
+  }) {
     const result = await this.db.product.updateMany({ where: { shopId, id }, data });
     if (!result.count) throw new NotFoundException('Product not found');
     const product = await this.product(shopId, id);
@@ -167,5 +196,190 @@ export class CatalogService {
     const variant = await this.db.variant.findFirst({ where: { shopId, id: variantId }, select: { id: true } });
     if (!variant) throw new NotFoundException('Variant not found');
     return this.db.stockMovement.findMany({ where: { shopId, variantId }, orderBy: { createdAt: 'desc' }, take: 100 });
+  }
+
+  // -------------------------------------------------------------------------
+  // ویژگی‌های آزاد محصول (K-V) و تولید ترکیب واریانت‌ها
+  // -------------------------------------------------------------------------
+
+  /** پیشنهاد نام ویژگی‌ها و مقادیر از ورودی‌های قبلی همین فروشگاه. */
+  async attributeSuggestions(shopId: string) {
+    const [names, values] = await Promise.all([
+      this.db.productAttribute.groupBy({ by: ['name'], where: { shopId }, orderBy: { name: 'asc' } }),
+      this.db.productAttributeValue.findMany({
+        where: { shopId },
+        include: { attribute: { select: { name: true } } },
+        orderBy: { value: 'asc' },
+        take: 500,
+      }),
+    ]);
+    const valuesByName = new Map<string, string[]>();
+    for (const row of values) {
+      const list = valuesByName.get(row.attribute.name) ?? [];
+      if (!list.includes(row.value)) list.push(row.value);
+      valuesByName.set(row.attribute.name, list);
+    }
+    return {
+      names: names.map((n) => n.name),
+      valuesByName: Object.fromEntries(valuesByName),
+    };
+  }
+
+  async setAttributes(shopId: string, productId: string, attributes: { name: string; values: string[] }[]) {
+    const product = await this.db.product.findFirst({ where: { shopId, id: productId }, select: { id: true } });
+    if (!product) throw new NotFoundException('Product not found');
+    const cleaned = attributes
+      .map((a) => ({
+        name: a.name.trim(),
+        values: [...new Set(a.values.map((v) => v.trim()).filter(Boolean))],
+      }))
+      .filter((a) => a.name && a.values.length > 0);
+    const names = new Set(cleaned.map((a) => a.name));
+    if (names.size !== cleaned.length) throw new BadRequestException('نام ویژگی تکراری است');
+
+    await this.db.$transaction(async (tx) => {
+      const existing = await tx.productAttribute.findMany({ where: { shopId, productId } });
+      // ویژگی‌هایی که دیگر نیستند حذف می‌شوند (واریانت‌های موجود دست نمی‌خورند).
+      const removed = existing.filter((a) => !names.has(a.name));
+      if (removed.length) {
+        await tx.productAttribute.deleteMany({ where: { shopId, productId, id: { in: removed.map((a) => a.id) } } });
+      }
+      for (let i = 0; i < cleaned.length; i++) {
+        const attr = cleaned[i];
+        const found = existing.find((a) => a.name === attr.name);
+        if (!found) {
+          await tx.productAttribute.create({
+            data: {
+              shopId, productId, name: attr.name, sortOrder: i,
+              values: { create: attr.values.map((value, j) => ({ value, sortOrder: j })) },
+            },
+          });
+        } else {
+          await tx.productAttribute.update({
+            where: { shopId_id: { shopId, id: found.id } },
+            data: {
+              sortOrder: i,
+              values: {
+                deleteMany: {},
+                create: attr.values.map((value, j) => ({ shopId, value, sortOrder: j })),
+              },
+            },
+          });
+        }
+      }
+    });
+    this.audit.record({ action: 'product.attributes_set', entity: 'product', entityId: productId, shopId, meta: { attributes: cleaned.map((a) => a.name) } });
+    this.realtime.emitShop(shopId, 'product', { id: productId, reason: 'attributes_updated' });
+    return this.product(shopId, productId);
+  }
+
+  /**
+   * تولید ترکیب واریانت‌ها از ویژگی‌های محصول با diff:
+   * ترکیب‌های موجود (و ویرایش‌هایشان) حفظ می‌شوند، ترکیب‌های جدید با
+   * قیمت/موجودی پیش‌فرض محصول ساخته می‌شوند و ترکیب‌های حذف‌شده غیرفعال
+   * می‌شوند تا تاریخچه‌ی سفارش‌ها نماند.
+   */
+  async generateVariants(shopId: string, userId: string, productId: string) {
+    const product = await this.db.product.findFirst({
+      where: { shopId, id: productId },
+      include: {
+        attributes: { include: { values: { orderBy: { sortOrder: 'asc' } } }, orderBy: { sortOrder: 'asc' } },
+        variants: true,
+      },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const generated = generateCombinations(
+      product.attributes.map((a) => ({ name: a.name, values: a.values.map((v) => v.value) })),
+    );
+    const diff = diffCombinations(
+      product.variants.map((v) => ({
+        options: (v.optionsJson as Record<string, string>) ?? {},
+        active: v.active,
+      })),
+      generated,
+    );
+
+    const defaultPrice = product.defaultPrice ?? 0;
+    const defaultStock = product.defaultStock ?? 0;
+    const result = await this.db.$transaction(async (tx) => {
+      let created = 0;
+      let deactivated = 0;
+      for (const combo of diff.toCreate) {
+        const { size, color } = sizeColorFromOptions(combo.options);
+        const variant = await tx.variant.create({
+          data: {
+            shopId, productId,
+            size, color,
+            optionsJson: combo.options as Prisma.InputJsonValue,
+            price: defaultPrice,
+            stock: defaultStock,
+          },
+        });
+        if (defaultStock > 0) {
+          await tx.stockMovement.create({ data: { shopId, variantId: variant.id, delta: defaultStock, reason: 'initial', actorId: userId } });
+        }
+        created++;
+      }
+      for (const combo of diff.toDeactivate) {
+        const { size, color } = sizeColorFromOptions(combo.options);
+        await tx.variant.updateMany({
+          where: { shopId, productId, size, color, active: true },
+          data: { active: false },
+        });
+        deactivated++;
+      }
+      return { created, kept: diff.toKeep.length, deactivated };
+    });
+
+    this.audit.record({
+      action: 'product.variants_generated', entity: 'product', entityId: productId, shopId,
+      meta: { ...result, defaultPrice, defaultStock },
+    });
+    this.realtime.emitShop(shopId, 'product', { id: productId, reason: 'variants_generated' });
+    return { ...result, product: await this.product(shopId, productId) };
+  }
+
+  /** عملیات گروهی روی واریانت‌های یک محصول: تنظیم قیمت/موجودی (مطلق یا درصدی). */
+  async bulkUpdateVariants(shopId: string, userId: string, productId: string, input: {
+    variantIds?: string[];
+    priceMode?: 'set' | 'percent';
+    priceValue?: number;
+    stockMode?: 'set' | 'add';
+    stockValue?: number;
+  }) {
+    const product = await this.db.product.findFirst({ where: { shopId, id: productId }, select: { id: true } });
+    if (!product) throw new NotFoundException('Product not found');
+    const variants = await this.db.variant.findMany({
+      where: { shopId, productId, ...(input.variantIds?.length ? { id: { in: input.variantIds } } : {}) },
+    });
+    if (variants.length === 0) throw new BadRequestException('واریانتی برای به‌روزرسانی پیدا نشد');
+
+    await this.db.$transaction(async (tx) => {
+      for (const variant of variants) {
+        const data: Prisma.VariantUpdateInput = {};
+        if (input.priceMode === 'set' && input.priceValue !== undefined) data.price = input.priceValue;
+        if (input.priceMode === 'percent' && input.priceValue !== undefined) {
+          data.price = Math.max(0, Math.round(variant.price * (1 + input.priceValue / 100)));
+        }
+        if (Object.keys(data).length) {
+          await tx.variant.update({ where: { shopId_id: { shopId, id: variant.id } }, data });
+        }
+        if (input.stockMode && input.stockValue !== undefined) {
+          const delta = input.stockMode === 'set' ? input.stockValue - variant.stock : input.stockValue;
+          if (delta !== 0) {
+            if (variant.stock + delta < 0) throw new BadRequestException('موجودی نمی‌تواند منفی شود');
+            await tx.variant.update({ where: { shopId_id: { shopId, id: variant.id } }, data: { stock: { increment: delta }, stockUpdatedAt: new Date() } });
+            await tx.stockMovement.create({ data: { shopId, variantId: variant.id, delta, reason: 'adjustment', actorId: userId } });
+          }
+        }
+      }
+    });
+    this.audit.record({
+      action: 'product.variants_bulk', entity: 'product', entityId: productId, shopId,
+      meta: { count: variants.length, priceMode: input.priceMode, stockMode: input.stockMode },
+    });
+    this.realtime.emitShop(shopId, 'product', { id: productId, reason: 'variants_bulk' });
+    return { updated: variants.length };
   }
 }

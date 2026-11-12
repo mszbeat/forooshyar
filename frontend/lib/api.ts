@@ -23,11 +23,21 @@ const TOKEN_KEY = 'forooshyar.token';
 
 export type Variant = {
   id: string; productId: string; sku: string | null; size: string; color: string;
+  optionsJson?: Record<string, string>;
   price: number; stock: number; active: boolean; stockUpdatedAt: string;
+};
+export type ProductAttribute = {
+  id: string; name: string; sortOrder: number;
+  values: { id: string; value: string; sortOrder: number }[];
 };
 export type Product = {
   id: string; title: string; description: string; category: string;
   active: boolean; createdAt: string; updatedAt: string; variants: Variant[];
+  type?: 'PRODUCT' | 'SERVICE';
+  isShippable?: boolean;
+  defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
+  serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
+  attributes?: ProductAttribute[];
 };
 export type Shop = {
   id: string; name: string; tone: string; shipping: string; payment: string;
@@ -301,11 +311,25 @@ export const api = {
 
   products: () => request<Product[]>('/products'),
   product: (id: string) => request<Product>(`/products/${id}`),
-  createProduct: (body: { title: string; description?: string; category?: string }) =>
-    request<Product>('/products', { method: 'POST', body }),
-  updateProduct: (id: string, body: Partial<Pick<Product, 'title' | 'description' | 'category' | 'active'>>) =>
+  createProduct: (body: {
+    title: string; description?: string; category?: string;
+    type?: 'PRODUCT' | 'SERVICE'; isShippable?: boolean;
+    defaultPrice?: number | null; defaultStock?: number | null; compareAtPrice?: number | null;
+    serviceDurationMinutes?: number | null; serviceRequiresBooking?: boolean; serviceCapacity?: number | null;
+  }) => request<Product>('/products', { method: 'POST', body }),
+  updateProduct: (id: string, body: Partial<Product>) =>
     request<Product>(`/products/${id}`, { method: 'PATCH', body }),
   archiveProduct: (id: string) => request<Product>(`/products/${id}`, { method: 'DELETE' }),
+  attributeSuggestions: () =>
+    request<{ names: string[]; valuesByName: Record<string, string[]> }>('/attribute-suggestions'),
+  setAttributes: (productId: string, attributes: { name: string; values: string[] }[]) =>
+    request<Product>(`/products/${productId}/attributes`, { method: 'POST', body: { attributes } }),
+  generateVariants: (productId: string) =>
+    request<{ created: number; kept: number; deactivated: number; product: Product }>(`/products/${productId}/generate-variants`, { method: 'POST' }),
+  bulkVariants: (productId: string, body: {
+    variantIds?: string[]; priceMode?: 'set' | 'percent'; priceValue?: number;
+    stockMode?: 'set' | 'add'; stockValue?: number;
+  }) => request<{ updated: number }>(`/products/${productId}/bulk-variants`, { method: 'POST', body }),
 
   createVariant: (productId: string, body: { sku?: string; size?: string; color?: string; price: number; stock: number }) =>
     request<Variant>(`/products/${productId}/variants`, { method: 'POST', body }),
