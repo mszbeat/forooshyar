@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { z } from 'zod';
 import './../auth.css';
 import { useAuth } from '@/lib/auth';
 import { ApiError } from '@/lib/api';
@@ -12,6 +13,25 @@ import { request } from '@/lib/api';
 import { Field, Spinner, useToast } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
 import { IconAlertCircle, IconArrowLeft, IconCheck, IconEye, IconLogo, IconShield } from '@/components/icons';
+
+/** اعتبارسنجی سمت کلاینت؛ پیام‌ها فارسی و برای کاربر نهایی نوشته شده‌اند. */
+const loginSchema = z.object({
+  email: z.string().trim().email('ایمیل معتبر وارد کنید.'),
+  password: z.string().min(10, 'رمز عبور باید دست‌کم ۱۰ کاراکتر باشد.').max(128),
+});
+const registerSchema = z.object({
+  shopName: z.string().trim().min(2, 'نام فروشگاه را وارد کنید.').max(200),
+  email: z.string().trim().email('ایمیل معتبر وارد کنید.'),
+  password: z.string().min(10, 'رمز عبور باید دست‌کم ۱۰ کاراکتر باشد.').max(128),
+  terms: z.literal(true, { error: 'برای ساخت فروشگاه باید شرایط استفاده را بپذیرید.' }),
+});
+
+/** مقصد بعد از ورود؛ فقط مسیرهای داخلی مجاز است (جلوگیری از open-redirect). */
+function safeNext(): string {
+  if (typeof window === 'undefined') return '/app';
+  const next = new URLSearchParams(window.location.search).get('next');
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/app';
+}
 
 /**
  * ورود و ثبت‌نام در یک صفحه.
@@ -32,6 +52,8 @@ export default function LoginPage() {
   const [loginMethod,setLoginMethod]=useState<'password'|'otp'>('password');
   const [otpPhone,setOtpPhone]=useState(''); const [otpCode,setOtpCode]=useState(''); const [otpSent,setOtpSent]=useState(false);
   const [values, setValues] = useState({ shopName: '', email: '', password: '' });
+  const [terms, setTerms] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // نمایش/پنهان‌سازی رمز؛ همان الگوی صفحهٔ ادمین تا رفتار کل سایت یکسان باشد.
   const [reveal, setReveal] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
@@ -45,29 +67,73 @@ export default function LoginPage() {
       setValues(previous => ({ ...previous, email: saved }));
       setRemember(true);
     }
+    // دکمه‌های برگشت/جلو مرورگر هم حالت را همگام نگه می‌دارد.
+    const onPop = () => {
+      const next = new URLSearchParams(window.location.search).get('mode') === 'register' ? 'register' : 'login';
+      setMode(next);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   useEffect(() => {
-    if (ready && token) router.replace('/app');
+    if (ready && token) router.replace(safeNext());
   }, [ready, token, router]);
 
-  const set = (key: keyof typeof values) => (event: { target: { value: string } }) =>
+  const set = (key: keyof typeof values) => (event: { target: { value: string } }) => {
     setValues(previous => ({ ...previous, [key]: event.target.value }));
+    setFieldErrors(previous => ({ ...previous, [key]: '' }));
+  };
 
   function switchMode(next: 'login' | 'register') {
     if (next === mode) return;
     setMode(next);
     setError('');
+    setFieldErrors({});
+    setTerms(false);
     setValues(previous => ({ ...previous, shopName: '', password: '' }));
-    window.setTimeout(() => emailRef.current?.focus(), 480);
+    // حالت در URL هم ثبت می‌شود تا رفرش/اشتراک‌گذاری همان حالت را بدهد.
+    const params = new URLSearchParams(window.location.search);
+    if (next === 'register') params.set('mode', 'register');
+    else params.delete('mode');
+    const query = params.toString();
+    router.replace(query ? `/login?${query}` : '/login', { scroll: false });
+    window.setTimeout(() => emailRef.current?.focus(), 240);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    // اعتبارسنجی قبل از ارسال؛ خطاها زیر هر فیلد نمایش داده می‌شوند.
+    if (mode === 'login' && loginMethod === 'otp') {
+      if (!/^\d{10,11}$/.test(otpPhone.trim())) { setError('شماره موبایل معتبر وارد کنید.'); return; }
+      if (otpCode.trim().length !== 6) { setError('کد ۶ رقمی را کامل وارد کنید.'); return; }
+    } else if (mode === 'register') {
+      const parsed = registerSchema.safeParse({ ...values, terms });
+      if (!parsed.success) {
+        const errors: Record<string, string> = {};
+        for (const issue of parsed.error.issues) {
+          const key = String(issue.path[0] ?? 'form');
+          if (!errors[key]) errors[key] = issue.message;
+        }
+        setFieldErrors(errors);
+        return;
+      }
+    } else {
+      const parsed = loginSchema.safeParse(values);
+      if (!parsed.success) {
+        const errors: Record<string, string> = {};
+        for (const issue of parsed.error.issues) {
+          const key = String(issue.path[0] ?? 'form');
+          if (!errors[key]) errors[key] = issue.message;
+        }
+        setFieldErrors(errors);
+        return;
+      }
+    }
     setBusy(true);
     try {
-      if (mode === 'login' && loginMethod === 'otp') { await loginOtp(otpPhone,otpCode); router.replace('/app'); return; }
+      if (mode === 'login' && loginMethod === 'otp') { await loginOtp(otpPhone,otpCode); router.replace(safeNext()); return; }
       if (mode === 'register') {
         await register(values.email.trim(), values.password, values.shopName.trim());
         toast.success('فروشگاه شما ساخته شد', 'حالا کاتالوگ را کامل کنید تا پاسخ خودکار آماده شود.');
@@ -76,7 +142,7 @@ export default function LoginPage() {
       }
       if (remember) window.localStorage.setItem('forooshyar.rememberedEmail', values.email.trim());
       else window.localStorage.removeItem('forooshyar.rememberedEmail');
-      router.replace('/app');
+      router.replace(safeNext());
     } catch (problem) {
       const message = problem instanceof ApiError
         ? problem.status === 401 ? 'ایمیل یا رمز عبور درست نیست.'
@@ -193,11 +259,11 @@ export default function LoginPage() {
 
             <form className="authx-form" onSubmit={submit} noValidate={false}>
               {isRegister && (
-                <Field label="نام فروشگاه" required htmlFor="shopName" hint="همین نام در پاسخ خودکار خطاب به مشتری استفاده می‌شود.">
+                <Field label="نام فروشگاه" required htmlFor="shopName" hint="همین نام در پاسخ خودکار خطاب به مشتری استفاده می‌شود." error={fieldErrors.shopName}>
                   <input
                     id="shopName" className="input" name="shopName" required maxLength={200}
                     placeholder="مثلاً بوتیک نیلا" value={values.shopName} onChange={set('shopName')}
-                    autoComplete="organization"
+                    autoComplete="organization" aria-invalid={Boolean(fieldErrors.shopName)}
                   />
                 </Field>
               )}
@@ -208,17 +274,18 @@ export default function LoginPage() {
                 {otpSent && <Field label="کد یک‌بارمصرف" required htmlFor="otpCode"><input id="otpCode" className="input input-ltr" dir="ltr" inputMode="numeric" maxLength={6} value={otpCode} onChange={e=>setOtpCode(e.target.value)} /></Field>}
                 {!otpSent && <button type="button" className="btn btn-outline" disabled={busy||!otpPhone} onClick={async()=>{setBusy(true);try{await request('/auth/otp/request',{method:'POST',body:{phone:otpPhone},auth:false});setOtpSent(true);setError('در صورت تأیید بودن شماره، کد ارسال شد.');}catch(e){setError(e instanceof Error?e.message:'درخواست کد انجام نشد.');}finally{setBusy(false);}}}>ارسال کد</button>}
               </> : <>
-              <Field label="ایمیل" required htmlFor="email">
+              <Field label="ایمیل" required htmlFor="email" error={fieldErrors.email}>
                 <input
                   id="email" ref={emailRef} className="input input-ltr" name="email" type="email" required
                   placeholder="you@shop.ir" value={values.email} onChange={set('email')}
-                  autoComplete="username" dir="ltr"
+                  autoComplete="username" dir="ltr" aria-invalid={Boolean(fieldErrors.email)}
                 />
               </Field>
 
               <Field
                 label="رمز عبور" required htmlFor="password"
                 hint={isRegister ? 'حداقل ۱۰ کاراکتر؛ ترکیب حرف و رقم امن‌تر است.' : undefined}
+                error={fieldErrors.password}
               >
                 <div className="input-wrap">
                   <input
@@ -238,6 +305,25 @@ export default function LoginPage() {
               </Field>
 
               </>}
+
+              {isRegister && (
+                <div>
+                  <label className="authx-check">
+                    <input
+                      type="checkbox" checked={terms}
+                      onChange={event => { setTerms(event.target.checked); setFieldErrors(previous => ({ ...previous, terms: '' })); }}
+                      aria-invalid={Boolean(fieldErrors.terms)}
+                    />
+                    <span>
+                      <Link href="/terms" target="_blank" rel="noreferrer">شرایط استفاده</Link>
+                      {' '}و{' '}
+                      <Link href="/privacy" target="_blank" rel="noreferrer">حریم خصوصی</Link>
+                      {' '}فروش‌یار را می‌پذیرم.
+                    </span>
+                  </label>
+                  {fieldErrors.terms && <div className="authx-terms-error" role="alert">{fieldErrors.terms}</div>}
+                </div>
+              )}
 
               {loginMethod !== 'otp' || isRegister ? <div className="authx-row">
                 <label className="authx-check">
