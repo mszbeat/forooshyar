@@ -11,6 +11,7 @@ import {
 import { ThemeToggle } from '@/components/theme';
 import { LandingPlans } from '@/components/landing-plans';
 import { BrandLogo } from '@/components/brand-logo';
+import { HeroMascot } from '@/components/hero-mascot';
 import { faqs as faqItems, faqJsonLd } from '@/lib/faq';
 import { brand } from '@/lib/brand';
 
@@ -190,6 +191,11 @@ export default function LandingPage() {
               <span><IconClock size={15} /> پاسخ در همان لحظه</span>
               <span><IconShield size={15} /> داده‌ی هر فروشگاه جدا</span>
             </div>
+          </div>
+
+          {/* ماسکات تعاملی — روی آن نگه دار یا کلیک کن */}
+          <div className="hero-mascot-wrap">
+            <HeroMascot size={150} />
           </div>
 
           {/* نمونه‌ی گفتگو با متن واقعی بات */}

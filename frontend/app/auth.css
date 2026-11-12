@@ -8,6 +8,21 @@
   position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   min-height: 100dvh; background: var(--bg); isolation: isolate;
 }
+/* در حالت ورود: فرم راست، پنل خوش‌آمد چپ. در ثبت‌نام برعکس.
+   order جابه‌جا می‌شود و هر دو پنل با اسلاید+فید وارد می‌شوند؛
+   هیچ‌کدام unmount نمی‌شوند تا صفحه هرگز خالی نشود. */
+.authx-form-side { order: 1; }
+.authx-visual { order: 2; }
+.authx.register .authx-form-side { order: 2; }
+.authx.register .authx-visual { order: 1; }
+.authx.register .authx-form-side { animation: authx-slide-in .45s cubic-bezier(.22,.9,.24,1) both; }
+.authx.register .authx-visual { animation: authx-slide-in .45s cubic-bezier(.22,.9,.24,1) both; }
+.authx.login .authx-form-side { animation: authx-slide-in .45s cubic-bezier(.22,.9,.24,1) both; }
+.authx.login .authx-visual { animation: authx-slide-in .45s cubic-bezier(.22,.9,.24,1) both; }
+@keyframes authx-slide-in {
+  from { opacity: 0; transform: translateY(10px) scale(.985); filter: blur(2px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
 .authx-form-side::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background:
@@ -100,4 +115,5 @@
   .authx-tabs .thumb { transition: none; }
   .authx-glow { animation: none; }
   .authx-pane, .authx-copy { animation: none; }
+  .authx-form-side, .authx-visual { animation: none; }
 }

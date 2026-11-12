@@ -1128,3 +1128,69 @@ section[id] { scroll-margin-top: 70px; }
   .conv-full-shell .conv-thread { display: none; }
   .conv-full-shell.has-active .conv-thread { display: flex; }
 }
+
+/* ---------- ماسکات برند ---------- */
+.brand-mascot { display: block; flex-shrink: 0; }
+.brand-mascot .brand-eyes { transform-box: fill-box; transform-origin: center; }
+.brand-mascot .brand-mouth { transform-box: fill-box; transform-origin: center; transition: transform .25s ease; }
+.brand-mascot-animated .brand-eyes { animation: brand-blink 4.6s ease-in-out infinite; }
+@keyframes brand-blink {
+  0%, 91%, 100% { transform: scaleY(1); }
+  94.5% { transform: scaleY(0.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-mascot-animated .brand-eyes { animation: none; }
+}
+
+/* ---------- ماسکات تعاملی لندینگ ---------- */
+.hero-mascot { position: relative; display: grid; place-items: center; }
+.hero-mascot .brand-mascot { animation: mascot-float 5s ease-in-out infinite; }
+@keyframes mascot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.hero-mascot.mascot-laugh .brand-mascot { animation: mascot-bounce .5s ease-in-out 2; }
+@keyframes mascot-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-14px) scale(1.04); }
+}
+.hero-mascot.mascot-dizzy .brand-mascot { animation: mascot-spin .8s ease-in-out; }
+@keyframes mascot-spin {
+  from { transform: rotate(0); }
+  to { transform: rotate(360deg); }
+}
+.hero-mascot.mascot-wave .brand-mascot { animation: mascot-wave .6s ease-in-out 2; }
+@keyframes mascot-wave {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg); }
+  75% { transform: rotate(6deg); }
+}
+.hero-mascot-bubble {
+  position: absolute; bottom: calc(100% + 8px); inset-inline-start: 50%;
+  transform: translateX(50%);
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: 8px 14px;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  animation: mascot-bubble-in .3s ease both;
+}
+@keyframes mascot-bubble-in {
+  from { opacity: 0; transform: translateX(50%) translateY(6px); }
+  to { opacity: 1; transform: translateX(50%) translateY(0); }
+}
+.hero-mascot-sparkle {
+  position: absolute; pointer-events: none;
+  animation: mascot-sparkle 1s ease-out both;
+}
+@keyframes mascot-sparkle {
+  0% { opacity: 0; transform: translateY(0) scale(.5); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-30px) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-mascot .brand-mascot,
+  .hero-mascot.mascot-laugh .brand-mascot,
+  .hero-mascot.mascot-dizzy .brand-mascot,
+  .hero-mascot.mascot-wave .brand-mascot { animation: none; }
+  .hero-mascot-bubble, .hero-mascot-sparkle { animation: none; }
+}

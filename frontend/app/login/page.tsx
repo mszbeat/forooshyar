@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
-import { BrandLogo } from '@/components/brand-logo';
+import { BrandMascot } from '@/components/brand-mascot';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import './../auth.css';
@@ -167,7 +167,7 @@ export default function LoginPage() {
         <span className="authx-glow b" />
         <div className="authx-visual-inner">
           <div className="authx-brand">
-            <span className="mark"><BrandLogo size={38} /></span>
+            <span className="mark"><BrandMascot size={38} expression={isRegister ? 'wave' : 'smile'} /></span>
             <div>
               <div className="name">فروش‌یار</div>
               <div className="role">دستیار پاسخ‌گوی فروش</div>
@@ -236,13 +236,13 @@ export default function LoginPage() {
               type="button" role="tab" aria-selected={isRegister}
               onClick={() => switchMode('register')}
             >
-              ساخت فروشگاه
+              ثبت‌نام
             </button>
           </div>
 
           <div className="authx-pane" key={mode}>
             <div className="authx-head">
-              <h1>{isRegister ? 'فروشگاه تازه بسازید' : 'ورود به پنل فروشنده'}</h1>
+              <h1>{isRegister ? 'ساخت حساب فروشنده' : 'ورود به پنل فروشنده'}</h1>
               <p>
                 {isRegister
                   ? 'نام فروشگاه همان چیزی است که مشتری در پاسخ‌ها می‌بیند. بعد از ساخت، محصول اضافه کنید.'

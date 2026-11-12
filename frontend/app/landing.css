@@ -419,3 +419,14 @@
   .stage-glow { animation: none; }
   .btn-primary::after { display: none; }
 }
+
+/* ---------- ماسکات تعاملی هیرو ---------- */
+.hero-mascot-wrap {
+  position: absolute; top: -10px; inset-inline-end: 8%;
+  z-index: 3; pointer-events: auto;
+}
+.hero-mascot-wrap .hero-mascot { outline: none; }
+.hero-mascot-wrap .hero-mascot:focus-visible { outline: 2px solid var(--brand); outline-offset: 6px; border-radius: 24px; }
+@media (max-width: 900px) {
+  .hero-mascot-wrap { position: static; display: grid; place-items: center; margin-bottom: 16px; }
+}
