@@ -168,7 +168,7 @@ export default function LoginPage() {
         <span className="authx-glow b" />
         <div className="authx-visual-inner">
           <div className="authx-brand">
-            <span className="mark"><BrandMascot size={38} expression={isRegister ? 'wave' : 'smile'} /></span>
+            <span className="mark"><BrandMascot size={42} expression={isRegister ? 'wave' : 'smile'} /></span>
             <div>
               <div className="name">فروش‌یار</div>
               <div className="role">دستیار پاسخ‌گوی فروش</div>
