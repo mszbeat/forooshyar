@@ -140,6 +140,12 @@ export type ShippingMethod = {
   baseCost: number; freeOver: number | null; rulesJson: Record<string, number>;
   active: boolean; sortOrder: number;
 };
+export type KnowledgeItem = {
+  id: string; question: string; answer: string; keywords: string;
+  active: boolean; createdAt: string; updatedAt: string;
+};
+export type PromptTab = 'role' | 'tone' | 'flow';
+export type PromptState = { content: string; version: number; isDefault: boolean };
 export type Automation = {
   id: string; name: string; active: boolean; scope: string;
   mediaIds: string[]; triggerWords: string[]; publicReplies: string[];
@@ -447,6 +453,21 @@ export const api = {
     request<ShippingMethod>(`/shipping-methods/${id}`, { method: 'PATCH', body }),
   deleteShippingMethod: (id: string) =>
     request<{ ok: true }>(`/shipping-methods/${id}`, { method: 'DELETE' }),
+
+  knowledge: () => request<KnowledgeItem[]>('/assistant/knowledge'),
+  createKnowledge: (body: { question: string; answer: string; keywords?: string }) =>
+    request<KnowledgeItem>('/assistant/knowledge', { method: 'POST', body }),
+  updateKnowledge: (id: string, body: Partial<KnowledgeItem>) =>
+    request<KnowledgeItem>(`/assistant/knowledge/${id}`, { method: 'PATCH', body }),
+  deleteKnowledge: (id: string) =>
+    request<{ ok: true }>(`/assistant/knowledge/${id}`, { method: 'DELETE' }),
+  prompts: () => request<Record<PromptTab, PromptState>>('/assistant/prompts'),
+  promptHistory: (tab: PromptTab) =>
+    request<{ id: string; content: string; version: number; createdAt: string }[]>(`/assistant/prompts/${tab}/history`),
+  savePrompt: (tab: PromptTab, content: string) =>
+    request<{ id: string; version: number }>(`/assistant/prompts`, { method: 'POST', body: { tab, content } }),
+  resetPrompt: (tab: PromptTab) =>
+    request<{ id: string; version: number }>(`/assistant/prompts/${tab}/reset`, { method: 'POST' }),
 
   automations: () => request<Automation[]>('/automations'),
   createAutomation: (body: Partial<Automation>) =>

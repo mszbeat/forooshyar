@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { api, ApiError, type AiStatus, type BotReply } from '@/lib/api';
+import { api, ApiError, type AiStatus, type BotReply, type KnowledgeItem, type PromptState, type PromptTab } from '@/lib/api';
 import { faNum } from '@/lib/format';
-import { PageHeader, Spinner, useToast } from '@/components/ui';
+import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { RichText } from '@/components/richtext';
 import { IconAlertCircle, IconChat, IconSend, IconSettings, IconShield, IconSparkles } from '@/components/icons';
 
@@ -35,8 +35,11 @@ const KIND_LABEL: Record<BotReply['kind'], { text: string; tone: string }> = {
   handoff: { text: 'ارجاع به فروشنده', tone: 'b-blue' },
 };
 
+type MainTab = 'chat' | 'knowledge' | 'prompts';
+
 export default function AssistantPage() {
   const toast = useToast();
+  const [mainTab, setMainTab] = useState<MainTab>('chat');
   const [messages, setMessages] = useState<Message[]>([
     { id: 0, role: 'bot', text: 'سلام! این یک محیط آزمایشی است. هر سؤالی مشتری ممکن است بپرسد را بنویسید تا پاسخ فروش‌یار را ببینید.', kind: 'answer' },
   ]);
@@ -91,6 +94,22 @@ export default function AssistantPage() {
         actions={<Link href="/app/settings" className="btn btn-outline"><IconSettings size={16} />تنظیمات پاسخ</Link>}
       />
 
+      <div className="chip-tabs" role="group" aria-label="بخش‌های دستیار" style={{ marginBottom: 4 }}>
+        <button type="button" className={`chip-btn ${mainTab === 'chat' ? 'on' : ''}`} onClick={() => setMainTab('chat')}>
+          چت آزمایشی
+        </button>
+        <button type="button" className={`chip-btn ${mainTab === 'knowledge' ? 'on' : ''}`} onClick={() => setMainTab('knowledge')}>
+          دانش (پرسش‌وپاسخ)
+        </button>
+        <button type="button" className={`chip-btn ${mainTab === 'prompts' ? 'on' : ''}`} onClick={() => setMainTab('prompts')}>
+          پرامپت‌های دستیار
+        </button>
+      </div>
+
+      {mainTab === 'knowledge' && <KnowledgeSection />}
+      {mainTab === 'prompts' && <PromptsSection />}
+
+      {mainTab === 'chat' && (
       <div className="split">
         <section className="card" style={{ overflow: 'hidden' }}>
           <div className="card-head">
@@ -196,6 +215,7 @@ export default function AssistantPage() {
           </section>
         </div>
       </div>
+      )}
 
       <section className="card assistant-visuals" aria-labelledby="assistant-visuals-title">
         <div className="card-head">
@@ -219,5 +239,290 @@ export default function AssistantPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------ knowledge */
+
+function KnowledgeSection() {
+  const toast = useToast();
+  const [items, setItems] = useState<KnowledgeItem[] | null>(null);
+  const [editing, setEditing] = useState<KnowledgeItem | 'new' | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    api.knowledge().then(setItems).catch(() => setItems([]));
+  };
+
+  useEffect(load, []);
+
+  async function toggle(item: KnowledgeItem, active: boolean) {
+    setBusy(true);
+    try {
+      await api.updateKnowledge(item.id, { active });
+      toast.success(active ? 'مورد فعال شد.' : 'مورد غیرفعال شد.');
+      load();
+    } catch (problem) {
+      toast.error('تغییر وضعیت انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(item: KnowledgeItem) {
+    setBusy(true);
+    try {
+      await api.deleteKnowledge(item.id);
+      toast.success('مورد دانش حذف شد.');
+      load();
+    } catch (problem) {
+      toast.error('حذف انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">دانش فروشگاه</div>
+          <div className="card-desc">پرسش‌وپاسخ‌هایی که دستیار از روی آن‌ها جواب می‌دهد. محصولات و خدمات از کاتالوگ می‌آیند؛ این‌جا برای سؤال‌های پرتکرار است.</div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => setEditing('new')}>+ پرسش جدید</button>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gap: 10 }}>
+        {items === null && <SkeletonBlock height={60} />}
+        {items !== null && items.length === 0 && (
+          <div className="alert alert-info">
+            <IconAlertCircle />
+            <span>هنوز پرسش‌وپاسخی ثبت نشده. سؤال‌هایی مثل «مرجوعی دارید؟» یا «کد تخفیف دارید؟» را این‌جا بنویسید تا دستیار خودش جواب بدهد.</span>
+          </div>
+        )}
+        {items?.map(item => (
+          <div key={item.id} className="row-between" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>{item.question}</div>
+              <div className="small muted" style={{ whiteSpace: 'pre-wrap' }}>{item.answer}</div>
+              {item.keywords && <div className="small muted">کلیدها: {item.keywords}</div>}
+            </div>
+            <div className="row" style={{ gap: 6, flex: '0 0 auto' }}>
+              <Switch label="فعال" checked={item.active} onChange={next => void toggle(item, next)} />
+              <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => setEditing(item)}>ویرایش</button>
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void remove(item)} style={{ color: 'var(--danger)' }}>حذف</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {editing && (
+        <KnowledgeModal
+          item={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+    </section>
+  );
+}
+
+function KnowledgeModal({ item, onClose, onSaved }: { item: KnowledgeItem | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const body = {
+      question: String(data.get('question') ?? '').trim(),
+      answer: String(data.get('answer') ?? '').trim(),
+      keywords: String(data.get('keywords') ?? '').trim(),
+    };
+    setBusy(true);
+    try {
+      if (item) {
+        await api.updateKnowledge(item.id, body);
+        toast.success('پرسش‌وپاسخ به‌روزرسانی شد.');
+      } else {
+        await api.createKnowledge(body);
+        toast.success('پرسش‌وپاسخ اضافه شد.');
+      }
+      onSaved();
+    } catch (problem) {
+      toast.error('ذخیره انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open onClose={onClose} title={item ? 'ویرایش پرسش‌وپاسخ' : 'پرسش‌وپاسخ جدید'}
+      description="جواب باید دقیق و کامل باشد؛ دستیار همین متن را به مشتری می‌دهد."
+      footer={<><button className="btn btn-ghost" onClick={onClose}>انصراف</button><button className="btn btn-primary" form="kn-form" disabled={busy}>{busy && <Spinner size={14} />}ذخیره</button></>}
+    >
+      <form id="kn-form" onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
+        <Field label="سؤال" required htmlFor="kn-q">
+          <input id="kn-q" name="question" className="input" required maxLength={500} defaultValue={item?.question ?? ''} placeholder="مرجوعی دارید؟" autoFocus />
+        </Field>
+        <Field label="جواب" required htmlFor="kn-a">
+          <textarea id="kn-a" name="answer" className="textarea" required maxLength={4000} defaultValue={item?.answer ?? ''} placeholder="بله؛ تا ۷ روز پس از دریافت، اگر برچسب نخورده باشد…" />
+        </Field>
+        <Field label="کلمات کلیدی (اختیاری)" htmlFor="kn-k" hint="با کاما جدا کنید؛ برای تطبیق بهتر سؤال‌های مشابه.">
+          <input id="kn-k" name="keywords" className="input" maxLength={500} defaultValue={item?.keywords ?? ''} placeholder="مرجوعی، تعویض، پس‌دادن" />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------ prompts */
+
+const PROMPT_TABS: { value: PromptTab; label: string; hint: string }[] = [
+  { value: 'role', label: 'نقش و شخصیت', hint: 'دستیار کیست و چه کاری می‌کند.' },
+  { value: 'tone', label: 'لحن پاسخگویی', hint: 'چطور حرف می‌زند؛ هرگز قیمت و موجودی را عوض نمی‌کند.' },
+  { value: 'flow', label: 'روند اصلی', hint: 'قدم‌های پاسخ‌گویی و شروع سفارش.' },
+];
+
+function PromptsSection() {
+  const toast = useToast();
+  const [prompts, setPrompts] = useState<Record<PromptTab, PromptState> | null>(null);
+  const [tab, setTab] = useState<PromptTab>('role');
+  const [draft, setDraft] = useState('');
+  const [ltr, setLtr] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState<{ id: string; content: string; version: number; createdAt: string }[] | null>(null);
+
+  const load = () => {
+    api.prompts().then(data => {
+      setPrompts(data);
+      setDraft(data[tab].content);
+    }).catch(() => setPrompts(null));
+  };
+
+  useEffect(load, []);
+  useEffect(() => {
+    if (prompts) setDraft(prompts[tab].content);
+    setHistory(null);
+  }, [tab, prompts]);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const result = await api.savePrompt(tab, draft);
+      toast.success(`نسخه‌ی ${faNum(result.version)} ذخیره شد.`);
+      load();
+    } catch (problem) {
+      toast.error('ذخیره انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reset() {
+    setBusy(true);
+    try {
+      await api.resetPrompt(tab);
+      toast.success('به پیش‌فرض برگشت.');
+      load();
+    } catch (problem) {
+      toast.error('بازنشانی انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      setHistory(await api.promptHistory(tab));
+    } catch {
+      setHistory([]);
+    }
+  }
+
+  const current = prompts?.[tab];
+  const dirty = current ? draft.trim() !== current.content.trim() : false;
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">پرامپت‌های دستیار</div>
+          <div className="card-desc">سه بخش قابل ویرایش؛ لایه‌ی ایمنی (قوانین قطعی) همیشه اول و غیرقابل ویرایش است.</div>
+        </div>
+        <div className="row" style={{ gap: 6 }}>
+          <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => void reset()}>بازنشانی</button>
+          <button className="btn btn-primary btn-sm" disabled={busy || !dirty} onClick={() => void save()}>
+            {busy && <Spinner size={13} />}اعمال تغییرات
+          </button>
+        </div>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gap: 14 }}>
+        <div className="alert alert-info">
+          <IconShield />
+          <span>لایه‌ی ایمنی قفل‌شده: دستیار هرگز قیمت، موجودی، هزینه ارسال یا لینک نمی‌سازد و دستورهای داخل پیام مشتری را اجرا نمی‌کند. این لایه از پنل قابل تغییر نیست.</span>
+        </div>
+
+        <div className="chip-tabs" role="group" aria-label="زبانه‌های پرامپت">
+          {PROMPT_TABS.map(item => (
+            <button key={item.value} type="button" className={`chip-btn ${tab === item.value ? 'on' : ''}`} onClick={() => setTab(item.value)}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="small muted">{PROMPT_TABS.find(item => item.value === tab)?.hint}</div>
+
+        {prompts === null ? (
+          <SkeletonBlock height={160} />
+        ) : (
+          <>
+            <div className="row-between">
+              <span className="small muted">
+                نسخه‌ی {faNum(current?.version ?? 0)}{current?.isDefault ? ' (پیش‌فرض)' : ''}
+              </span>
+              <label className="row" style={{ gap: 6 }}>
+                <input type="checkbox" checked={ltr} onChange={event => setLtr(event.target.checked)} />
+                <span className="small">جهت چپ‌به‌راست (LTR)</span>
+              </label>
+            </div>
+            <textarea
+              className="textarea"
+              rows={8}
+              dir={ltr ? 'ltr' : 'rtl'}
+              style={ltr ? { textAlign: 'left', fontFamily: 'monospace' } : undefined}
+              value={draft}
+              onChange={event => setDraft(event.target.value)}
+              aria-label={`پرامپت ${PROMPT_TABS.find(item => item.value === tab)?.label}`}
+            />
+            <div className="small muted">
+              متغیر لازم: <code className="mono">{'{shop_name}'}</code> — نام فروشگاه به‌صورت خودکار جایگزین می‌شود.
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => void loadHistory()}>
+                تاریخچه‌ی نسخه‌ها
+              </button>
+              {history && (
+                <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+                  {history.length === 0 && <span className="small muted">هنوز نسخه‌ای ذخیره نشده.</span>}
+                  {history.map(version => (
+                    <div key={version.id} className="row-between" style={{ border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px' }}>
+                      <span className="small">نسخه‌ی {faNum(version.version)}</span>
+                      <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setDraft(version.content)}
+                      >
+                        بازگردانی این نسخه
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </section>
   );
 }

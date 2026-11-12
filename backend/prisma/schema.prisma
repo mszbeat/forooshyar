@@ -77,6 +77,8 @@ model Shop {
   channelConnections ChannelConnection[]
   inboundCommentEvents InboundCommentEvent[]
   automations Automation[]
+  knowledgeItems KnowledgeItem[]
+  assistantPrompts AssistantPrompt[]
   /// سیاست رسید پرداخت (فاز V2-3): تأیید خودکار روشن است یا نه، سقف مبلغ
   /// تأیید خودکار و مهلت انتظار پرداخت (ساعت) قبل از آزادشدن موجودی.
   receiptAutoConfirm Boolean @default(true)
@@ -739,4 +741,38 @@ model AutomationRun {
 
   @@index([shopId, automationId, createdAt])
   @@index([shopId, commentId])
+}
+
+/// دانش فروشگاه: پرسش‌وپاسخ‌هایی که دستیار از روی آن‌ها جواب می‌دهد.
+/// محصولات/خدمات از کاتالوگ می‌آیند؛ این جدول برای سؤال‌های پرتکرار است.
+model KnowledgeItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @db.Uuid
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String
+  /// کلمات کلیدی برای تطبیق (با کاما جدا).
+  keywords  String   @default("")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, id])
+  @@index([shopId, active])
+}
+
+/// پرامپت‌های دستیار (سه زبانه) با نسخه‌ها.
+/// لایه‌ی ایمنی (A0) قفل است و در کد زندگی می‌کند؛ این‌جا فقط نقش/لحن/روند.
+model AssistantPrompt {
+  id        String   @id @default(uuid()) @db.Uuid
+  shopId    String   @db.Uuid
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// role | tone | flow
+  tab       String
+  content   String
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+
+  @@unique([shopId, id])
+  @@index([shopId, tab, version])
 }
