@@ -6,7 +6,7 @@ import { api, ApiError, type CustomerRow, type Customers } from '@/lib/api';
 import { faDate, faNum, relativeTime, toman } from '@/lib/format';
 import { useRealtime } from '@/lib/realtime';
 import { EmptyState, PageHeader, Segmented, SkeletonBlock, useToast } from '@/components/ui';
-import { IconChat, IconSearch, IconUsers } from '@/components/icons';
+import { IconChat, IconRefresh, IconSearch, IconUsers } from '@/components/icons';
 
 type Filter = 'all' | 'buyers' | 'repeat' | 'quiet';
 type Sort = 'value' | 'recent' | 'orders';
@@ -31,6 +31,7 @@ export default function CustomersPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('value');
+  const [backfilling, setBackfilling] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -66,13 +67,41 @@ useEffect(() => { void load(); }, [load]);
 
   const counts = data?.counts ?? { all: 0, buyers: 0, repeat: 0, value: 0 };
 
+  /** تکمیل نام/نام کاربری مشتریان اینستاگرام که هنوز نام ندارند (از BoxAPI). */
+  async function backfillNames() {
+    setBackfilling(true);
+    try {
+      const result = await api.instagramBackfillProfiles();
+      if (result.updated > 0) {
+        toast.success('نام مشتریان تکمیل شد', `${faNum(result.updated)} نام از ${faNum(result.checked)} گفتگو به‌روزرسانی شد.`);
+      } else if (result.checked > 0) {
+        toast.success('نام تازه‌ای پیدا نشد', 'برای این گفتگوها نام کاربری در اینستاگرام در دسترس نیست.');
+      } else {
+        toast.success('همه نام دارند', 'گفتگویی بدون نام کاربری پیدا نشد.');
+      }
+      await load();
+    } catch (problem) {
+      toast.error('تکمیل نام انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
   return (
     <div className="stack">
       <PageHeader
         eyebrow="مخاطبان"
         title="مشتریان"
         description={`${faNum(counts.all)} مخاطب · ${faNum(counts.buyers)} خریدار · ${faNum(counts.repeat)} خرید تکراری · ${toman(counts.value)} ارزش خرید`}
-        actions={<Link href="/app/conversations" className="btn btn-outline">گفت‌وگوها</Link>}
+        actions={(
+          <>
+            <button type="button" className="btn btn-outline" onClick={backfillNames} disabled={backfilling}>
+              <IconRefresh size={15} className={backfilling ? 'spin' : ''} />
+              {backfilling ? 'در حال تکمیل…' : 'تکمیل نام‌ها'}
+            </button>
+            <Link href="/app/conversations" className="btn btn-outline">گفت‌وگوها</Link>
+          </>
+        )}
       />
 
       <div className="card card-pad filters-bar">
@@ -148,7 +177,7 @@ function CustomerLine({ row }: { row: CustomerRow }) {
         <span className="cust-id-main">
           <strong>{row.name}</strong>
           <span className="small muted">
-            {row.username ? `@${row.username}` : isInstagram ? 'پیج اینستاگرام' : 'بدون نام کاربری'}
+            {row.username ? `@${row.username}` : 'نام کاربری ندارد'}
             {row.firstSeenAt && ` · از ${faDate(row.firstSeenAt)}`}
           </span>
         </span>

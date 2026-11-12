@@ -5,17 +5,32 @@ import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 
 /**
+ * شماره‌ی مستعار پایدار برای یک گفتگو.
+ *
+ * چرا: اگر نام واقعی مشتری در دسترس نباشد، به‌جای «مشتری اینستاگرام»ِ تکراری
+ * برای همه، هر مشتری یک نام مستعار **ثابت** می‌گیرد (مثلاً «مشتری اینستاگرام
+ * ۴۲۱۷») تا فروشنده بتواند او را از بقیه تشخیص دهد و در گفتگوهای بعدی همان
+ * نام را ببیند. عدد از هش `chatId` ساخته می‌شود؛ پس با هر بار محاسبه یکی است.
+ */
+export function pseudonymNumber(chatId: string): number {
+  let hash = 0;
+  for (const char of chatId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return 1000 + (hash % 9000);
+}
+
+/**
  * نام نمایشی یک گفتگو، با توجه به کانال.
  *
+ * اولویت: نام واقعی (firstName) ← نام کاربری (@username) ← نام مستعار پایدار.
  * گفتگوهای اینستاگرام هم در همین جدول‌اند (`chatId` با پیشوند `ig:`)؛ اگر برای
  * همه «مشتری تلگرام» برگردانیم، در پنلِ اینستاگرام دکمه‌ی «آزمایش به مشتری
- * تلگرام» دیده می‌شود. پس نامِ پیش‌فرض به کانال بستگی دارد و اگر نام کاربری
- * (username) باشد، همان نام پیج/اکانت نمایش داده می‌شود.
+ * تلگرام» دیده می‌شود. پس نامِ پیش‌فرض به کانال بستگی دارد.
  */
-function displayName(row: { chatId: string; firstName: string; username: string }): string {
+export function displayName(row: { chatId: string; firstName: string; username: string }): string {
   if (row.firstName) return row.firstName;
   if (row.username) return `@${row.username.replace(/^@/, '')}`;
-  return row.chatId.startsWith('ig:') ? 'مشتری اینستاگرام' : 'مشتری تلگرام';
+  const channel = row.chatId.startsWith('ig:') ? 'اینستاگرام' : 'تلگرام';
+  return `مشتری ${channel} ${pseudonymNumber(row.chatId).toLocaleString('fa-IR')}`;
 }
 
 /**

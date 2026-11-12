@@ -114,9 +114,13 @@ type Conversation = ChatTarget & {
   chatId: string;
   firstName: string;
   username: string;
+  profileEnrichedAt: Date | null;
   draft: unknown;
   clarify: unknown;
 };
+
+/** تا این مدت پس از یک تلاش غنی‌سازی، دوباره به BoxAPI نمی‌رویم (کش). */
+const PROFILE_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * کانال اینستاگرام (دایرکت) روی BoxAPI.
@@ -568,10 +572,11 @@ export class InstagramService {
       item.sender?.name ?? '',
       item.sender?.username ?? '',
     );
-    // اگر webhook نام/نام کاربری نفرستاده بود، از BoxAPI Data API بگیر و ذخیره کن
-    // تا در «مشتریان» و «گفتگوها» نام پیج دیده شود، نه «مشتری اینستاگرام».
-    // این کار پس‌زمینه‌ای است و هرگز پاسخ به مشتری را معطل نمی‌کند.
-    if (!conversation.firstName && !conversation.username) {
+    // اگر webhook نام یا نام کاربری نفرستاده بود، از BoxAPI Data API بگیر و
+    // ذخیره کن تا در «مشتریان» و «گفتگوها» نام پیج دیده شود، نه نام مستعار.
+    // این کار پس‌زمینه‌ای است و هرگز پاسخ به مشتری را معطل نمی‌کند؛ کشِ
+    // `profileEnrichedAt` هم نمی‌گذارد برای یک مشتری تکراری به BoxAPI برویم.
+    if ((!conversation.firstName || !conversation.username) && !this.profileCacheFresh(conversation.profileEnrichedAt)) {
       void this.enrichProfile(conversation.id, senderId);
     }
 
@@ -606,9 +611,14 @@ export class InstagramService {
         ...(displayName ? { firstName: displayName } : {}),
         ...(handle ? { username: handle } : {}),
       },
-      select: { id: true, shopId: true, chatId: true, firstName: true, username: true, draft: true, clarify: true },
+      select: { id: true, shopId: true, chatId: true, firstName: true, username: true, profileEnrichedAt: true, draft: true, clarify: true },
     });
     return row;
+  }
+
+  /** آیا تلاش قبلی غنی‌سازی تازه است و نباید دوباره به BoxAPI رفت؟ */
+  private profileCacheFresh(enrichedAt: Date | null): boolean {
+    return Boolean(enrichedAt) && Date.now() - enrichedAt!.getTime() < PROFILE_CACHE_MS;
   }
 
   /**
@@ -618,24 +628,61 @@ export class InstagramService {
    * خروجی `response.body.user` با فیلدهای `username` و `full_name` می‌دهد
    * (https://boxapi.ir/docs/instagram/get-info-by-id/). این توکن با کلید DM
    * فرق دارد و در متغیر `BOXAPI_DATA_TOKEN` می‌آید؛ اگر ست نشده باشد، این
-   * تابع بی‌صدا رد می‌شود و نام پیش‌فرض «مشتری اینستاگرام» نمایش داده می‌شود.
+   * تابع بی‌صدا رد می‌شود و نام مستعار پایدار نمایش داده می‌شود.
+   *
+   * کش: `profileEnrichedAt` بعد از **هر** تلاش (موفق یا ناموفق) ثبت می‌شود تا
+   * برای مشتری‌ای که BoxAPI برایش پاسخی ندارد، هر پیام یک فراخوانی نسازد.
    */
-  private async enrichProfile(conversationId: string, igsid: string): Promise<void> {
+  private async enrichProfile(conversationId: string, igsid: string): Promise<boolean> {
     try {
       const profile = await this.client.getUserInfoById(igsid);
-      if (!profile.ok || !profile.data) return;
-      const { username, fullName } = profile.data;
-      if (!username && !fullName) return;
+      const { username, fullName } = profile.ok && profile.data ? profile.data : { username: '', fullName: '' };
       await this.db.telegramConversation.update({
         where: { id: conversationId },
         data: {
+          profileEnrichedAt: new Date(),
           ...(username ? { username } : {}),
           ...(fullName ? { firstName: fullName.slice(0, 80) } : {}),
         },
       });
+      return Boolean(username || fullName);
     } catch {
       /* غنی‌سازی اختیاری است؛ خطا نباید هیچ‌چیز را بشکند. */
+      return false;
     }
+  }
+
+  /**
+   * تکمیل نام مشتریان قدیمی که هنوز نام/نام کاربری ندارند (backfill).
+   *
+   * برای گفتگوهایی که پیش از غنی‌سازی خودکار ساخته شده‌اند یا webhook نام
+   * نفرستاده بود. به‌صورت ترتیبی و با سقف انجام می‌شود تا BoxAPI را بمباران
+   * نکنیم؛ نتیجه برای نمایش در پنل برمی‌گردد.
+   */
+  async backfillProfiles(shopId: string, limit = 100): Promise<{ checked: number; updated: number; failed: number }> {
+    const staleBefore = new Date(Date.now() - PROFILE_CACHE_MS);
+    const rows = await this.db.telegramConversation.findMany({
+      where: {
+        shopId,
+        chatId: { startsWith: InstagramService.CHAT_PREFIX },
+        OR: [{ firstName: '' }, { username: '' }],
+        AND: [{ OR: [{ profileEnrichedAt: null }, { profileEnrichedAt: { lt: staleBefore } }] }],
+      },
+      orderBy: { lastSeenAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 500),
+      select: { id: true, chatId: true },
+    });
+
+    let updated = 0;
+    let failed = 0;
+    for (const row of rows) {
+      const igsid = row.chatId.slice(InstagramService.CHAT_PREFIX.length);
+      if (!igsid) continue;
+      const ok = await this.enrichProfile(row.id, igsid);
+      if (ok) updated += 1;
+      else failed += 1;
+    }
+    return { checked: rows.length, updated, failed };
   }
 
   /** ذخیره‌ی فهرستی که همین حالا فرستادیم، تا «۱» و «۲» به همان محصول‌ها بخورد. */

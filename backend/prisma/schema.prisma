@@ -189,6 +189,9 @@ model TelegramConversation {
   chatId       String
   username     String   @default("")
   firstName    String   @default("")
+  /// آخرین تلاش برای تکمیل نام/نام کاربری از BoxAPI (اینستاگرام). برای کش و
+  /// جلوگیری از فراخوانی تکراری به BoxAPI برای یک مشتری.
+  profileEnrichedAt DateTime?
   messageCount Int      @default(0)
   draft        Json?
   /// وضعیت سؤال روشن‌کننده: { round, messages[] } — بعد از چند بار، ارجاع به انسان.

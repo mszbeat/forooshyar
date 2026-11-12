@@ -351,6 +351,8 @@ export const api = {
   instagramUnlink: () => request<{ ok: boolean; error?: string }>('/instagram/link', { method: 'DELETE' }),
   instagramTest: (recipientId: string) =>
     request<{ ok: boolean; error?: string; message?: string }>('/instagram/test', { method: 'POST', body: { recipientId } }),
+  instagramBackfillProfiles: () =>
+    request<{ checked: number; updated: number; failed: number }>('/instagram/backfill-profiles', { method: 'POST' }),
 
   orders: (query: { status?: string; limit?: number } = {}) => {
     const params = new URLSearchParams();

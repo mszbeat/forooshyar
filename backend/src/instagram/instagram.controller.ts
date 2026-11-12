@@ -67,6 +67,18 @@ export class InstagramController {
     return this.instagram.unlink(req.principal.shopId, req.principal.userId);
   }
 
+  /**
+   * تکمیل نام مشتریان اینستاگرام که هنوز نام/نام کاربری ندارند.
+   *
+   * برای گفتگوهای قدیمی که webhook نام نفرستاده بود؛ از BoxAPI می‌گیرد و
+   * ذخیره می‌کند تا در «مشتریان» نام واقعی پیج دیده شود. با سقف انجام
+   * می‌شود و اگر `BOXAPI_DATA_TOKEN` ست نشده باشد، چیزی تغییر نمی‌کند.
+   */
+  @Post('backfill-profiles')
+  backfillProfiles(@Req() req: { principal: Principal }) {
+    return this.instagram.backfillProfiles(req.principal.shopId);
+  }
+
   @Post('test')
   async test(@Req() req: { principal: Principal }, @Body() body: unknown) {
     const parsed = z.object({
