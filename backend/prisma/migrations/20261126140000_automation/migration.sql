@@ -1,6 +1,6 @@
 -- V2-5: اتوماسیون کامنت به دایرکت
 CREATE TABLE "InboundCommentEvent" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "commentId" TEXT NOT NULL,
   "mediaId" TEXT NOT NULL DEFAULT '',
@@ -21,7 +21,7 @@ ALTER TABLE "InboundCommentEvent"
   ON DELETE CASCADE ON UPDATE CASCADE;
 
 CREATE TABLE "Automation" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "name" TEXT NOT NULL DEFAULT 'اتوماسیون کامنت به دایرکت',
   "active" BOOLEAN NOT NULL DEFAULT true,
@@ -44,7 +44,7 @@ ALTER TABLE "Automation"
   ON DELETE CASCADE ON UPDATE CASCADE;
 
 CREATE TABLE "AutomationRun" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "automationId" UUID NOT NULL,
   "commentId" TEXT NOT NULL,

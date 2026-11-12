@@ -12,7 +12,7 @@ ALTER TABLE "Product"
   ADD COLUMN "serviceCapacity" INTEGER;
 
 CREATE TABLE "ProductAttribute" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "productId" UUID NOT NULL,
   "name" TEXT NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE "ProductAttribute" (
 );
 
 CREATE TABLE "ProductAttributeValue" (
-  "id" TEXT NOT NULL,
+  "id" UUID NOT NULL,
   "shopId" UUID NOT NULL,
   "attributeId" UUID NOT NULL,
   "value" TEXT NOT NULL,
@@ -64,19 +64,19 @@ UPDATE "Variant" SET "optionsJson" = jsonb_build_object(
 
 -- بک‌فیل: ویژگی‌های «سایز»/«رنگ» برای محصولاتی که واریانت دارند
 INSERT INTO "ProductAttribute" ("id", "shopId", "productId", "name", "sortOrder")
-SELECT gen_random_uuid()::text, "shopId", "productId", 'سایز', 0
+SELECT gen_random_uuid(), "shopId", "productId", 'سایز', 0
 FROM "Variant" WHERE "size" <> ''
 GROUP BY "shopId", "productId"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "ProductAttribute" ("id", "shopId", "productId", "name", "sortOrder")
-SELECT gen_random_uuid()::text, "shopId", "productId", 'رنگ', 1
+SELECT gen_random_uuid(), "shopId", "productId", 'رنگ', 1
 FROM "Variant" WHERE "color" <> ''
 GROUP BY "shopId", "productId"
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "ProductAttributeValue" ("id", "shopId", "attributeId", "value", "sortOrder")
-SELECT gen_random_uuid()::text, v."shopId", a."id", v."size", 0
+SELECT gen_random_uuid(), v."shopId", a."id", v."size", 0
 FROM "Variant" v
 JOIN "ProductAttribute" a
   ON a."shopId" = v."shopId" AND a."productId" = v."productId" AND a."name" = 'سایز'
@@ -84,7 +84,7 @@ WHERE v."size" <> ''
 ON CONFLICT DO NOTHING;
 
 INSERT INTO "ProductAttributeValue" ("id", "shopId", "attributeId", "value", "sortOrder")
-SELECT gen_random_uuid()::text, v."shopId", a."id", v."color", 0
+SELECT gen_random_uuid(), v."shopId", a."id", v."color", 0
 FROM "Variant" v
 JOIN "ProductAttribute" a
   ON a."shopId" = v."shopId" AND a."productId" = v."productId" AND a."name" = 'رنگ'
