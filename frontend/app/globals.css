@@ -1106,3 +1106,25 @@ section[id] { scroll-margin-top: 70px; }
 .platform-tile:hover { border-color: var(--brand); transform: translateY(-2px); }
 .platform-tile strong { font-size: 14px; }
 .platform-tile span { font-size: 12px; color: var(--ink-3); }
+
+/* ---------- چیدمان تمام‌صفحه‌ی گفتگوها (پیام‌رسان) ---------- */
+.conv-full {
+  /* صفحه‌ی گفتگوها بیرون از padding معمول .page می‌ایستد تا مثل تلگرام وب
+     کل ارتفاع را بگیرد؛ topbar چسبان است و ارتفاع باقی‌مانده این‌جاست. */
+  margin: calc(-1 * var(--sp-8)) calc(-1 * var(--gutter-edge));
+  height: calc(100dvh - var(--topbar-h));
+  min-height: 0;
+}
+.conv-full-shell {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+@media (max-width: 900px) {
+  .conv-full { margin: calc(-1 * var(--sp-6)) calc(-1 * var(--gutter-edge)); }
+  .conv-full-shell { grid-template-columns: minmax(0, 1fr); }
+  .conv-full-shell .conv-list { display: flex; }
+  .conv-full-shell.has-active .conv-list { display: none; }
+  .conv-full-shell .conv-thread { display: none; }
+  .conv-full-shell.has-active .conv-thread { display: flex; }
+}
