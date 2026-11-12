@@ -72,3 +72,14 @@ npm run dev                           # http://localhost:3000
 The demo script only writes through the public API, so it can never create
 inconsistent stock: every sale and restock goes through the same transactional
 ledger the panel uses.
+
+## Prompt v4
+
+- ماسکات شناور پایین-چپ در پنل (`FloatingMascot`)؛ در گفتگوها مخفی است تا composer پوشیده نشود.
+- اکانت‌ها: فروشنده فقط پلتفرم را انتخاب و اجازه می‌دهد؛ جزئیات فنی (webhook/امضا/لاگ) فقط در `/admin/integrations`.
+- مشتریان: `/app/customers` جدا از گفتگوها؛ یادداشت و برچسب در localStorage مرورگر نگه داشته می‌شود.
+- واریانت‌ها: سقف ۱۰۰ ترکیب؛ SKU خودکار از کد محصول؛ ایمپورت با ستون `کد` + `attribute_N/value_N`؛ قیمت «توافقی» یعنی قیمت درخواستی (۰).
+- لینک پست: در ویرایش محصول، لینک پست/ریل اینستاگرام را اضافه کنید تا کامنت روی آن پست، اطلاعات همان محصول را در DM بفرستد.
+- سبد بات: بعد از انتخاب واریانت، «ثبت سفارش» یا «افزودن محصول جدید»؛ اینستاگرام با عدد ۱/۲ کار می‌کند.
+- پلن‌ها: رایگان/پرو/اولترا/مکس/اختصاصی از دیتابیس؛ سقف پاسخ AI در داشبورد نمایش داده می‌شود.
+- ورود ادمین: فقط `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD` (seed در هر استارتاپ).
