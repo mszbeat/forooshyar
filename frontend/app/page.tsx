@@ -131,7 +131,7 @@ export default function LandingPage() {
           <Link className="brand" href="/">
             <span className="brand-mark"><BrandLogo size={30} /></span>
             <span>
-              <span className="brand-name" style={{ display: 'block' }}>فروش‌یار</span>
+              <span className="brand-name" style={{ display: 'block' }}>{brand.name}</span>
               <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>
             </span>
           </Link>
@@ -166,7 +166,7 @@ export default function LandingPage() {
             <h1 className="hero-title" style={{ '--hd': '90ms' } as React.CSSProperties}>
               مشتری می‌پرسد،
               <br />
-              <span className="ink mark">فروش‌یار</span> جواب می‌دهد
+              <span className="ink mark">{brand.name}</span> جواب می‌دهد
               <br />
               <span className="quiet">با عددِ واقعی</span>
             </h1>
@@ -260,7 +260,7 @@ export default function LandingPage() {
             {robotScenes.map(scene => (
               <article className="land-robot-card" key={scene.src}>
                 <div className="land-robot-image">
-                  <Image src={scene.src} alt={`${scene.title} با ربات دستیار فروش‌یار`} width={480} height={480} loading="lazy" decoding="async" />
+                  <Image src={scene.src} alt={`${scene.title} با ربات دستیار ${brand.name}`} width={480} height={480} loading="lazy" decoding="async" />
                 </div>
                 <div className="land-robot-copy">
                   <strong>{scene.title}</strong>
@@ -291,7 +291,7 @@ export default function LandingPage() {
 
           <div className="compare">
             <div className="compare-col before">
-              <h3><span className="tag">بدون فروش‌یار</span></h3>
+              <h3><span className="tag">بدون {brand.name}</span></h3>
               <ul className="compare-list">
                 {before.map(item => (
                   <li key={item}><span className="mk">×</span><span>{item}</span></li>
@@ -299,7 +299,7 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="compare-col after">
-              <h3><span className="tag">با فروش‌یار</span></h3>
+              <h3><span className="tag">با {brand.name}</span></h3>
               <ul className="compare-list">
                 {after.map(item => (
                   <li key={item}><span className="mk">✓</span><span>{item}</span></li>
@@ -466,7 +466,7 @@ export default function LandingPage() {
               <Link className="brand" href="/">
                 <span className="brand-mark"><BrandLogo size={30} /></span>
                 <span>
-                  <span className="brand-name" style={{ display: 'block' }}>فروش‌یار</span>
+                  <span className="brand-name" style={{ display: 'block' }}>{brand.name}</span>
                   <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>
                 </span>
               </Link>
@@ -478,7 +478,7 @@ export default function LandingPage() {
             <div>
               <h4>محصول</h4>
               <ul>
-                <li><a href="#problem">چرا فروش‌یار</a></li>
+                <li><a href="#problem">چرا {brand.name}</a></li>
                 <li><a href="#features">امکانات</a></li>
                 <li><a href="#how">چطور کار می‌کند</a></li>
                 <li><a href="#rules">اصول</a></li>
@@ -503,7 +503,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="foot-bottom">
-            <span>© ۱۴۰۵ فروش‌یار — دستیار فروش فارسی</span>
+            <span>© ۱۴۰۵ {brand.name} — {brand.tagline}</span>
             <div className="links">
               <Link href={brand.paths.privacy}>حریم خصوصی</Link>
               <Link href={brand.paths.terms}>شرایط استفاده</Link>
