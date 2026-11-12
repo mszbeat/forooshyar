@@ -96,6 +96,9 @@ export class ChatService {
         chatId: row.chatId,
         name: displayName(row),
         username: row.username,
+        platform: row.chatId.startsWith('ig:') ? 'INSTAGRAM' : 'TELEGRAM',
+        humanTakeover: row.humanTakeover,
+        lastReplySource: row.lastReplySource,
         messageCount: counts.get(row.chatId) ?? row.messageCount,
         lastMessage: last ? { id: last.id, text: last.text.slice(0, 120), direction: last.direction, at: last.createdAt.toISOString() } : null,
         pending: last?.direction === 'in',
@@ -145,6 +148,9 @@ export class ChatService {
         chatId: conversation.chatId,
         name: displayName(conversation),
         username: conversation.username,
+        platform: conversation.chatId.startsWith('ig:') ? 'INSTAGRAM' : 'TELEGRAM',
+        humanTakeover: conversation.humanTakeover,
+        lastReplySource: conversation.lastReplySource,
         lastSeenAt: conversation.lastSeenAt.toISOString(),
         createdAt: conversation.createdAt.toISOString(),
       },
@@ -192,6 +198,25 @@ export class ChatService {
       ok: true as const,
       message: { id: message.id, direction: 'out', text: message.text, at: message.createdAt.toISOString() },
     };
+  }
+
+  /**
+   * take-over: فروشنده گفتگو را در دست می‌گیرد (بات دیگر خودکار جواب
+   * نمی‌دهد) یا به بات برمی‌گرداند.
+   */
+  async setTakeover(shopId: string, userId: string, chatId: string, takeover: boolean) {
+    const conversation = await this.db.telegramConversation.findFirst({ where: { shopId, chatId } });
+    if (!conversation) throw new NotFoundException('این گفتگو پیدا نشد.');
+    const updated = await this.db.telegramConversation.update({
+      where: { id: conversation.id },
+      data: { humanTakeover: takeover },
+    });
+    this.realtime.emitShop(shopId, 'chat', { chatId, takeover });
+    this.audit.record({
+      action: takeover ? 'chat.takeover' : 'chat.return_to_bot',
+      entity: 'conversation', entityId: conversation.id, shopId, userId, meta: { chatId },
+    });
+    return { ok: true as const, humanTakeover: updated.humanTakeover };
   }
 
   /**

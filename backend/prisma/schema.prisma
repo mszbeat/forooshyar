@@ -288,6 +288,10 @@ model TelegramConversation {
   draft        Json?
   /// وضعیت سؤال روشن‌کننده: { round, messages[] } — بعد از چند بار، ارجاع به انسان.
   clarify      Json?
+  /// take-over: فروشنده گفتگو را «در دست گرفته» و بات دیگر خودکار جواب نمی‌دهد.
+  humanTakeover Boolean  @default(false)
+  /// منبع آخرین پاسخ بات (برای نشانگر AI در اینباکس): fresh | llm | handoff
+  lastReplySource String @default("")
   lastSeenAt   DateTime @default(now())
   createdAt    DateTime @default(now())
 

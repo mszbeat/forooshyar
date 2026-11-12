@@ -37,6 +37,7 @@ export default function ConversationsPage() {
   const [threadLoading, setThreadLoading] = useState(false);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [takeoverBusy, setTakeoverBusy] = useState(false);
   const bottom = useRef<HTMLDivElement | null>(null);
   const targetRef = useRef<HTMLDivElement | null>(null);
 
@@ -120,6 +121,24 @@ export default function ConversationsPage() {
     }
   }
 
+  async function toggleTakeover() {
+    if (!active || !thread) return;
+    const next = !thread.conversation.humanTakeover;
+    setTakeoverBusy(true);
+    try {
+      await api.setTakeover(active, next);
+      setThread(current => current
+        ? { ...current, conversation: { ...current.conversation, humanTakeover: next } }
+        : current);
+      toast.success(next ? 'گفتگو را در دست گرفتید؛ بات دیگر خودکار جواب نمی‌دهد.' : 'گفتگو به بات برگشت.');
+      void load();
+    } catch (problem) {
+      toast.error('تغییر وضعیت انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setTakeoverBusy(false);
+    }
+  }
+
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
     return items.filter(item => {
@@ -195,6 +214,8 @@ export default function ConversationsPage() {
                   </span>
                   <span className="conv-snippet">{item.lastMessage?.text ?? 'بدون پیام'}</span>
                   <span className="conv-tags">
+                    <span className="badge b-gray">{item.platform === 'INSTAGRAM' ? 'اینستاگرام' : 'تلگرام'}</span>
+                    {item.humanTakeover && <span className="badge b-blue">در دست فروشنده</span>}
                     {item.orders > 0 && <span className="badge b-gray">{faNum(item.orders)} سفارش</span>}
                     {item.spent > 0 && <span className="badge b-green">خریدار</span>}
                     {item.pending && <span className="badge b-amber"><span className="dot" />بی‌پاسخ</span>}
@@ -210,7 +231,7 @@ export default function ConversationsPage() {
           {!active && (
             <div className="conv-thread-empty">
               <span className="conv-thread-ico"><IconChat size={22} /></span>
-              <strong>یک گفتگو را انتخاب کنید</strong>
+              <strong>برای شروع مکالمه، یک کاربر را انتخاب کنید</strong>
               <p>پیام‌های مشتری، سفارش‌هایش و کادر پاسخ — همه در یک ستون.</p>
             </div>
           )}
@@ -226,8 +247,20 @@ export default function ConversationsPage() {
                   <span className="small muted">
                     {thread?.conversation.username ? `@${thread.conversation.username} · ` : ''}
                     {thread ? `${faNum(thread.messages.length)} پیام` : 'در حال بارگذاری…'}
+                    {thread?.conversation.lastReplySource ? ` · پاسخ AI (${thread.conversation.lastReplySource === 'llm' ? 'مدل' : 'قاعده‌محور'})` : ''}
                   </span>
                 </div>
+                {thread && (
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${thread.conversation.humanTakeover ? 'btn-primary' : 'btn-outline'}`}
+                    disabled={takeoverBusy}
+                    onClick={() => void toggleTakeover()}
+                  >
+                    {takeoverBusy ? <Spinner size={13} /> : null}
+                    {thread.conversation.humanTakeover ? 'برگرداندن به بات' : 'در دست گرفتن'}
+                  </button>
+                )}
                 {thread && thread.orders.length > 0 && (
                   <div className="conv-thread-orders">
                     {thread.orders.slice(0, 3).map(order => (

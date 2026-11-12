@@ -342,6 +342,16 @@ export class TelegramService {
       return { status: 'handled', replies: 1, kind: 'subscription_expired' };
     }
 
+    // take-over: فروشنده گفتگو را در دست گرفته؛ بات خودکار جواب نمی‌دهد و
+    // پیام فقط ثبت می‌شود تا فروشنده از پنل ببیند.
+    if (conversation.humanTakeover) {
+      await this.db.chatMessage.create({
+        data: { shopId: conversation.shopId, chatId, direction: 'in', author: 'customer', text },
+      }).catch(() => undefined);
+      this.realtime.emitShop(conversation.shopId, 'chat', { chatId, takeover: true });
+      return { status: 'handled', replies: 0, kind: 'human_takeover' };
+    }
+
     const shop = await this.db.shop.findUniqueOrThrow({
       where: { id: conversation.shopId },
       select: { id: true, shipping: true, payment: true, workingHours: true, returns: true, handoffMessage: true, name: true },

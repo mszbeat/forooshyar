@@ -287,6 +287,9 @@ export type ConversationSummary = {
   chatId: string;
   name: string;
   username: string;
+  platform?: 'INSTAGRAM' | 'TELEGRAM';
+  humanTakeover?: boolean;
+  lastReplySource?: string;
   messageCount: number;
   lastMessage: { id: string; text: string; direction: string; author?: string; at: string } | null;
   pending: boolean;
@@ -311,7 +314,11 @@ export type ThreadMessage = {
   orderId?: string | null;
 };
 export type ConversationThread = {
-  conversation: { id: string; chatId: string; name: string; username: string; lastSeenAt: string; createdAt: string };
+  conversation: {
+    id: string; chatId: string; name: string; username: string;
+    platform?: 'INSTAGRAM' | 'TELEGRAM'; humanTakeover?: boolean; lastReplySource?: string;
+    lastSeenAt: string; createdAt: string;
+  };
   messages: ThreadMessage[];
   orders: { id: string; code: string; status: OrderStatus; total: number; createdAt: string }[];
 };
@@ -472,6 +479,10 @@ export const api = {
   replyConversation: (chatId: string, text: string) =>
     request<{ ok: boolean; message?: ThreadMessage; error?: string }>(
       `/chat/conversations/${encodeURIComponent(chatId)}/reply`, { method: 'POST', body: { text } },
+    ),
+  setTakeover: (chatId: string, takeover: boolean) =>
+    request<{ ok: true; humanTakeover: boolean }>(
+      `/chat/conversations/${encodeURIComponent(chatId)}/takeover`, { method: 'PATCH', body: { takeover } },
     ),
   customers: () => request<Customers>('/chat/customers'),
 

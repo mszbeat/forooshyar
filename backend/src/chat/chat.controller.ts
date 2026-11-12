@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard, Principal } from '../auth/auth.guard';
 import { ChatService } from './chat.service';
@@ -28,6 +28,17 @@ export class ChatController {
     const parsed = z.object({ text: z.string().trim().min(1, 'متن پیام خالی است.').max(2000) }).safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'متن پیام معتبر نیست.');
     return this.chat.reply(req.principal.shopId, req.principal.userId, chatId, parsed.data.text);
+  }
+
+  @Patch('conversations/:chatId/takeover')
+  async takeover(
+    @Req() req: { principal: Principal },
+    @Param('chatId') chatId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = z.object({ takeover: z.boolean() }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('مقدار takeover معتبر نیست.');
+    return this.chat.setTakeover(req.principal.shopId, req.principal.userId, chatId, parsed.data.takeover);
   }
 
   @Get('customers')

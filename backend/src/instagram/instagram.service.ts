@@ -116,6 +116,7 @@ type Conversation = ChatTarget & {
   firstName: string;
   username: string;
   profileEnrichedAt: Date | null;
+  humanTakeover: boolean;
   draft: unknown;
   clarify: unknown;
 };
@@ -603,6 +604,17 @@ export class InstagramService {
       void this.enrichProfile(conversation.id, senderId);
     }
 
+    // take-over: فروشنده گفتگو را در دست گرفته؛ بات خودکار جواب نمی‌دهد.
+    if (conversation.humanTakeover) {
+      const text = (item.message?.text ?? '').trim();
+      if (text) {
+        await this.db.chatMessage.create({
+          data: { shopId, chatId, direction: 'in', author: 'customer', text },
+        }).catch(() => undefined);
+      }
+      return { status: 'handled', replies: 0, kind: 'human_takeover' };
+    }
+
     const payload = item.postback?.payload ?? item.message?.quick_reply?.payload ?? '';
     if (payload) return this.handlePayload(conversation, payload);
 
@@ -634,7 +646,7 @@ export class InstagramService {
         ...(displayName ? { firstName: displayName } : {}),
         ...(handle ? { username: handle } : {}),
       },
-      select: { id: true, shopId: true, chatId: true, firstName: true, username: true, profileEnrichedAt: true, draft: true, clarify: true },
+      select: { id: true, shopId: true, chatId: true, firstName: true, username: true, profileEnrichedAt: true, humanTakeover: true, draft: true, clarify: true },
     });
     return row;
   }
