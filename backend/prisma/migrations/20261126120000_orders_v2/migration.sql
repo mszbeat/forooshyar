@@ -10,6 +10,11 @@ ALTER TABLE "Order"
 -- سفارش‌های قدیمی: subtotal همان total بود (بدون ارسال جدا)
 UPDATE "Order" SET "subtotal" = "total" WHERE "subtotal" = 0;
 
+-- قید یونیک (shopId, id) که کلید خارجی PaymentReceipt به آن ارجاع می‌دهد؛
+-- در schema هست (@@unique) ولی در مهاجرت‌های قبلی ساخته نشده بود.
+ALTER TABLE "Order"
+  ADD CONSTRAINT "Order_shopId_id_key" UNIQUE ("shopId", "id");
+
 CREATE TABLE "ShippingMethod" (
   "id" TEXT NOT NULL,
   "shopId" UUID NOT NULL,

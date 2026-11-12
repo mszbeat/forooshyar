@@ -33,6 +33,13 @@ CREATE UNIQUE INDEX "ProductAttribute_shopId_productId_name_key"
   ON "ProductAttribute"("shopId", "productId", "name");
 CREATE UNIQUE INDEX "ProductAttributeValue_shopId_attributeId_value_key"
   ON "ProductAttributeValue"("shopId", "attributeId", "value");
+
+-- قیدهای (shopId, id) که کلیدهای خارجی مرکب به آن‌ها ارجاع می‌دهند؛
+-- بدون این‌ها Postgres خطای 42830 می‌دهد (no unique constraint matching given keys).
+ALTER TABLE "ProductAttribute"
+  ADD CONSTRAINT "ProductAttribute_shopId_id_key" UNIQUE ("shopId", "id");
+ALTER TABLE "ProductAttributeValue"
+  ADD CONSTRAINT "ProductAttributeValue_shopId_id_key" UNIQUE ("shopId", "id");
 CREATE INDEX "ProductAttribute_shopId_productId_idx"
   ON "ProductAttribute"("shopId", "productId");
 CREATE INDEX "ProductAttributeValue_shopId_attributeId_idx"
