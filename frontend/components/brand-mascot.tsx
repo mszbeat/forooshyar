@@ -25,12 +25,12 @@ type Props = {
  */
 const EYES: Record<'face' | 'full', { left: number; top: number; w: number; h: number }[]> = {
   full: [
-    { left: 31.6, top: 41.4, w: 14.3, h: 6.9 },
-    { left: 53.7, top: 40.6, w: 15.7, h: 7.7 },
+    { left: 31.4, top: 42.0, w: 14.8, h: 5.8 },
+    { left: 52.9, top: 41.1, w: 20.6, h: 6.8 },
   ],
   face: [
-    { left: 27.0, top: 62.8, w: 17.9, h: 8.6 },
-    { left: 54.6, top: 61.8, w: 19.7, h: 9.7 },
+    { left: 26.8, top: 63.4, w: 18.5, h: 7.9 },
+    { left: 53.7, top: 62.2, w: 25.8, h: 9.2 },
   ],
 };
 
