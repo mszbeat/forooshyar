@@ -36,6 +36,9 @@ export default function AdminLoginPage() {
     window.setTimeout(() => emailRef.current?.focus(), 300);
   }, [router]);
 
+  const [mustChange, setMustChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -44,9 +47,34 @@ export default function AdminLoginPage() {
     try {
       const result = await adminApi.login(email.trim(), password);
       adminToken.set(result.accessToken);
+      // حساب seedشده باید در اولین ورود رمز را عوض کند.
+      if (result.mustChangePassword) {
+        setMustChange(true);
+        setPassword('');
+        return;
+      }
       router.replace('/admin');
     } catch (problem) {
       setError(problem instanceof AdminError ? problem.message : 'ارتباط با سرور برقرار نشد.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitNewPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    if (newPassword.length < 12) {
+      setError('رمز تازه باید دست‌کم ۱۲ کاراکتر باشد.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await adminApi.changePassword(password, newPassword);
+      router.replace('/admin');
+    } catch (problem) {
+      setError(problem instanceof AdminError ? problem.message : 'تغییر رمز انجام نشد.');
     } finally {
       setBusy(false);
     }
@@ -86,6 +114,51 @@ export default function AdminLoginPage() {
       </aside>
 
       <div className="adm-login-form">
+        {mustChange ? (
+          <form className="adm-login-card" onSubmit={submitNewPassword}>
+            <div className="authx-brand" style={{ color: 'var(--ink)' }}>
+              <span className="mark" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}>
+                <IconShield size={16} />
+              </span>
+              <div>
+                <div className="name" style={{ fontSize: 15 }}>تغییر رمز اجباری</div>
+                <div className="role" style={{ color: 'var(--ink-3)' }}>حساب تازه ساخته شده است</div>
+              </div>
+            </div>
+
+            <div>
+              <h1>رمز تازه انتخاب کنید</h1>
+              <p className="sub">برای امنیت، رمز موقت را با یک رمز قوی جایگزین کنید. رمز تازه دست‌کم ۱۲ کاراکتر باشد.</p>
+            </div>
+
+            {error && (
+              <div className="alert alert-error" role="alert">
+                <IconAlertCircle size={16} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Field label="رمز فعلی (موقت)" htmlFor="admin-current">
+              <input
+                id="admin-current" className="input input-ltr" type="password" value={password}
+                onChange={event => setPassword(event.target.value)} autoComplete="current-password" required dir="ltr"
+              />
+            </Field>
+
+            <Field label="رمز تازه" htmlFor="admin-new">
+              <input
+                id="admin-new" className="input input-ltr" type="password" value={newPassword}
+                onChange={event => setNewPassword(event.target.value)} autoComplete="new-password" required dir="ltr"
+                minLength={12}
+              />
+            </Field>
+
+            <button className="btn btn-primary btn-lg btn-block" type="submit" disabled={busy}>
+              {busy ? <Spinner size={16} /> : <IconArrowLeft size={16} />}
+              ذخیره و ورود به اتاق کنترل
+            </button>
+          </form>
+        ) : (
         <form className="adm-login-card" onSubmit={submit}>
           <div className="authx-brand" style={{ color: 'var(--ink)' }}>
             <span className="mark" style={{ background: 'var(--brand-50)', color: 'var(--brand)' }}>
@@ -144,6 +217,7 @@ export default function AdminLoginPage() {
             <b> ADMIN_PASSWORD </b> را در متغیرهای محیطی سرور عوض کنید.
           </div>
         </form>
+        )}
       </div>
     </div>
   );

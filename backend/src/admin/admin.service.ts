@@ -52,7 +52,7 @@ export class AdminService implements OnModuleInit {
       const existing = await this.db.platformAdmin.findUnique({ where: { email } });
       if (existing) return;
       await this.db.platformAdmin.create({
-        data: { email, passwordHash: await hashPassword(password), name: 'مدیر سامانه' },
+        data: { email, passwordHash: await hashPassword(password), name: 'مدیر سامانه', mustChangePassword: true },
       });
       this.logger.log(`حساب ادمین ساخته شد (${email}). رمز را از پنل ادمین عوض کنید.`);
       this.audit.record({ action: 'admin.bootstrap', entity: 'admin', meta: { email } });
@@ -61,7 +61,7 @@ export class AdminService implements OnModuleInit {
     }
   }
 
-  async login(email: string, password: string): Promise<{ accessToken: string; expiresIn: number; admin: AdminIdentity }> {
+  async login(email: string, password: string): Promise<{ accessToken: string; expiresIn: number; admin: AdminIdentity; mustChangePassword: boolean }> {
     const normalized = email.trim().toLowerCase();
     const admin = await this.db.platformAdmin.findUnique({ where: { email: normalized } });
     if (!admin || !(await verifyPassword(password, admin.passwordHash))) {
@@ -76,14 +76,16 @@ export class AdminService implements OnModuleInit {
       accessToken,
       expiresIn,
       admin: { id: admin.id, email: admin.email, name: admin.name },
+      mustChangePassword: admin.mustChangePassword,
     };
   }
 
-  async me(adminId: string): Promise<AdminIdentity & { lastLoginAt: string | null; createdAt: string }> {
+  async me(adminId: string): Promise<AdminIdentity & { mustChangePassword: boolean; lastLoginAt: string | null; createdAt: string }> {
     const admin = await this.db.platformAdmin.findUnique({ where: { id: adminId } });
     if (!admin) throw new UnauthorizedException();
     return {
       id: admin.id, email: admin.email, name: admin.name,
+      mustChangePassword: admin.mustChangePassword,
       lastLoginAt: admin.lastLoginAt?.toISOString() ?? null,
       createdAt: admin.createdAt.toISOString(),
     };
@@ -94,22 +96,58 @@ export class AdminService implements OnModuleInit {
     if (!admin || !(await verifyPassword(current, admin.passwordHash))) {
       throw new UnauthorizedException('رمز فعلی درست نیست.');
     }
-    await this.db.platformAdmin.update({ where: { id: adminId }, data: { passwordHash: await hashPassword(next) } });
+    await this.db.platformAdmin.update({ where: { id: adminId }, data: { passwordHash: await hashPassword(next), mustChangePassword: false } });
     this.audit.record({ action: 'admin.password_change', entity: 'admin', entityId: adminId });
     return { ok: true };
   }
 
   /**
-   * خلاصه‌ی خطای یک کوئری، برای نمایش در پنل.
-   * پیام Prisma برای خطای مهاجرت (`P2022` = ستون وجود ندارد) با پیام عمومی
-   * «خطای غیرمنتظره» قابل تشخیص نیست؛ پس کد خطا و اولین خط پیام نگه داشته
-   * می‌شود تا ادمین بداند باید مهاجرت را اجرا کند، نه اینکه دنبال باگ بگردد.
+   * پیام کاربرپسند برای یک بخش خطادار نمای کلی.
+   *
+   * هرگز متن خام Prisma/کانکتور/SQL به UI نمی‌رود (نشتی اطلاعات داخلی و
+   * تجربه‌ی بد برای ادمین). فقط کد خطای Prisma (مثل P2022 = ستون وجود
+   * ندارد، یعنی مهاجرت اجرا نشده) برگردانده می‌شود تا ادمین بفهمد باید
+   * مهاجرت را اجرا کند؛ جزئیات کامل فقط در لاگ سرور ثبت می‌شود.
    */
   private static describe(error: unknown): string {
     const err = error as { code?: string; message?: string } | null;
-    const first = (err?.message ?? 'خطای نامشخص').split('\n').filter(Boolean).slice(-1)[0] ?? 'خطای نامشخص';
-    return err?.code ? `${err.code}: ${first}`.slice(0, 300) : first.slice(0, 300);
+    const code = err?.code ?? '';
+    const raw = err?.message ?? '';
+    if (code === 'P2022' || /does not exist/i.test(raw)) {
+      return 'ستون دیتابیس وجود ندارد؛ مهاجرت‌ها را اجرا کنید (prisma migrate deploy).';
+    }
+    if (/max clients|EMAXCONNSESSION|too many clients|connection/i.test(raw)) {
+      return 'اتصال دیتابیس موقتاً پر است؛ چند ثانیه بعد دوباره تلاش کنید.';
+    }
+    if (code.startsWith('P1')) {
+      return 'دیتابیس در دسترس نیست؛ وضعیت اتصال را بررسی کنید.';
+    }
+    return 'بخشی از آمار موقتاً در دسترس نیست.';
   }
+
+  /**
+   * اجرای یک کوئری با تلاش مجدد برای خطاهای گذرا (پر شدن pooler، قطع
+   * موقت اتصال). حداکثر ۲ تلاش با وقفه‌ی کوتاه؛ خطای قطعی بی‌درنگ برمی‌گردد.
+   */
+  private async withRetry<T>(scope: string, run: () => Promise<T>): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await run();
+      } catch (error) {
+        lastError = error;
+        const raw = (error as { message?: string })?.message ?? '';
+        const transient = /max clients|EMAXCONNSESSION|too many clients|connection|timeout|ECONNRESET/i.test(raw);
+        if (!transient || attempt === 1) throw error;
+        this.logger.warn(`overview:${scope} transient error, retrying (${attempt + 1}/2)`);
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+    }
+    throw lastError;
+  }
+
+  /** کش کوتاه‌مدت نمای کلی (۳۰ ثانیه) تا رفرش‌های پی‌درپی pooler را نترکانند. */
+  private overviewCache: { at: number; data: Awaited<ReturnType<AdminService['buildOverview']>> } | null = null;
 
   /**
    * هر بخش از نمای کلی جدا اجرا می‌شود.
@@ -127,63 +165,74 @@ export class AdminService implements OnModuleInit {
     fallback: T,
   ): Promise<T> {
     try {
-      return await run();
+      return await this.withRetry(scope, run);
     } catch (error) {
       const message = AdminService.describe(error);
       problems.push({ scope, message });
-      this.logger.error(`overview:${scope} failed → ${message}\n${(error as Error)?.stack ?? ''}`);
+      // جزئیات کامل فقط در لاگ سرور؛ UI فقط پیام فارسی می‌بیند.
+      this.logger.error(`overview:${scope} failed → ${(error as Error)?.message ?? 'unknown'}\n${(error as Error)?.stack ?? ''}`);
       return fallback;
     }
   }
 
   /** یک نگاه کلی: حجم داده، وضعیت سرویس‌ها، و آخرین رویدادهای گردش. */
   async overview() {
+    // کش ۳۰ ثانیه‌ای: رفرش‌های پی‌درپی (و realtime) نباید هر بار ۱۲ کوئری
+    // به pooler بزنند. نتیجه‌ی کش‌شده همان آبجکت قبلی است.
+    const now = Date.now();
+    if (this.overviewCache && now - this.overviewCache.at < 30_000) {
+      return this.overviewCache.data;
+    }
+    const data = await this.buildOverview();
+    this.overviewCache = { at: now, data };
+    return data;
+  }
+
+  private async buildOverview() {
     const problems: { scope: string; message: string }[] = [];
-    const [
-      shops, users, products, variants, orders, messages, conversations, waiting,
-      ordersByStatus, recentAudit, recentShops, db,
-    ] = await Promise.all([
-      this.guard('counts.shops', problems, () => this.db.shop.count(), 0),
-      this.guard('counts.users', problems, () => this.db.user.count(), 0),
-      this.guard('counts.products', problems, () => this.db.product.count(), 0),
-      this.guard('counts.variants', problems, () => this.db.variant.count(), 0),
-      this.guard('counts.orders', problems, () => this.db.order.count(), 0),
-      this.guard('counts.messages', problems, () => this.db.chatMessage.count(), 0),
-      this.guard('counts.conversations', problems, () => this.db.telegramConversation.count(), 0),
-      this.guard('counts.waiting', problems, () => this.db.stockAlert.count({ where: { notifiedAt: null } }), 0),
-      this.guard(
-        'orders.byStatus', problems,
-        () => this.db.order.groupBy({ by: ['status'], _count: { _all: true } }),
-        [] as { status: string; _count: { _all: number } }[],
-      ),
-      this.guard(
-        'audit.recent', problems,
-        () => this.db.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 12 }),
-        [] as Awaited<ReturnType<typeof this.db.auditLog.findMany>>,
-      ),
-      this.guard(
-        'shops.recent', problems,
-        () => this.db.shop.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: 6,
-          select: {
-            id: true, name: true, createdAt: true,
-            owner: { select: { email: true } },
-            _count: { select: { products: true, orders: true } },
-            channel: { select: { active: true, botUsername: true, ownerChat: true } },
-          },
-        }),
-        [] as Awaited<ReturnType<typeof this.db.shop.findMany<{
-          select: {
-            id: true; name: true; createdAt: true;
-            owner: { select: { email: true } };
-            _count: { select: { products: true; orders: true } };
-            channel: { select: { active: true; botUsername: true; ownerChat: true } };
-          };
-        }>>>,
-      ),
-      this.guard('services.database', problems, () => this.databaseInfo(), null),
-    ]);
+    // کوئری‌ها ترتیبی و در دسته‌های کوچک اجرا می‌شوند، نه یک Promise.all
+    // انفجاری: روی pooler با سقف ۱۵ اتصال، ۱۲ کوئری موازی + نمونه‌ی دوم
+    // سرویس (دیپلوی zero-downtime) = EMAXCONNSESSION.
+    const shops = await this.guard('counts.shops', problems, () => this.db.shop.count(), 0);
+    const users = await this.guard('counts.users', problems, () => this.db.user.count(), 0);
+    const products = await this.guard('counts.products', problems, () => this.db.product.count(), 0);
+    const variants = await this.guard('counts.variants', problems, () => this.db.variant.count(), 0);
+    const orders = await this.guard('counts.orders', problems, () => this.db.order.count(), 0);
+    const messages = await this.guard('counts.messages', problems, () => this.db.chatMessage.count(), 0);
+    const conversations = await this.guard('counts.conversations', problems, () => this.db.telegramConversation.count(), 0);
+    const waiting = await this.guard('counts.waiting', problems, () => this.db.stockAlert.count({ where: { notifiedAt: null } }), 0);
+    const ordersByStatus = await this.guard(
+      'orders.byStatus', problems,
+      () => this.db.order.groupBy({ by: ['status'], _count: { _all: true } }),
+      [] as { status: string; _count: { _all: number } }[],
+    );
+    const recentAudit = await this.guard(
+      'audit.recent', problems,
+      () => this.db.auditLog.findMany({ orderBy: { createdAt: 'desc' }, take: 12 }),
+      [] as Awaited<ReturnType<typeof this.db.auditLog.findMany>>,
+    );
+    const recentShops = await this.guard(
+      'shops.recent', problems,
+      () => this.db.shop.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        select: {
+          id: true, name: true, createdAt: true,
+          owner: { select: { email: true } },
+          _count: { select: { products: true, orders: true } },
+          channel: { select: { active: true, botUsername: true, ownerChat: true } },
+        },
+      }),
+      [] as Awaited<ReturnType<typeof this.db.shop.findMany<{
+        select: {
+          id: true; name: true; createdAt: true;
+          owner: { select: { email: true } };
+          _count: { select: { products: true; orders: true } };
+          channel: { select: { active: true; botUsername: true; ownerChat: true } };
+        };
+      }>>>,
+    );
+    const db = await this.guard('services.database', problems, () => this.databaseInfo(), null);
 
     const ai = this.ai.status();
     const telegramConfig = readTelegramConfig();

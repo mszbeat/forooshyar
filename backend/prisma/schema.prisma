@@ -3,8 +3,13 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // DATABASE_URL: اتصال runtime از pooler تراکنشی (پورت 6543) با
+  //   ?pgbouncer=true&connection_limit=5
+  // DIRECT_URL: اتصال مستقیم/session برای مهاجرت‌ها (prisma migrate deploy).
+  //   اگر DIRECT_URL خالی باشد، Prisma از DATABASE_URL استفاده می‌کند.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Append-only audit trail. Every mutating request writes one row; read requests
@@ -598,6 +603,8 @@ model PlatformAdmin {
   email        String    @unique
   passwordHash String
   name         String    @default("")
+  /// اگر true باشد، ادمین باید در اولین ورود رمز را عوض کند (حساب seedشده).
+  mustChangePassword Boolean @default(false)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
 

@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import type { AdminIdentity } from './admin.service';
 import { AdminGuard } from './admin.guard';
@@ -12,7 +13,9 @@ type AuthedRequest = { admin?: AdminIdentity };
 export class AdminAuthController {
   constructor(private readonly admin: AdminService) {}
 
+  // ورود ادمین: حداکثر ۱۰ تلاش در ۱۰ دقیقه برای هر IP (ضد brute-force).
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 600000 } })
   async login(@Body() body: unknown) {
     const parsed = z.object({
       email: z.string().trim().min(3).max(200),

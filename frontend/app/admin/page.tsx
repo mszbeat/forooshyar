@@ -85,16 +85,16 @@ export default function AdminOverviewPage() {
       {/* بخش‌هایی که روی سرور خطا داده‌اند: بقیه‌ی صفحه می‌آید و اینجا دلیل
           واقعی (کد خطا یا پیام دیتابیس) دیده می‌شود، نه یک «خطای غیرمنتظره». */}
       {data.problems && data.problems.length > 0 && (
-        <div className="adm-note bad">
+        <div className="adm-note bad" role="alert">
           <IconAlertCircle size={16} />
           <div style={{ display: 'grid', gap: 6 }}>
             <span>
-              بخشی از این گزارش از سرور نیامد؛ بقیه‌ی اعداد طبیعی است. جزئیات برای پیگیری:
+              بخشی از آمار موقتاً در دسترس نیست؛ بقیه‌ی اعداد طبیعی است و صفحه قابل استفاده است.
             </span>
             <ul style={{ display: 'grid', gap: 3, margin: 0, paddingInlineStart: 16 }}>
               {data.problems.map(problem => (
                 <li key={problem.scope} style={{ fontSize: 12 }}>
-                  <b className="mono">{problem.scope}</b> — <span className="mono" style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>{problem.message}</span>
+                  {problem.message}
                 </li>
               ))}
             </ul>

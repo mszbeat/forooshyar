@@ -29,8 +29,10 @@ services:
     # --include=dev چون tsc و prisma در devDependencies هستند و Render با
     # NODE_ENV=production نصب می‌کند؛ بدون آن build با «tsc: not found» می‌افتد.
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run build
-    # مهاجرت + اجرا. `npm run prisma:deploy` هم با DATABASE_URL و هم با DB_* کار
-    # می‌کند (خود prisma فقط DATABASE_URL را می‌خواند). devDependencies بیلد موجودند.
+    # مهاجرت + اجرا. `npm run prisma:deploy` از DIRECT_URL استفاده می‌کند اگر
+    # ست شده باشد، وگرنه DATABASE_URL. روی پلن پولی Render می‌توانی مهاجرت را
+    # به preDeployCommand منتقل کنی تا دو نمونه‌ی هم‌زمان با هم migrate نکنند؛
+    # روی Free همان startCommand می‌ماند (migrate deploy idempotent است).
     startCommand: npm run prisma:deploy && node dist/main.js
     # اگر این را خالی بگذاری، Render از `/` استفاده می‌کند؛ کد روی `/` هم ۲۰۰
     # می‌دهد، ولی صریح بودن بهتر است.
@@ -44,10 +46,17 @@ services:
       # کد هم روی PaaS خودش همین را انتخاب می‌کند؛ این خط برای صریح بودن است.
       - key: HOST
         value: 0.0.0.0
+      # اتصال runtime. اگر دیتابیس را به Supabase منتقل کردی، این را به
+      # pooler تراکنشی (پورت 6543 با ?pgbouncer=true&connection_limit=5)
+      # تغییر بده و DIRECT_URL را به اتصال مستقیم (5432) بگذار.
       - key: DATABASE_URL
         fromDatabase:
           name: forooshyar-db
           property: connectionString
+      # فقط برای مهاجرت‌ها (prisma migrate deploy). روی Render Postgres
+      # همان connectionString کافی است؛ روی Supabase اتصال مستقیم بگذار.
+      - key: DIRECT_URL
+        sync: false
       - key: JWT_SECRET
         generateValue: true     # Render خودش یک مقدار تصادفی ۲۵۶ بیتی می‌سازد
       # PORT را تعریف نکن؛ Render خودش تزریق می‌کند و کد همان را می‌خواند.

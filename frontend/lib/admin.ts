@@ -169,7 +169,7 @@ export type DatabaseProbe =
 
 export const adminApi = {
   login: (email: string, password: string) =>
-    call<{ accessToken: string; expiresIn: number; admin: AdminIdentity }>('/admin/auth/login', { method: 'POST', body: { email, password }, auth: false }),
+    call<{ accessToken: string; expiresIn: number; admin: AdminIdentity; mustChangePassword: boolean }>('/admin/auth/login', { method: 'POST', body: { email, password }, auth: false }),
   me: () => call<AdminIdentity>('/admin/auth/me'),
   changePassword: (current: string, next: string) =>
     call<{ ok: true }>('/admin/auth/password', { method: 'POST', body: { current, next } }),

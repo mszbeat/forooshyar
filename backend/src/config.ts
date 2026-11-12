@@ -47,6 +47,47 @@ export function databaseUrl(env: NodeJS.ProcessEnv): string {
 export const loadConfig = (env: NodeJS.ProcessEnv): AppConfig => schema.parse({ ...env, DATABASE_URL: databaseUrl(env) });
 
 /**
+ * حالت pooler اتصال دیتابیس را از روی URL تشخیص می‌دهد و بدون افشای هیچ
+ * رازی (رمز/هاست کامل) فقط حالت و سقف اتصال را برمی‌گرداند تا در لاگ
+ * استارتاپ ثبت شود. هدف: اگر کسی اشتباهی به pooler session-mode با
+ * connection_limit بالا وصل شد، همان اول دیده شود.
+ */
+export type PoolerMode = 'transaction' | 'session' | 'direct' | 'unknown';
+
+export function describePooler(url: string): { mode: PoolerMode; connectionLimit: number | null; pgbouncer: boolean } {
+  try {
+    const parsed = new URL(url);
+    const port = parsed.port || '5432';
+    const pgbouncer = parsed.searchParams.get('pgbouncer') === 'true';
+    const limitParam = parsed.searchParams.get('connection_limit');
+    const connectionLimit = limitParam ? Number.parseInt(limitParam, 10) : null;
+    let mode: PoolerMode = 'unknown';
+    if (port === '6543' || pgbouncer) mode = 'transaction';
+    else if (port === '5432' && parsed.hostname.includes('pooler')) mode = 'session';
+    else if (port === '5432') mode = 'direct';
+    return { mode, connectionLimit: Number.isFinite(connectionLimit) ? connectionLimit : null, pgbouncer };
+  } catch {
+    return { mode: 'unknown', connectionLimit: null, pgbouncer: false };
+  }
+}
+
+/**
+ * بررسی استارتاپ اتصال دیتابیس: حالت pooler را لاگ می‌زند و اگر حالت
+ * session با connection_limit بالا باشد هشدار می‌دهد (چون pooler
+ * session-mode سقف کمی دارد و چند نمونه‌ی سرویس آن را تمام می‌کنند).
+ */
+export function warnOnRiskyPooler(url: string, logger: { warn: (msg: string) => void; log: (msg: string) => void }): void {
+  const { mode, connectionLimit, pgbouncer } = describePooler(url);
+  logger.log(`database pooler mode: ${mode}${connectionLimit !== null ? ` (connection_limit=${connectionLimit})` : ''}${pgbouncer ? ' [pgbouncer=true]' : ''}`);
+  if (mode === 'session' && (connectionLimit === null || connectionLimit > 10)) {
+    logger.warn('اتصال دیتابیس روی pooler session-mode با connection_limit بالا است؛ برای runtime از pooler تراکنشی (پورت 6543 با ?pgbouncer=true&connection_limit=5) استفاده کنید.');
+  }
+  if (mode === 'transaction' && !pgbouncer) {
+    logger.warn('پورت 6543 بدون ?pgbouncer=true استفاده شده است؛ Prisma باید بداند اتصال تراکنشی است.');
+  }
+}
+
+/**
  * پلتفرم‌هایی که ترافیک را از بیرون کانتینر به پورت پروسه می‌رسانند، پس باید روی
  * همه‌ی اینترفیس‌ها گوش داد. بدون این، پیش‌فرض loopback باعث می‌شود پلتفرم پورت
  * را نبیند و دیپلوی با «No open ports detected on 0.0.0.0 … Detected open ports on
