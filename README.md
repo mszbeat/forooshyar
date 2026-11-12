@@ -32,6 +32,15 @@ system flags — live in a separate **admin panel** at `/admin` (`docs/ADMIN.md`
 own account table and token namespace, so an admin session never grants shop data and a
 seller token never reaches `/admin/*`.
 
+**Database pooling (Supabase/pooler):** runtime uses the **transaction pooler**
+(port 6543) via `DATABASE_URL=...:6543/postgres?pgbouncer=true&connection_limit=5`;
+migrations use `DIRECT_URL` (direct/session connection, port 5432). The admin overview
+runs queries sequentially with a 30s cache and retry-on-transient-error, and never shows
+raw Prisma/SQL text in the UI — only friendly Persian messages with a retry button.
+Create the admin account with `ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` (min 12 chars)
+via `npm run prisma:seed-admin`; the account gets `mustChangePassword=true` and must
+change its password on first login. No credentials are stored in code.
+
 In both cases the panel talks to the API through its own same-origin `/api` proxy: leave frontend `NEXT_PUBLIC_API_BASE_URL` **empty** and point `API_PROXY_TARGET` at the API. Trailing slashes in either variable are stripped, because a trailing slash used to produce `//auth/login` and a 404.
 
 ## Current implementation and important limitations
