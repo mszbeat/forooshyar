@@ -2,8 +2,6 @@ import { forwardRef, Module } from '@nestjs/common';
 import { TelegramModule } from '../telegram/telegram.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
-import { PaymentsService } from '../payments/payments.service';
-import { PaymentsController } from './payments.controller';
 import { InstagramModule } from '../instagram/instagram.module';
 import { SmsModule } from '../sms/sms.module';
 
@@ -16,8 +14,8 @@ import { SmsModule } from '../sms/sms.module';
  */
 @Module({
   imports: [forwardRef(() => TelegramModule), forwardRef(() => InstagramModule), SmsModule],
-  controllers: [OrdersController, PaymentsController],
-  providers: [OrdersService, PaymentsService],
-  exports: [OrdersService, PaymentsService],
+  controllers: [OrdersController],
+  providers: [OrdersService],
+  exports: [OrdersService],
 })
 export class OrdersModule {}

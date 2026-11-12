@@ -6,7 +6,7 @@ import { AuditService } from '../logging/audit.service';
 import { discover, type CatalogProduct } from '../catalog/discovery';
 import { AiService } from '../ai/ai.service';
 import { OrdersService } from '../orders/orders.service';
-import { PaymentsService } from '../payments/payments.service';
+import { ShopPaymentMethodsService } from '../payments/shop-payment-methods.service';
 import { type BotButton, answerIntent, clarifyProducts, composeReply, describeProduct, type BrainShop, productButtons } from './brain';
 import { addPersonality, resolveReply, type UnderstandResult } from '../ai/understand';
 import { MAX_CLARIFY_ROUNDS, type IntentId } from './understanding';
@@ -98,7 +98,7 @@ export class TelegramService {
     private readonly audit: AuditService,
     // چرخه‌ی عمدی و محدود: بات سفارش می‌سازد، سفارش‌ها با بات اعلان می‌دهند.
     @Inject(forwardRef(() => OrdersService)) private readonly orders: OrdersService,
-    @Inject(forwardRef(() => PaymentsService)) private readonly payments: PaymentsService,
+    @Inject(forwardRef(() => ShopPaymentMethodsService)) private readonly paymentMethods: ShopPaymentMethodsService,
     private readonly ai: AiService,
     // رخداد زنده برای پنل: پیام تازه، سفارش تازه، تغییر وضعیت.
     private readonly realtime: RealtimeService,
@@ -849,26 +849,13 @@ export class TelegramService {
     return { status: 'handled', replies: sent ? 1 : 0, kind: outcome.kind === 'invalid' ? 'order_invalid' : 'order_step' };
   }
 
-  /** ساخت سفارش + لینک پرداخت. موجودی همین‌جا رزرو می‌شود. */
+  /** ساخت سفارش + راهنمای کارت‌به‌کارت. موجودی همین‌جا رزرو می‌شود.
+   * پرداخت مشتری نهایی همیشه کارت‌به‌کارت است؛ درگاه آنلاین فقط برای
+   * فروش پلن/اعتبار به فروشنده است. فلو کامل رسید در فاز V2-3 می‌آید. */
   private async finishOrder(
     conversation: { id: string; shopId: string; chatId: string },
     draft: OrderDraft,
   ): Promise<HandleResult> {
-    const publicUrl = PaymentsService.publicUrl;
-    if (!publicUrl) {
-      // بدون آدرس عمومی لینک پرداخت ساخته نمی‌شود؛ بهتر است روشن بگوییم تا سکوت.
-      await this.send(conversation.chatId, 'فعلاً امکان ساخت لینک پرداخت نیست. سفارش شما را به فروشنده اطلاع دادم تا هماهنگ کند.');
-      await this.notifyOwner(conversation.shopId, [
-        `🔔 سفارش دستی: ${draftTitle(draft)} × ${(draft.quantity ?? 1).toLocaleString('fa-IR')}`,
-        `گیرنده: ${draft.name ?? '—'} · ${draft.phone ?? '—'}`,
-        `نشانی: ${fullAddress(draft) || '—'}`,
-        '',
-        'PUBLIC_API_URL روی سرور تنظیم نشده، پس لینک پرداخت ساخته نشد.',
-      ].join('\n'));
-      await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
-      return { status: 'handled', replies: 1, kind: 'order_no_payment' };
-    }
-
     try {
       const order = await this.orders.create(conversation.shopId, {
         chatId: conversation.chatId,
@@ -884,14 +871,19 @@ export class TelegramService {
         postalCode: draft.postalCode ?? '',
         items: [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }],
       });
-      const payment = await this.payments.start(
-        conversation.shopId,
-        { id: order.id, code: order.code, total: order.total, customerPhone: order.customerPhone },
-        publicUrl,
-      );
       await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
 
-      const sent = await this.sendWithButtons(
+      const methods = await this.paymentMethods.activeForCustomer(conversation.shopId);
+      const cardLines = methods.length > 0
+        ? methods.map(method => [
+            `💳 کارت: <code>${method.masked}</code>`,
+            `👤 به نام: ${escapeHtml(method.holderName)}`,
+            method.bankName ? `🏦 ${escapeHtml(method.bankName)}` : '',
+            method.instruction ? `📝 ${escapeHtml(method.instruction)}` : '',
+          ].filter(Boolean).join('\n')).join('\n\n')
+        : 'شماره کارت فروشگاه هنوز ثبت نشده است؛ فروشنده به‌زودی اطلاعات پرداخت را می‌فرستد.';
+
+      const sent = await this.send(
         conversation.chatId,
         [
           '🧾 <b>سفارش شما ساخته شد</b>',
@@ -899,14 +891,15 @@ export class TelegramService {
           `🆔 کد سفارش: <code>${order.code}</code>`,
           `🛍 ${escapeHtml(draftTitle(draft))}`,
           `🔢 ${(draft.quantity ?? 1).toLocaleString('fa-IR')} عدد`,
-          `💰 مبلغ: <b>${order.total.toLocaleString('fa-IR')} تومان</b>`,
+          `💰 مبلغ قابل پرداخت: <b>${order.total.toLocaleString('fa-IR')} تومان</b>`,
           `📍 ${escapeHtml(fullAddress(draft))}`,
           '',
-          'برای تکمیل، دکمه‌ی پرداخت را بزنید.',
-          `<i>اگر پرداخت نکنید، تا ۲۴ ساعت دیگر لغو و موجودی آزاد می‌شود.</i>`,
+          'برای تکمیل، مبلغ را کارت‌به‌کارت واریز کنید:',
+          cardLines,
+          '',
+          'بعد از واریز، عکس رسید را همین‌جا بفرستید تا سفارش‌تان تأیید شود.',
+          '<i>اگر پرداخت نکنید، تا ۲۴ ساعت دیگر لغو و موجودی آزاد می‌شود.</i>',
         ].join('\n'),
-        [[{ text: `💳 پرداخت ${order.total.toLocaleString('fa-IR')} تومان`, url: payment.url }]],
-        'HTML',
       );
 
       this.audit.record({
@@ -914,7 +907,7 @@ export class TelegramService {
         entity: 'order',
         entityId: order.id,
         shopId: conversation.shopId,
-        meta: { code: order.code, total: order.total, provider: payment.provider, chatId: conversation.chatId },
+        meta: { code: order.code, total: order.total, payment: 'card_to_card', chatId: conversation.chatId },
       });
       return { status: 'handled', replies: sent ? 1 : 0, kind: 'order_created' };
     } catch (error) {

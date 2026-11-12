@@ -42,6 +42,14 @@ export type Product = {
 export type Shop = {
   id: string; name: string; tone: string; shipping: string; payment: string;
   workingHours: string; returns: string; handoffMessage: string; smsPhone?: string; notifySellerBySms?: boolean;
+  receiptAutoConfirm?: boolean; receiptAutoConfirmMax?: number | null; paymentWaitHours?: number;
+};
+export type PaymentMethod = {
+  id: string; holderName: string; masked: string; last4: string;
+  bankName: string; sheba: string; instruction: string; active: boolean; sortOrder: number;
+};
+export type ReceiptPolicy = {
+  receiptAutoConfirm: boolean; receiptAutoConfirmMax: number | null; paymentWaitHours: number;
 };
 export type Movement = {
   id: string; delta: number; reason: string; createdAt: string;
@@ -308,6 +316,17 @@ export const api = {
 
   shop: () => request<Shop>('/shop'),
   updateShop: (body: Partial<Shop>) => request<Shop>('/shop', { method: 'PATCH', body }),
+
+  paymentMethods: () => request<PaymentMethod[]>('/payment-methods'),
+  createPaymentMethod: (body: { holderName: string; cardNumber: string; bankName?: string; sheba?: string; instruction?: string }) =>
+    request<PaymentMethod>('/payment-methods', { method: 'POST', body }),
+  updatePaymentMethod: (id: string, body: Partial<PaymentMethod> & { cardNumber?: string }) =>
+    request<PaymentMethod>(`/payment-methods/${id}`, { method: 'PATCH', body }),
+  deletePaymentMethod: (id: string) =>
+    request<{ ok: true }>(`/payment-methods/${id}`, { method: 'DELETE' }),
+  receiptPolicy: () => request<ReceiptPolicy>('/payment-methods/receipt-policy'),
+  updateReceiptPolicy: (body: Partial<ReceiptPolicy>) =>
+    request<ReceiptPolicy>('/payment-methods/receipt-policy', { method: 'PATCH', body }),
 
   products: () => request<Product[]>('/products'),
   product: (id: string) => request<Product>(`/products/${id}`),

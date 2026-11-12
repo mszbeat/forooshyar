@@ -37,7 +37,7 @@ export type SettingDef = {
 export const GROUPS: { id: SettingGroup; label: string; description: string }[] = [
   { id: 'ai', label: 'مدل هوش مصنوعی', description: 'مدل زبانی که «نفهمیدم»های بات را جواب می‌دهد؛ بدون کلید، بات با موتور قاعده‌محور کار می‌کند.' },
   { id: 'telegram', label: 'تلگرام', description: 'توکن بات، سکرت webhook و آدرس عمومی سرویس.' },
-  { id: 'payments', label: 'پرداخت', description: 'درگاه زرین‌پال یا حالت آزمایشی.' },
+  { id: 'payments', label: 'پرداخت', description: 'درگاه پلتفرم فقط برای فروش پلن/اعتبار به فروشنده است؛ پرداخت مشتری کارت‌به‌کارت است.' },
   { id: 'otp', label: 'پیامک و OTP', description: 'تنظیمات سرویس پیامک Mock و ورود یک‌بارمصرف.' },
   { id: 'database', label: 'دیتابیس', description: 'اتصال PostgreSQL؛ تنها تنظیمی که برای اثر قطعی یک ری‌استارت سرویس لازم دارد.' },
   { id: 'system', label: 'سیستم', description: 'CORS، کش، لاگ گردش و پرچم‌های عیب‌یابی.' },
@@ -172,11 +172,17 @@ export const SETTINGS: SettingDef[] = [
   },
 
   // --------------------------------------------------------------------- پرداخت
+  // درگاه آنلاین فقط برای فروش پلن/اعتبار به فروشنده است (ماژول subscriptions).
+  // پرداخت مشتری نهایی همیشه کارت‌به‌کارت است و در پنل فروشگاه مدیریت می‌شود.
   {
-    key: 'ZARINPAL_MERCHANT_ID', group: 'payments', label: 'شناسه‌ی پذیرنده‌ی زرین‌پال', kind: 'secret', optional: true,
-    hint: 'اگر خالی باشد، پرداخت در حالت «آزمایشی» انجام می‌شود و پولی جابه‌جا نمی‌شود.',
+    key: 'ZARINPAL_MERCHANT_ID', group: 'payments', label: 'شناسه‌ی پذیرنده‌ی زرین‌پال (پلتفرم)', kind: 'secret', optional: true,
+    hint: 'فقط برای خرید پلن/اعتبار توسط فروشنده. اگر خالی باشد، خرید در حالت «آزمایشی» انجام می‌شود.',
   },
   { key: 'ZARINPAL_API_BASE', group: 'payments', label: 'آدرس API زرین‌پال', kind: 'url', fallback: 'https://api.zarinpal.com' },
+  {
+    key: 'CARD_ENCRYPTION_KEY', group: 'payments', label: 'کلید رمزنگاری شماره کارت', kind: 'secret', optional: true, restart: true,
+    hint: 'base64 از ۳۲ بایت؛ برای رمزنگاری شماره کارت‌های فروشگاه. در production حتماً ست شود.',
+  },
   { key: 'SMS_ENABLED', group: 'otp', label: 'فعال‌بودن SMS Mock', kind: 'bool', fallback: 'true', hint: 'پیامک واقعی ارسال نمی‌شود تا درگاه مشخص شود.' },
   { key: 'OTP_ENABLED', group: 'otp', label: 'فعال‌بودن ورود OTP', kind: 'bool', fallback: 'false' },
   { key: 'OTP_TTL_SECONDS', group: 'otp', label: 'اعتبار کد (ثانیه)', kind: 'number', fallback: '300', min: 60, max: 600 },

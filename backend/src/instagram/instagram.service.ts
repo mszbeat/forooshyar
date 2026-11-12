@@ -5,7 +5,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { AiService } from '../ai/ai.service';
 import { OrdersService } from '../orders/orders.service';
-import { PaymentsService } from '../payments/payments.service';
+import { ShopPaymentMethodsService } from '../payments/shop-payment-methods.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { discover, productCodeOf, type CatalogProduct } from '../catalog/discovery';
 import {
@@ -150,7 +150,7 @@ export class InstagramService {
     private readonly realtime: RealtimeService,
     private readonly ai: AiService,
     private readonly orders: OrdersService,
-    private readonly payments: PaymentsService,
+    private readonly paymentMethods: ShopPaymentMethodsService,
     private readonly telegram: TelegramService,
     private readonly subscriptions: SubscriptionsService,
   ) {
@@ -1118,20 +1118,6 @@ export class InstagramService {
   }
 
   private async finishOrder(conversation: Conversation, draft: OrderDraft): Promise<InstagramHandleResult> {
-    const publicUrl = PaymentsService.publicUrl;
-    if (!publicUrl) {
-      await this.send(conversation, 'فعلاً امکان ساخت لینک پرداخت نیست. سفارش شما را به فروشنده اطلاع دادم تا هماهنگ کند.');
-      await this.telegram.notifyOwner(conversation.shopId, [
-        `🔔 سفارش دستی (اینستاگرام): ${draftTitle(draft)} × ${(draft.quantity ?? 1).toLocaleString('fa-IR')}`,
-        `گیرنده: ${draft.name ?? '—'} · ${draft.phone ?? '—'}`,
-        `نشانی: ${fullAddress(draft) || '—'}`,
-        '',
-        'PUBLIC_API_URL روی سرور تنظیم نشده، پس لینک پرداخت ساخته نشد.',
-      ].join('\n')).catch(() => false);
-      await this.clearDraft(conversation.id);
-      return { status: 'handled', replies: 1, kind: 'order_no_payment' };
-    }
-
     try {
       const order = await this.orders.create(conversation.shopId, {
         chatId: conversation.chatId,
@@ -1147,26 +1133,34 @@ export class InstagramService {
         postalCode: draft.postalCode ?? '',
         items: [{ variantId: draft.variantId, quantity: draft.quantity ?? 1 }],
       });
-      const payment = await this.payments.start(
-        conversation.shopId,
-        { id: order.id, code: order.code, total: order.total, customerPhone: order.customerPhone },
-        publicUrl,
-      );
       await this.clearDraft(conversation.id);
 
+      const methods = await this.paymentMethods.activeForCustomer(conversation.shopId);
+      const cardLines = methods.length > 0
+        ? methods.map(method => [
+            `کارت: ${method.masked}`,
+            `به نام: ${method.holderName}`,
+            method.bankName ? method.bankName : '',
+            method.instruction ? method.instruction : '',
+          ].filter(Boolean).join('\n')).join('\n\n')
+        : 'شماره کارت فروشگاه هنوز ثبت نشده است؛ فروشنده به‌زودی اطلاعات پرداخت را می‌فرستد.';
+
       const text = [
-        '🧾 <b>سفارش شما ساخته شد</b>',
+        '🧾 سفارش شما ساخته شد',
         '',
-        `🆔 کد سفارش: ${order.code}`,
-        `🛍 ${draftTitle(draft)}`,
-        `🔢 ${(draft.quantity ?? 1).toLocaleString('fa-IR')} عدد`,
-        `💰 مبلغ: ${order.total.toLocaleString('fa-IR')} تومان`,
-        `📍 ${fullAddress(draft)}`,
+        `کد سفارش: ${order.code}`,
+        `${draftTitle(draft)}`,
+        `${(draft.quantity ?? 1).toLocaleString('fa-IR')} عدد`,
+        `مبلغ قابل پرداخت: ${order.total.toLocaleString('fa-IR')} تومان`,
+        fullAddress(draft),
         '',
-        'برای تکمیل، دکمه‌ی پرداخت را بزنید.',
+        'برای تکمیل، مبلغ را کارت‌به‌کارت واریز کنید:',
+        cardLines,
+        '',
+        'بعد از واریز، عکس رسید را همین‌جا بفرستید تا سفارش‌تان تأیید شود.',
         'اگر پرداخت نکنید، تا ۲۴ ساعت دیگر لغو و موجودی آزاد می‌شود.',
       ].join('\n');
-      const sent = await this.send(conversation, text, [[{ text: `💳 پرداخت ${order.total.toLocaleString('fa-IR')} تومان`, url: payment.url }]]);
+      const sent = await this.send(conversation, text);
       await this.telegram.notifyOwner(conversation.shopId, [
         `🧾 <b>سفارش تازه از اینستاگرام</b>`,
         `کد: ${order.code} · مبلغ: ${order.total.toLocaleString('fa-IR')} تومان`,
@@ -1174,7 +1168,7 @@ export class InstagramService {
         `نشانی: ${escapeHtml(fullAddress(draft))}`,
       ].join('\n')).catch(() => false);
 
-      this.audit.record({ action: 'instagram.order_created', entity: 'order', entityId: order.id, shopId: conversation.shopId, meta: { code: order.code, total: order.total } });
+      this.audit.record({ action: 'instagram.order_created', entity: 'order', entityId: order.id, shopId: conversation.shopId, meta: { code: order.code, total: order.total, payment: 'card_to_card' } });
       return { status: 'handled', replies: sent ? 1 : 0, kind: 'order_created' };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'خطای نامشخص';

@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
-import { api, request, ApiError, type Shop } from '@/lib/api';
-import { Field, PageHeader, SkeletonBlock, Spinner, useToast } from '@/components/ui';
+import { api, request, ApiError, type PaymentMethod, type ReceiptPolicy, type Shop } from '@/lib/api';
+import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { TelegramConnect } from '@/components/telegram-connect';
 import { InstagramConnect } from '@/components/instagram-connect';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
@@ -137,9 +137,9 @@ export default function SettingsPage() {
                 <textarea id="shipping" className="textarea" maxLength={2000} value={form.shipping} onChange={set('shipping')}
                   placeholder="ارسال با پست پیشتاز ۴۵٬۰۰۰ تومان؛ سفارش بالای ۲ میلیون تومان رایگان." />
               </Field>
-              <Field label="روش‌های پرداخت" htmlFor="payment">
+              <Field label="توضیح پرداخت (برای پاسخ دستیار)" htmlFor="payment" hint="متن آزاد برای پاسخ‌گویی دستیار. شماره کارت‌های واقعی را در بخش «روش‌های پرداخت» پایین همین صفحه ثبت کنید؛ پرداخت مشتری همیشه کارت‌به‌کارت است.">
                 <textarea id="payment" className="textarea" maxLength={2000} value={form.payment} onChange={set('payment')}
-                  placeholder="کارت به کارت یا درگاه آنلاین؛ لینک پرداخت پس از تأیید سفارش ارسال می‌شود." />
+                  placeholder="پرداخت کارت‌به‌کارت است؛ بعد از واریز، عکس رسید را بفرستید." />
               </Field>
               <Field label="ساعت کاری" htmlFor="workingHours">
                 <input id="workingHours" className="input" maxLength={2000} value={form.workingHours} onChange={set('workingHours')}
@@ -165,6 +165,8 @@ export default function SettingsPage() {
           {error && <div className="alert alert-error"><IconAlertCircle /><span>{error}</span></div>}
           <section className="card card-pad stack"><h2>اعلان پیامکی سفارش</h2><p className="muted">برای دریافت پیامک فروشنده، شماره موبایل را با کد یک‌بارمصرف تأیید کنید. پیامک مشتری پس از پرداخت جداگانه ارسال می‌شود.</p><Field label="شماره موبایل فروشنده" htmlFor="sellerSms"><input id="sellerSms" className="input input-ltr" dir="ltr" placeholder="09123456789" value={smsPhone} onChange={e=>setSmsPhone(e.target.value)} /></Field>{smsOtpSent && <Field label="کد تأیید" htmlFor="sellerSmsCode"><input id="sellerSmsCode" className="input input-ltr" dir="ltr" inputMode="numeric" maxLength={6} value={smsCode} onChange={e=>setSmsCode(e.target.value)} /></Field>}<div className="row"><button type="button" className="btn btn-outline" onClick={async()=>{try{await request('/auth/phone/otp/request',{method:'POST',body:{phone:smsPhone}});setSmsOtpSent(true);toast.success('کد ارسال شد','درگاه فعلی Mock است.');}catch(e){toast.error('ارسال نشد',e instanceof Error?e.message:'خطا');}}}>{smsOtpSent?'ارسال دوباره کد':'تأیید شماره'}</button>{smsOtpSent&&<button type="button" className="btn btn-primary" onClick={async()=>{try{await request('/auth/phone/otp/verify',{method:'POST',body:{phone:smsPhone,code:smsCode}});toast.success('شماره تأیید شد','شماره برای پیامک فروشنده ثبت شد.');}catch(e){toast.error('تأیید نشد',e instanceof Error?e.message:'کد نامعتبر');}}}>ثبت کد</button>}</div><label className="row"><input type="checkbox" checked={notifySellerSms} onChange={e=>setNotifySellerSms(e.target.checked)} />ارسال پیامک سفارش برای من (اختیاری)</label></section>
         </form>
+
+        <PaymentMethodsSection />
 
         <div className="stack">
           <section className="card card-pad">
@@ -237,5 +239,202 @@ function PreviewRow({ label, value, fallback }: { label: string; value: string; 
       <span className="kv-k">{label}</span>
       <span className={`kv-v ${filled ? '' : 'missing'}`}>{filled ? value : fallback}</span>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------ payment methods */
+
+function PaymentMethodsSection() {
+  const toast = useToast();
+  const [methods, setMethods] = useState<PaymentMethod[] | null>(null);
+  const [policy, setPolicy] = useState<ReceiptPolicy | null>(null);
+  const [editing, setEditing] = useState<PaymentMethod | 'new' | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => {
+    api.paymentMethods().then(setMethods).catch(() => setMethods([]));
+    api.receiptPolicy().then(setPolicy).catch(() => setPolicy(null));
+  };
+
+  useEffect(load, []);
+
+  async function toggle(method: PaymentMethod, active: boolean) {
+    setBusy(true);
+    try {
+      await api.updatePaymentMethod(method.id, { active });
+      toast.success(active ? 'کارت فعال شد.' : 'کارت غیرفعال شد.');
+      load();
+    } catch (problem) {
+      toast.error('تغییر وضعیت انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(method: PaymentMethod) {
+    setBusy(true);
+    try {
+      await api.deletePaymentMethod(method.id);
+      toast.success('کارت حذف شد.');
+      load();
+    } catch (problem) {
+      toast.error('حذف انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePolicy(patch: Partial<ReceiptPolicy>) {
+    setBusy(true);
+    try {
+      const updated = await api.updateReceiptPolicy(patch);
+      setPolicy(updated);
+      toast.success('سیاست رسید ذخیره شد.');
+    } catch (problem) {
+      toast.error('ذخیره سیاست انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div className="row" style={{ gap: 10 }}>
+          <span className="stat-ico"><IconSettings size={15} /></span>
+          <div>
+            <div className="card-title">روش‌های پرداخت (کارت‌به‌کارت)</div>
+            <div className="card-desc">شماره کارت‌ها هنگام ثبت سفارش به مشتری نمایش داده می‌شوند. پرداخت مشتری همیشه کارت‌به‌کارت است.</div>
+          </div>
+        </div>
+        <span className="card-index num">۰۳</span>
+      </div>
+      <div className="card-body" style={{ display: 'grid', gap: 14 }}>
+        {methods === null && <SkeletonBlock height={60} />}
+        {methods !== null && methods.length === 0 && (
+          <div className="alert alert-warn">
+            <IconAlertCircle />
+            <span>هنوز هیچ کارتی ثبت نشده است. تا وقتی کارتی ثبت نکنید، مشتری هنگام سفارش نمی‌داند به کجا واریز کند.</span>
+          </div>
+        )}
+        {methods?.map(method => (
+          <div key={method.id} className="row-between" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px' }}>
+            <div>
+              <div className="strong" style={{ fontSize: 'var(--fs-sm)' }}>{method.holderName}</div>
+              <div className="small muted mono">{method.masked}{method.bankName ? ` · ${method.bankName}` : ''}</div>
+            </div>
+            <div className="row" style={{ gap: 6 }}>
+              <Switch label="فعال" checked={method.active} onChange={next => void toggle(method, next)} />
+              <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => setEditing(method)}>ویرایش</button>
+              <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => void remove(method)} style={{ color: 'var(--danger)' }}>حذف</button>
+            </div>
+          </div>
+        ))}
+        <button className="btn btn-outline btn-sm" onClick={() => setEditing('new')}>
+          + افزودن کارت
+        </button>
+
+        {policy && (
+          <div style={{ display: 'grid', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+            <div className="card-title">سیاست رسید پرداخت</div>
+            <Switch
+              label="تأیید خودکار رسید وقتی مبلغ و مقصد درست است"
+              checked={policy.receiptAutoConfirm}
+              onChange={next => void savePolicy({ receiptAutoConfirm: next })}
+            />
+            <div className="grid g-2">
+              <Field label="سقف مبلغ تأیید خودکار (تومان)" htmlFor="autoMax" hint="خالی = بدون سقف. بالاتر از این مبلغ، رسید برای بررسی شما می‌آید.">
+                <input
+                  id="autoMax" className="input input-ltr" type="number" min={0} max={2147483647}
+                  defaultValue={policy.receiptAutoConfirmMax ?? ''}
+                  key={String(policy.receiptAutoConfirmMax)}
+                  onBlur={event => {
+                    const value = event.target.value.trim();
+                    void savePolicy({ receiptAutoConfirmMax: value === '' ? null : Number(value) });
+                  }}
+                />
+              </Field>
+              <Field label="مهلت انتظار پرداخت (ساعت)" htmlFor="waitHours" hint="بعد از این مهلت، سفارش لغو و موجودی آزاد می‌شود.">
+                <input
+                  id="waitHours" className="input input-ltr" type="number" min={1} max={168}
+                  defaultValue={policy.paymentWaitHours}
+                  key={String(policy.paymentWaitHours)}
+                  onBlur={event => void savePolicy({ paymentWaitHours: Number(event.target.value) || 24 })}
+                />
+              </Field>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {editing && (
+        <PaymentMethodModal
+          method={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+    </section>
+  );
+}
+
+function PaymentMethodModal({ method, onClose, onSaved }: { method: PaymentMethod | null; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const body = {
+      holderName: String(data.get('holderName') ?? '').trim(),
+      cardNumber: String(data.get('cardNumber') ?? '').trim(),
+      bankName: String(data.get('bankName') ?? '').trim(),
+      sheba: String(data.get('sheba') ?? '').trim(),
+      instruction: String(data.get('instruction') ?? '').trim(),
+    };
+    setBusy(true);
+    try {
+      if (method) {
+        const { cardNumber, ...rest } = body;
+        await api.updatePaymentMethod(method.id, cardNumber ? { ...rest, cardNumber } : rest);
+        toast.success('کارت به‌روزرسانی شد.');
+      } else {
+        await api.createPaymentMethod(body);
+        toast.success('کارت اضافه شد.');
+      }
+      onSaved();
+    } catch (problem) {
+      toast.error('ذخیره انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open onClose={onClose} title={method ? 'ویرایش کارت' : 'کارت جدید'}
+      description="شماره کارت فقط رمزنگاری‌شده ذخیره می‌شود و هرگز در پاسخ‌ها یا لاگ‌ها دیده نمی‌شود."
+      footer={<><button className="btn btn-ghost" onClick={onClose}>انصراف</button><button className="btn btn-primary" form="pm-form" disabled={busy}>{busy && <Spinner size={14} />}ذخیره</button></>}
+    >
+      <form id="pm-form" onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
+        <Field label="نام دارنده‌ی کارت" required htmlFor="holderName">
+          <input id="holderName" name="holderName" className="input" required maxLength={200} defaultValue={method?.holderName ?? ''} placeholder="مثلاً علی رضایی" autoFocus />
+        </Field>
+        <Field label="شماره کارت (۱۶ رقم)" required={!method} htmlFor="cardNumber" hint={method ? 'خالی بگذارید تا شماره‌ی فعلی بماند.' : 'با رقم کنترل اعتبارسنجی می‌شود.'}>
+          <input id="cardNumber" name="cardNumber" className="input input-ltr" required={!method} inputMode="numeric" maxLength={19} placeholder="6037 9912 3456 7893" />
+        </Field>
+        <div className="grid g-2">
+          <Field label="نام بانک" htmlFor="bankName">
+            <input id="bankName" name="bankName" className="input" maxLength={100} defaultValue={method?.bankName ?? ''} placeholder="ملی، ملت…" />
+          </Field>
+          <Field label="شبا (اختیاری)" htmlFor="sheba">
+            <input id="sheba" name="sheba" className="input input-ltr" maxLength={26} defaultValue={method?.sheba ?? ''} placeholder="IR…" />
+          </Field>
+        </div>
+        <Field label="متن دستور پرداخت" htmlFor="instruction" hint="مثلاً: «فقط به همین کارت واریز کنید و رسید بفرستید.»">
+          <input id="instruction" name="instruction" className="input" maxLength={500} defaultValue={method?.instruction ?? ''} />
+        </Field>
+      </form>
+    </Modal>
   );
 }

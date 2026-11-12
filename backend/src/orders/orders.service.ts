@@ -141,21 +141,6 @@ export class OrdersService {
   }
 
   // ------------------------------------------------------------------ پرداخت
-  async attachPayment(shopId: string, orderId: string, payment: { provider: string; authority: string }) {
-    const result = await this.db.order.updateMany({
-      where: { shopId, id: orderId, status: OrderStatus.AWAITING_PAYMENT },
-      data: { paymentProvider: payment.provider, paymentAuthority: payment.authority },
-    });
-    if (!result.count) throw new NotFoundException('سفارش در انتظار پرداخت پیدا نشد.');
-    this.audit.record({
-      action: 'order.payment_started',
-      entity: 'order',
-      entityId: orderId,
-      shopId,
-      meta: { provider: payment.provider, authority: payment.authority },
-    });
-  }
-
   /**
    * پرداخت موفق. idempotent است: اگر کاربر دو بار روی لینک برگشت بزند یا درگاه
    * دوباره callback بزند، موجودی و اعلان تکرار نمی‌شود.
@@ -249,14 +234,6 @@ export class OrdersService {
       'برای تغییر وضعیت (ارسال شد/تحویل) به پنل → سفارش‌ها بروید.',
       '💬 برای پاسخ به مشتری، روی همین پیام «پاسخ» بزنید.',
     ].filter(Boolean).join('\n'));
-  }
-
-  /** سفارش از روی authority؛ صفحه‌ی پرداخت و verify از این استفاده می‌کنند. */
-  findByAuthority(authority: string) {
-    return this.db.order.findFirst({
-      where: { paymentAuthority: authority },
-      include: { items: true, shop: { select: { id: true, name: true } } },
-    });
   }
 
   // ------------------------------------------------------------------ لغو/انقضا

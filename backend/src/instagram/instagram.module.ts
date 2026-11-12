@@ -6,6 +6,7 @@ import { InstagramController } from './instagram.controller';
 import { InstagramService } from './instagram.service';
 import { InstagramWebhookController } from './instagram.webhook.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 /**
  * کانال اینستاگرام (دایرکت) روی BoxAPI.
@@ -19,7 +20,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
  *  - `AiModule` برای مدل زبانی اختیاری، مثل تلگرام.
  */
 @Module({
-  imports: [forwardRef(() => OrdersModule), forwardRef(() => TelegramModule), AiModule, SubscriptionsModule],
+  imports: [forwardRef(() => OrdersModule), forwardRef(() => TelegramModule), AiModule, SubscriptionsModule, PaymentsModule],
   controllers: [InstagramWebhookController, InstagramController],
   providers: [InstagramService],
   exports: [InstagramService],

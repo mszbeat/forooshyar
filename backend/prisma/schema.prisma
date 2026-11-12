@@ -72,6 +72,40 @@ model Shop {
   orders         Order[]
   chatMessages   ChatMessage[]
   stockAlerts    StockAlert[]
+  paymentMethods ShopPaymentMethod[]
+  /// سیاست رسید پرداخت (فاز V2-3): تأیید خودکار روشن است یا نه، سقف مبلغ
+  /// تأیید خودکار و مهلت انتظار پرداخت (ساعت) قبل از آزادشدن موجودی.
+  receiptAutoConfirm Boolean @default(true)
+  receiptAutoConfirmMax Int?
+  paymentWaitHours     Int     @default(24)
+}
+
+/// روش پرداخت فروشگاه: کارت‌به‌کارت. شماره کارت فقط رمزنگاری‌شده ذخیره
+/// می‌شود و در پاسخ‌ها/لاگ‌ها فقط ماسک‌شده (****1234) دیده می‌شود.
+/// درگاه آنلاین فقط برای فروش پلن/اعتبار به فروشنده است، نه پرداخت مشتری.
+model ShopPaymentMethod {
+  id           String   @id @default(uuid()) @db.Uuid
+  shopId       String   @db.Uuid
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// نام دارنده‌ی کارت (همان‌طور که روی کارت است).
+  holderName   String
+  /// شماره کارت رمزنگاری‌شده (AES-256-GCM با کلید `CARD_ENCRYPTION_KEY`).
+  cardNumberEnc String
+  /// چهار رقم آخر برای نمایش ماسک‌شده.
+  cardLast4    String
+  /// نام بانک (اختیاری، مثل «ملی» یا «ملت»).
+  bankName     String   @default("")
+  /// شبا (اختیاری).
+  sheba        String   @default("")
+  /// متن دستور پرداخت که به مشتری نمایش داده می‌شود.
+  instruction  String   @default("")
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([shopId, id])
+  @@index([shopId, active])
 }
 
 /// نوع کالا: فیزیکی یا خدمت. یک فروشگاه می‌تواند هر دو را داشته باشد.
