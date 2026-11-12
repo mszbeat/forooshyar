@@ -1144,15 +1144,13 @@ section[id] { scroll-margin-top: 70px; }
 
 /* ---------- ماسکات برند ---------- */
 .brand-mascot { display: block; flex-shrink: 0; }
-.brand-mascot .brand-eyes { transform-box: fill-box; transform-origin: center; }
-.brand-mascot .brand-mouth { transform-box: fill-box; transform-origin: center; transition: transform .25s ease; }
-.brand-mascot-animated .brand-eyes { animation: brand-blink 4.6s ease-in-out infinite; }
-@keyframes brand-blink {
-  0%, 91%, 100% { transform: scaleY(1); }
-  94.5% { transform: scaleY(0.08); }
+.brand-mascot-animated { animation: brand-float 4.6s ease-in-out infinite; }
+@keyframes brand-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -3px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand-mascot-animated .brand-eyes { animation: none; }
+  .brand-mascot-animated { animation: none; }
 }
 
 /* ---------- ماسکات تعاملی لندینگ ---------- */

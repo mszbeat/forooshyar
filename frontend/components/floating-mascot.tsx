@@ -88,8 +88,11 @@ export function FloatingMascot() {
         eyeRef.current.y += (targetRef.current.y - eyeRef.current.y) * 0.12;
         const el = wrapRef.current;
         if (el) {
-          const eyes = el.querySelector('.brand-eyes');
-          if (eyes) eyes.setAttribute('transform', `translate(${eyeRef.current.x.toFixed(2)} ${eyeRef.current.y.toFixed(2)})`);
+          // روی تصویر سه‌بعدی، «دنبال‌کردن چشم» با جابه‌جایی ظریف کل ماسکات بازنمایی می‌شود.
+          const img = el.querySelector('.brand-mascot');
+          if (img instanceof HTMLElement) {
+            img.style.translate = `${(eyeRef.current.x * 0.6).toFixed(2)}px ${(eyeRef.current.y * 0.6).toFixed(2)}px`;
+          }
         }
       }
       rafRef.current = requestAnimationFrame(tick);
