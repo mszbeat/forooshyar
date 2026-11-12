@@ -16,7 +16,7 @@ describe('فهرست تنظیمات پنل ادمین', () => {
     assert.equal(new Set(keys).size, keys.length);
     for (const def of SETTINGS) {
       assert.match(def.key, /^[A-Z][A-Z0-9_]*$/, def.key);
-      assert.ok(['ai', 'telegram', 'payments', 'otp', 'database', 'system'].includes(def.group), def.key);
+      assert.ok(['ai', 'telegram', 'messengers', 'payments', 'otp', 'database', 'system'].includes(def.group), def.key);
     }
   });
 

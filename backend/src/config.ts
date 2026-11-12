@@ -34,6 +34,13 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32),
   CARD_ENCRYPTION_KEY: encryptionKeySchema('CARD_ENCRYPTION_KEY'),
   CHANNEL_TOKEN_ENCRYPTION_KEY: encryptionKeySchema('CHANNEL_TOKEN_ENCRYPTION_KEY'),
+  // بات‌های مشترک بله و روبیکا: توکن و سکرت webhook از env یا پنل ادمین
+  // می‌آیند (اولویت با دیتابیس است؛ `applyOverrides` روی process.env می‌نشیند).
+  // فروشنده‌ها توکن خودشان را وارد نمی‌کنند.
+  BALE_BOT_TOKEN: z.string().optional(),
+  BALE_WEBHOOK_SECRET: z.string().optional(),
+  RUBIKA_BOT_TOKEN: z.string().optional(),
+  RUBIKA_WEBHOOK_SECRET: z.string().optional(),
 }).superRefine((config, context) => {
   const origins = config.CORS_ORIGINS.split(',').map(value => value.trim()).filter(Boolean);
   for (const origin of origins) {

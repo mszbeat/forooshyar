@@ -9,10 +9,10 @@ import { EmptyState, PageHeader, Spinner, useToast } from '@/components/ui';
 import { IconAlertCircle, IconCheckCircle, IconDownload, IconFile, IconInfo, IconUpload, IconX } from '@/components/icons';
 
 const SAMPLE_CSV = [
-  'name,price,stock,size,color,sku',
-  'مانتو کتان تابستانه,890000,12,M,کرم,MN-KTN-M-KRM',
-  'مانتو کتان تابستانه,890000,3,L,مشکی,MN-KTN-L-MSH',
-  'شال نخی طرح‌دار,450000,25,,فیروزه‌ای,SHL-NKH-FRZ',
+  'code,name,price,stock,attribute_1,value_1,attribute_2,value_2',
+  'MN-KTN,مانتو کتان تابستانه,890000,12,رنگ,کرم,سایز,M',
+  'MN-KTN,مانتو کتان تابستانه,890000,3,رنگ,مشکی,سایز,L',
+  'SHL-NKH,شال نخی طرح‌دار,450000,25,رنگ,فیروزه‌ای,,',
 ].join('\n');
 
 /** Turns the API's field-level errors into a short Persian explanation. */
@@ -29,11 +29,13 @@ function explainRow(errors: string[] | undefined): string {
 }
 
 const COLUMNS = [
+  { name: 'code', desc: 'کد محصول؛ ردیف‌های با کد یکسان یک محصول با چند واریانت می‌شوند', required: false },
   { name: 'name', desc: 'نام محصول', required: true },
-  { name: 'price', desc: 'قیمت به تومان (عدد صحیح)', required: true },
+  { name: 'price', desc: 'قیمت به تومان (عدد صحیح)؛ «توافقی» یعنی قیمت توافقی', required: true },
   { name: 'stock', desc: 'موجودی اولیه', required: true },
-  { name: 'size', desc: 'سایز واریانت', required: false },
-  { name: 'color', desc: 'رنگ واریانت', required: false },
+  { name: 'attribute_1 / value_1', desc: 'نام و مقدار ویژگی اول واریانت (مثل رنگ/مشکی)؛ تا attribute_10/value_10', required: false },
+  { name: 'size', desc: 'سایز واریانت (میان‌بر)', required: false },
+  { name: 'color', desc: 'رنگ واریانت (میان‌بر)', required: false },
   { name: 'sku', desc: 'کد کالا؛ باید یکتا باشد', required: false },
 ];
 

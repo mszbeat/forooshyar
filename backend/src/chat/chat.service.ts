@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { BaleAdapter, RubikaAdapter } from '../channels/channel-adapters';
 
 /**
  * شماره‌ی مستعار پایدار برای یک گفتگو.
@@ -29,7 +30,13 @@ export function pseudonymNumber(chatId: string): number {
 export function displayName(row: { chatId: string; firstName: string; username: string }): string {
   if (row.firstName) return row.firstName;
   if (row.username) return `@${row.username.replace(/^@/, '')}`;
-  const channel = row.chatId.startsWith('ig:') ? 'اینستاگرام' : 'تلگرام';
+  const channel = row.chatId.startsWith('ig:')
+    ? 'اینستاگرام'
+    : row.chatId.startsWith('bale:')
+      ? 'بله'
+      : row.chatId.startsWith('rubika:')
+        ? 'روبیکا'
+        : 'تلگرام';
   return `مشتری ${channel} ${pseudonymNumber(row.chatId).toLocaleString('fa-IR')}`;
 }
 
@@ -167,6 +174,21 @@ export class ChatService {
       })),
       orders: orders.map(order => ({ ...order, createdAt: order.createdAt.toISOString() })),
     };
+  }
+
+  /** ارسال پیام به مشتری با باتِ همان کانال (پیشوند chatId مشخص می‌کند). */
+  private async sendByChannel(chatId: string, text: string): Promise<boolean> {
+    if (chatId.startsWith('bale:')) {
+      const result = await new BaleAdapter((process.env.BALE_BOT_TOKEN ?? '').trim())
+        .send({ chatId: chatId.slice('bale:'.length), text });
+      return result.ok;
+    }
+    if (chatId.startsWith('rubika:')) {
+      const result = await new RubikaAdapter((process.env.RUBIKA_BOT_TOKEN ?? '').trim())
+        .send({ chatId: chatId.slice('rubika:'.length), text });
+      return result.ok;
+    }
+    return this.telegram.sendTo(chatId, text);
   }
 
   /**

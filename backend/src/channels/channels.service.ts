@@ -59,7 +59,11 @@ export class ChannelsService {
 
   /**
    * ثبت/به‌روزرسانی اتصال. برای اینستاگرام `externalId` همان account_id
-   * BoxAPI است و سکرتی لازم نیست؛ برای بات‌ها توکن رمزنگاری می‌شود.
+   * BoxAPI است و سکرتی لازم نیست؛ برای تلگرام توکن رمزنگاری می‌شود.
+   *
+   * بله و روبیکا «بات مشترک» دارند: توکن و سکرت webhook فقط از env یا پنل
+   * ادمین می‌آیند (`BALE_BOT_TOKEN`/`RUBIKA_BOT_TOKEN`) و فروشنده هرگز توکن
+   * خودش را وارد نمی‌کند؛ پس اگر `secret` برای این دو پلتفرم آمد، رد می‌شود.
    */
   async connect(shopId: string, input: {
     platform: ChannelPlatform;
@@ -72,6 +76,12 @@ export class ChannelsService {
   }): Promise<ChannelConnectionView> {
     const externalId = input.externalId.trim();
     if (!externalId) throw new BadRequestException('شناسه‌ی حساب لازم است.');
+    if ((input.platform === 'BALE' || input.platform === 'RUBIKA') && input.secret) {
+      const label = input.platform === 'BALE' ? 'بله' : 'روبیکا';
+      throw new BadRequestException(
+        `توکن بات ${label} توسط مدیر پلتفرم تنظیم می‌شود؛ نیازی به وارد کردن توکن نیست. فقط اتصال را فعال کنید.`,
+      );
+    }
     const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null;
     if (input.expiresAt && Number.isNaN(expiresAt?.getTime())) {
       throw new BadRequestException('تاریخ انقضا معتبر نیست.');

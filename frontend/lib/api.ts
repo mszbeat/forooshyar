@@ -403,6 +403,11 @@ export const api = {
     request<Product>(`/products/${productId}/attributes`, { method: 'POST', body: { attributes } }),
   generateVariants: (productId: string) =>
     request<{ created: number; kept: number; deactivated: number; product: Product }>(`/products/${productId}/generate-variants`, { method: 'POST' }),
+  createVariantsBatch: (productId: string, body: {
+    attributes: { name: string; values: string[] }[];
+    variants: { options: Record<string, string>; price: number; stock: number }[];
+  }) =>
+    request<{ created: number; updated: number; product: Product }>(`/products/${productId}/variants/batch`, { method: 'POST', body }),
   bulkVariants: (productId: string, body: {
     variantIds?: string[]; priceMode?: 'set' | 'percent'; priceValue?: number;
     stockMode?: 'set' | 'add'; stockValue?: number;

@@ -27,6 +27,14 @@ const attributes = z.object({
   attributes: z.array(z.object({ name: text, values: z.array(text).min(1).max(50) }).strict()).max(10),
 }).strict();
 const postLink = z.object({ input: z.string().trim().min(1).max(500) }).strict();
+const batch = z.object({
+  attributes: z.array(z.object({ name: text, values: z.array(text).min(1).max(50) }).strict()).max(10),
+  variants: z.array(z.object({
+    options: z.record(z.string(), z.string().trim().max(200)),
+    price: integer,
+    stock: integer.default(0),
+  }).strict()).min(1).max(100),
+}).strict();
 const bulk = z.object({
   variantIds: z.array(z.string().uuid()).optional(),
   priceMode: z.enum(['set', 'percent']).optional(),
@@ -53,6 +61,7 @@ export class CatalogController {
   @Get('attribute-suggestions') attributeSuggestions(@Req() req: Request) { return this.catalog.attributeSuggestions(req.principal.shopId); }
   @Post('products/:id/attributes') setAttributes(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) { return this.catalog.setAttributes(req.principal.shopId, id, parse(attributes, body).attributes); }
   @Post('products/:id/generate-variants') generateVariants(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.catalog.generateVariants(req.principal.shopId, req.principal.userId, id); }
+  @Post('products/:id/variants/batch') createVariantsBatch(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) { return this.catalog.createVariantsBatch(req.principal.shopId, req.principal.userId, id, parse(batch, body)); }
   @Post('products/:id/bulk-variants') bulkVariants(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) { return this.catalog.bulkUpdateVariants(req.principal.shopId, req.principal.userId, id, parse(bulk, body)); }
   @Post('products/:id/post-links') addPostLink(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string, @Body() body: unknown) { return this.catalog.addPostLink(req.principal.shopId, id, parse(postLink, body).input); }
   @Get('products/:id/post-links') listPostLinks(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) { return this.catalog.listPostLinks(req.principal.shopId, id); }

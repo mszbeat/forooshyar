@@ -75,7 +75,7 @@ export type SettingKind = 'bool' | 'text' | 'secret' | 'number' | 'url' | 'choic
 
 export type SettingView = {
   key: string;
-  group: 'ai' | 'telegram' | 'payments' | 'otp' | 'database' | 'system';
+  group: 'ai' | 'telegram' | 'messengers' | 'payments' | 'otp' | 'database' | 'system';
   label: string;
   kind: SettingKind;
   hint: string | null;

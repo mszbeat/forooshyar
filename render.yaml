@@ -83,6 +83,19 @@ services:
       # openssl rand -hex 32 — هم در مسیر URL می‌آید هم به‌عنوان هدر بررسی می‌شود.
       - key: TELEGRAM_WEBHOOK_SECRET
         generateValue: true
+      # --- بله و روبیکا: بات مشترک (فروشنده توکن وارد نمی‌کند) ------------------
+      # توکن بات بله از @BotFather؛ در Dashboard مقدار بده.
+      - key: BALE_BOT_TOKEN
+        sync: false
+      # openssl rand -hex 32 — بخش آخر مسیر /bale/webhook/<secret>
+      - key: BALE_WEBHOOK_SECRET
+        generateValue: true
+      # توکن بات روبیکا از بخش بات‌های روبیکا؛ در Dashboard مقدار بده.
+      - key: RUBIKA_BOT_TOKEN
+        sync: false
+      # openssl rand -hex 32 — بخش آخر مسیر /rubika/webhook/<secret>
+      - key: RUBIKA_WEBHOOK_SECRET
+        generateValue: true
       # آدرس عمومی همین سرویس API: لینک پرداخت و آدرس webhook از این ساخته می‌شود.
       - key: PUBLIC_API_URL
         sync: false

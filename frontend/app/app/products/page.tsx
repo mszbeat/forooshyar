@@ -682,6 +682,12 @@ useEffect(() => { void load(); }, [load]);
 
 type AttrDraft = { name: string; values: string[] };
 
+type DraftRow = { key: string; options: Record<string, string>; price: number; stock: number };
+
+function comboKeyOf(options: Record<string, string>): string {
+  return Object.keys(options).sort().map(name => `${name}=${options[name]}`).join('|');
+}
+
 function AttributesModal({ product, onClose, onSaved }: { product: Product; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [drafts, setDrafts] = useState<AttrDraft[]>(() =>
@@ -689,6 +695,9 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
   );
   const [suggestions, setSuggestions] = useState<{ names: string[]; valuesByName: Record<string, string[]> } | null>(null);
   const [busy, setBusy] = useState(false);
+  // ویرایش‌های قیمت/موجودی هر ترکیب (کلید = comboKey) و ترکیب‌های حذف‌شده از پیش‌نویس.
+  const [edits, setEdits] = useState<Record<string, { price: number; stock: number }>>({});
+  const [removed, setRemoved] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     api.attributeSuggestions().then(setSuggestions).catch(() => setSuggestions(null));
@@ -698,7 +707,7 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
     .map(draft => ({ name: draft.name.trim(), values: draft.values.map(v => v.trim()).filter(Boolean) }))
     .filter(draft => draft.name && draft.values.length > 0);
 
-  // پیش‌نمایش زنده‌ی ترکیب‌ها: ضرب دکارتی ویژگی‌ها (مثل رنگ × سایز).
+  // ترکیب‌های مرتب: ضرب دکارتی ویژگی‌ها (مثل رنگ × سایز → مشکی/M، مشکی/L، آبی/M، آبی/L).
   const preview = useMemo(() => {
     if (cleaned.length === 0) return [] as Record<string, string>[];
     let combos: Record<string, string>[] = [{}];
@@ -712,25 +721,54 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
     return combos;
   }, [drafts]);
 
+  const defaultPrice = product.defaultPrice ?? 0;
+  const defaultStock = product.defaultStock ?? 0;
+
+  // ردیف‌های پیش‌نویس: هر ترکیب یک ردیف با قیمت/موجودی قابل‌ویرایش؛ پیش‌فرض از خود محصول.
+  const rows: DraftRow[] = useMemo(() => preview
+    .map(combo => {
+      const key = comboKeyOf(combo);
+      const edit = edits[key];
+      return { key, options: combo, price: edit?.price ?? defaultPrice, stock: edit?.stock ?? defaultStock };
+    })
+    .filter(row => !removed.has(row.key)), [preview, edits, removed, defaultPrice, defaultStock]);
+
   const totalCombos = preview.length;
 
   function updateDraft(index: number, patch: Partial<AttrDraft>) {
     setDrafts(current => current.map((draft, i) => (i === index ? { ...draft, ...patch } : draft)));
   }
 
-  /** یک جریان واحد: اول ویژگی‌ها ذخیره می‌شوند، بعد واریانت‌ها از روی همان‌ها ساخته می‌شوند. */
-  async function saveAndGenerate() {
+  function updateRow(key: string, patch: { price?: number; stock?: number }) {
+    setEdits(current => {
+      const base = current[key] ?? { price: defaultPrice, stock: defaultStock };
+      return { ...current, [key]: { ...base, ...patch } };
+    });
+  }
+
+  function removeRow(key: string) {
+    setRemoved(current => new Set(current).add(key));
+  }
+
+  /** ثبت دسته‌ای: ویژگی‌ها ذخیره می‌شوند و هر ردیف با قیمت/موجودیِ خودش ثبت می‌شود. */
+  async function registerVariants() {
     if (cleaned.length === 0) { toast.error('حداقل یک ویژگی با حداقل یک مقدار لازم است.'); return; }
     if (totalCombos > 100) { toast.error(`تعداد ترکیب‌ها (${faNum(totalCombos)}) از سقف ۱۰۰ گذشته است.`); return; }
-    if (product.variants.length > 0 && !window.confirm('واریانت‌ها از روی این ویژگی‌ها ساخته می‌شوند. ترکیب‌های موجود و قیمت/موجودی ویرایش‌شده حفظ می‌شوند و ترکیب‌های حذف‌شده غیرفعال می‌شوند. ادامه می‌دهید؟')) return;
+    if (rows.length === 0) { toast.error('همه‌ی ترکیب‌ها حذف شده‌اند؛ دست‌کم یک واریانت لازم است.'); return; }
+    if (rows.some(row => !Number.isInteger(row.price) || row.price < 0 || !Number.isInteger(row.stock) || row.stock < 0)) {
+      toast.error('قیمت و موجودی هر واریانت باید عدد صحیح نامنفی باشد.');
+      return;
+    }
     setBusy(true);
     try {
-      await api.setAttributes(product.id, cleaned);
-      const result = await api.generateVariants(product.id);
-      toast.success(`واریانت‌ها ساخته شدند: ${faNum(result.created)} جدید، ${faNum(result.kept)} حفظ شد، ${faNum(result.deactivated)} غیرفعال شد.`);
+      const result = await api.createVariantsBatch(product.id, {
+        attributes: cleaned,
+        variants: rows.map(row => ({ options: row.options, price: row.price, stock: row.stock })),
+      });
+      toast.success(`واریانت‌ها ثبت شدند: ${faNum(result.created)} جدید، ${faNum(result.updated)} به‌روز شد.`);
       onSaved();
     } catch (problem) {
-      toast.error('ساخت واریانت انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+      toast.error('ثبت واریانت‌ها انجام نشد', problem instanceof ApiError ? problem.message : undefined);
     } finally {
       setBusy(false);
     }
@@ -739,19 +777,19 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
   return (
     <Modal
       open onClose={onClose} size="lg" title="ساخت واریانت از ویژگی‌ها"
-      description={`${product.title} — ویژگی‌ها را بنویسید (مثل رنگ و سایز)؛ واریانت‌ها خودکار از ترکیب همه‌ی مقدارها ساخته می‌شوند.`}
+      description={`${product.title} — ویژگی‌ها را بنویسید (مثل رنگ و سایز)؛ ترکیب‌ها به ترتیب ساخته می‌شوند و قیمت/موجودی هر کدام را می‌توانید جدا تغییر دهید.`}
       footer={
         <>
           <button className="btn btn-ghost" onClick={onClose}>انصراف</button>
-          <button className="btn btn-primary" onClick={() => void saveAndGenerate()} disabled={busy || cleaned.length === 0 || totalCombos > 100}>
-            {busy && <Spinner size={14} />}ذخیره و ساخت {faNum(totalCombos)} واریانت
+          <button className="btn btn-primary" onClick={() => void registerVariants()} disabled={busy || cleaned.length === 0 || totalCombos > 100 || rows.length === 0}>
+            {busy && <Spinner size={14} />}ثبت وارینت‌ها ({faNum(rows.length)})
           </button>
         </>
       }
     >
       <div className="stack">
         <div className="small muted" style={{ lineHeight: 1.9 }}>
-          <strong>قدم ۱:</strong> هر ویژگی را با نام و مقدارهایش بنویسید. <strong>قدم ۲:</strong> ترکیب‌های ساخته‌شده را پایین ببینید. <strong>قدم ۳:</strong> دکمه‌ی «ذخیره و ساخت» را بزنید.
+          <strong>قدم ۱:</strong> هر ویژگی را با نام و مقدارهایش بنویسید. <strong>قدم ۲:</strong> ترکیب‌های مرتب را پایین ببینید و قیمت/موجودی هر کدام را در صورت نیاز تغییر دهید. <strong>قدم ۳:</strong> «ثبت وارینت‌ها» را بزنید.
         </div>
         {drafts.map((draft, index) => (
           <div key={index} className="card card-pad" style={{ display: 'grid', gap: 10 }}>
@@ -796,14 +834,37 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
         {cleaned.length > 0 && (
           <div className="card card-pad" style={{ display: 'grid', gap: 8 }}>
             <div className="row-between">
-              <strong style={{ fontSize: 'var(--fs-sm)' }}>پیش‌نمایش ترکیب‌ها ({faNum(totalCombos)} واریانت)</strong>
-              <span className="small muted">قیمت پیش‌فرض محصول و موجودی ۰ روی همه اعمال می‌شود</span>
+              <strong style={{ fontSize: 'var(--fs-sm)' }}>پیش‌نویس واریانت‌ها ({faNum(rows.length)} واریانت)</strong>
+              <span className="small muted">پیش‌فرض قیمت و موجودی از محصول گرفته شده و برای هر ردیف قابل تغییر است</span>
             </div>
-            <div className="row" style={{ gap: 6, flexWrap: 'wrap', maxHeight: 180, overflowY: 'auto' }}>
-              {preview.slice(0, 100).map((combo, i) => (
-                <span key={i} className="badge b-blue" style={{ fontWeight: 500 }}>
-                  {Object.entries(combo).map(([k, v]) => `${k}: ${v}`).join(' · ')}
-                </span>
+            <div style={{ display: 'grid', gap: 6, maxHeight: 260, overflowY: 'auto' }}>
+              {rows.slice(0, 100).map(row => (
+                <div key={row.key} className="row" style={{ gap: 8, alignItems: 'center', borderBottom: '1px dashed var(--line)', paddingBottom: 6 }}>
+                  <span className="badge b-blue" style={{ fontWeight: 500, flex: '1 1 auto', minWidth: 0 }}>
+                    {Object.entries(row.options).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                  </span>
+                  <label className="small muted" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    قیمت
+                    <input
+                      className="input input-ltr" type="number" min={0} step={1} style={{ width: 110 }}
+                      value={row.price}
+                      onChange={event => updateRow(row.key, { price: Number(event.target.value) })}
+                      aria-label={`قیمت واریانت ${Object.values(row.options).join(' ')}`}
+                    />
+                  </label>
+                  <label className="small muted" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    موجودی
+                    <input
+                      className="input input-ltr" type="number" min={0} step={1} style={{ width: 80 }}
+                      value={row.stock}
+                      onChange={event => updateRow(row.key, { stock: Number(event.target.value) })}
+                      aria-label={`موجودی واریانت ${Object.values(row.options).join(' ')}`}
+                    />
+                  </label>
+                  <button className="btn btn-ghost btn-sm" onClick={() => removeRow(row.key)} aria-label="حذف این ترکیب از پیش‌نویس">
+                    <IconTrash size={14} />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -817,7 +878,7 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
         )}
         <div className="alert alert-info">
           <IconAlertCircle />
-          <span>حداکثر ۱۰۰ واریانت ساخته می‌شود. ترکیب‌هایی که قبلاً ساخته‌اید (و قیمت/موجودی ویرایش‌شده‌شان) دست نمی‌خورند؛ ترکیب‌های حذف‌شده فقط غیرفعال می‌شوند.</span>
+          <span>حداکثر ۱۰۰ واریانت ثبت می‌شود. ترکیب‌هایی که قبلاً ثبت شده‌اند با قیمت و موجودی همین پیش‌نویس به‌روز می‌شوند. همین ویژگی‌ها را می‌توانید از فایل اکسل هم وارد کنید (ستون‌های <span dir="ltr">attribute_N/value_N</span>).</span>
         </div>
       </div>
     </Modal>

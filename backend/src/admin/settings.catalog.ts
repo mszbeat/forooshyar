@@ -13,7 +13,7 @@
  * هم بدون Deploy مجدد رفتار سرویس را عوض کند.
  */
 
-export type SettingGroup = 'ai' | 'telegram' | 'payments' | 'otp' | 'database' | 'system';
+export type SettingGroup = 'ai' | 'telegram' | 'messengers' | 'payments' | 'otp' | 'database' | 'system';
 export type SettingKind = 'bool' | 'text' | 'secret' | 'number' | 'url' | 'choice';
 
 export type SettingDef = {
@@ -169,6 +169,27 @@ export const SETTINGS: SettingDef[] = [
     key: 'PUBLIC_API_URL', group: 'telegram', label: 'آدرس عمومی API', kind: 'url', optional: true,
     placeholder: 'https://forooshyar-api.onrender.com',
     hint: 'برای ساختن نشانی webhook لازم است؛ اگر خالی باشد از هدرهای درخواست حدس زده می‌شود.',
+  },
+
+  // ------------------------------------------------------- پیام‌رسان‌های ایرانی
+  // بات بله و روبیکا «مشترک» است: یک بات برای همه‌ی فروشگاه‌ها. فروشنده‌ها
+  // توکن خودشان را وارد نمی‌کنند؛ فقط اتصال را فعال می‌کنند. مسیریابی به
+  // فروشگاه با کد لینک (`/start <code>`) انجام می‌شود، مثل تلگرام.
+  {
+    key: 'BALE_BOT_TOKEN', group: 'messengers', label: 'توکن بات بله', kind: 'secret', optional: true,
+    placeholder: '123456789:AA…', hint: 'از @BotFather در بله. همه‌ی فروشگاه‌ها از همین بات مشترک استفاده می‌کنند.',
+  },
+  {
+    key: 'BALE_WEBHOOK_SECRET', group: 'messengers', label: 'سکرت webhook بله', kind: 'secret', optional: true,
+    hint: 'حداقل ۱۶ کاراکتر؛ بخش آخر مسیر webhook بله است (`/bale/webhook/<secret>`).',
+  },
+  {
+    key: 'RUBIKA_BOT_TOKEN', group: 'messengers', label: 'توکن بات روبیکا', kind: 'secret', optional: true,
+    placeholder: '…', hint: 'توکن بات روبیکا از بخش بات‌های روبیکا. همه‌ی فروشگاه‌ها از همین بات مشترک استفاده می‌کنند.',
+  },
+  {
+    key: 'RUBIKA_WEBHOOK_SECRET', group: 'messengers', label: 'سکرت webhook روبیکا', kind: 'secret', optional: true,
+    hint: 'حداقل ۱۶ کاراکتر؛ بخش آخر مسیر webhook روبیکا است (`/rubika/webhook/<secret>`).',
   },
 
   // --------------------------------------------------------------------- پرداخت

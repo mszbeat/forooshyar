@@ -102,3 +102,66 @@ export function sizeColorFromOptions(options: Record<string, string>): {
 } {
   return { size: options['سایز'] ?? '', color: options['رنگ'] ?? '' };
 }
+
+export interface BatchVariantInput {
+  options: Record<string, string>;
+  price: number;
+  stock: number;
+}
+
+export interface BatchInput {
+  attributes: AttributeOption[];
+  variants: BatchVariantInput[];
+}
+
+/**
+ * پاک‌سازی و اعتبارسنجی ورودی «ثبت دسته‌ای واریانت‌ها» (پیش‌نویس مودال محصول).
+ *
+ * چرا خالص: همین قاعده‌ها هم در سرویس (قبل از نوشتن در DB) و هم در تست
+ * بررسی می‌شوند. خطاها با پیام فارسی برمی‌گردند تا سرویس آن‌ها را به
+ * BadRequestException تبدیل کند.
+ *
+ * قانون‌ها:
+ *  - نام ویژگی تکراری ممنوع؛ حداکثر ۱۰ ویژگی.
+ *  - کلیدهای هر واریانت باید زیرمجموعه‌ی نام ویژگی‌ها باشند و دست‌کم یک
+ *    ویژگی داشته باشد (ترکیب جزئی هم مجاز است، نه فقط ضرب دکارتی کامل).
+ *  - قیمت و موجودی عدد صحیح نامنفی‌اند.
+ *  - ترکیب تکراری در یک درخواست ممنوع؛ سقف ۱۰۰ واریانت.
+ */
+export function cleanBatchInput(input: BatchInput): {
+  attributes: AttributeOption[];
+  variants: (BatchVariantInput & { key: string })[];
+} {
+  const attributes = input.attributes
+    .map((a) => ({
+      name: a.name.trim(),
+      values: [...new Set(a.values.map((v) => v.trim()).filter(Boolean))],
+    }))
+    .filter((a) => a.name && a.values.length > 0);
+  const names = new Set(attributes.map((a) => a.name));
+  if (names.size !== attributes.length) throw new Error('نام ویژگی تکراری است');
+  if (attributes.length > 10) throw new Error('حداکثر ۱۰ ویژگی مجاز است');
+
+  const variants = input.variants.map((v) => {
+    const options: Record<string, string> = {};
+    for (const [rawName, rawValue] of Object.entries(v.options ?? {})) {
+      const name = rawName.trim();
+      const value = String(rawValue ?? '').trim();
+      if (!name || !value) continue;
+      if (!names.has(name)) throw new Error(`ویژگی «${name}» در فهرست ویژگی‌ها نیست`);
+      options[name] = value;
+    }
+    if (Object.keys(options).length === 0) throw new Error('هر واریانت باید دست‌کم یک ویژگی داشته باشد');
+    if (!Number.isInteger(v.price) || v.price < 0) throw new Error('قیمت باید عدد صحیح نامنفی باشد');
+    if (!Number.isInteger(v.stock) || v.stock < 0) throw new Error('موجودی باید عدد صحیح نامنفی باشد');
+    return { options, price: v.price, stock: v.stock, key: combinationKey(options) };
+  });
+
+  if (new Set(variants.map((v) => v.key)).size !== variants.length) {
+    throw new Error('ترکیب تکراری در فهرست واریانت‌ها هست');
+  }
+  if (variants.length > MAX_VARIANT_COMBINATIONS) {
+    throw new Error(`حداکثر ${MAX_VARIANT_COMBINATIONS} واریانت مجاز است`);
+  }
+  return { attributes, variants };
+}

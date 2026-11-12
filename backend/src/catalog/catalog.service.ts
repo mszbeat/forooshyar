@@ -6,10 +6,12 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
 import { TelegramService } from '../telegram/telegram.service';
 import {
+  cleanBatchInput,
   combinationKey,
   diffCombinations,
   generateCombinations,
   sizeColorFromOptions,
+  type BatchInput,
 } from './variant-combinations';
 import { normalizePostInput } from './post-link';
 
@@ -423,6 +425,110 @@ export class CatalogService {
     });
     this.realtime.emitShop(shopId, 'product', { id: productId, reason: 'variants_bulk' });
     return { updated: variants.length };
+  }
+
+  /**
+   * ثبت دسته‌ای واریانت‌ها از «پیش‌نویس» مودال محصول.
+   *
+   * فروشنده ویژگی‌ها را می‌نویسد، ترکیب‌های مرتب (مثل مشکی/M، مشکی/L،
+   * آبی/M، آبی/L) را با قیمت و موجودیِ قابل‌ویرایش می‌بیند و با «ثبت
+   * وارینت‌ها» همه را یک‌جا ثبت می‌کند. قیمت/موجودی هر ردیف از پیش‌نویس
+   * می‌آید (پیش‌فرض: مقادیر خود محصول) و دقیقاً همان ثبت می‌شود.
+   *
+   * رفتار برای ترکیبِ از قبل موجود: قیمت و موجودی به مقادیر پیش‌نویس به‌روز
+   * می‌شود و واریانت دوباره فعال می‌شود (ثبتِ دوباره امن است). SKU برای
+   * واریانت‌های تازه خودکار از کد محصول ساخته می‌شود، مثل generateVariants.
+   */
+  async createVariantsBatch(shopId: string, userId: string, productId: string, input: BatchInput) {
+    let cleaned: ReturnType<typeof cleanBatchInput>;
+    try {
+      cleaned = cleanBatchInput(input);
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'ورودی واریانت‌ها معتبر نیست');
+    }
+
+    // ویژگی‌ها اول ذخیره می‌شوند تا بازتولید بعدی (generateVariants) هم
+    // همان ترکیب‌ها را بشناسد. اگر ثبت واریانت‌ها بعدش خطا بدهد، ویژگی‌ها
+    // می‌مانند و فروشنده می‌تواند دوباره تلاش کند.
+    await this.setAttributes(shopId, productId, cleaned.attributes);
+
+    const product = await this.db.product.findFirst({
+      where: { shopId, id: productId },
+      select: { id: true, code: true },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+
+    const result = await this.db.$transaction(async (tx) => {
+      const existing = await tx.variant.findMany({
+        where: { shopId, productId },
+        select: { id: true, comboKey: true, stock: true },
+      });
+      const byKey = new Map(existing.map((v) => [v.comboKey, v]));
+      const usedSkus = new Set(
+        (await tx.variant.findMany({ where: { shopId }, select: { sku: true } }))
+          .map((v) => v.sku)
+          .filter((v): v is string => Boolean(v)),
+      );
+      const skuBase = (product.code ?? productId.slice(0, 8)).trim() || productId.slice(0, 8);
+      let skuIndex = 0;
+      const nextSku = () => {
+        let candidate = '';
+        do { candidate = `${skuBase}-${++skuIndex}`; } while (usedSkus.has(candidate));
+        usedSkus.add(candidate);
+        return candidate;
+      };
+
+      let created = 0;
+      let updated = 0;
+      for (const variant of cleaned.variants) {
+        const found = byKey.get(variant.key);
+        if (found) {
+          const delta = variant.stock - found.stock;
+          if (delta < 0 && found.stock + delta < 0) {
+            throw new BadRequestException('موجودی نمی‌تواند منفی شود');
+          }
+          await tx.variant.update({
+            where: { shopId_id: { shopId, id: found.id } },
+            data: { price: variant.price, stock: variant.stock, active: true, stockUpdatedAt: new Date() },
+          });
+          if (delta !== 0) {
+            await tx.stockMovement.create({
+              data: { shopId, variantId: found.id, delta, reason: 'adjustment', actorId: userId },
+            });
+          }
+          updated++;
+          continue;
+        }
+        const { size, color } = sizeColorFromOptions(variant.options);
+        const row = await tx.variant.create({
+          data: {
+            shopId,
+            productId,
+            size,
+            color,
+            optionsJson: variant.options as Prisma.InputJsonValue,
+            comboKey: variant.key,
+            sku: nextSku(),
+            price: variant.price,
+            stock: variant.stock,
+          },
+        });
+        if (variant.stock > 0) {
+          await tx.stockMovement.create({
+            data: { shopId, variantId: row.id, delta: variant.stock, reason: 'initial', actorId: userId },
+          });
+        }
+        created++;
+      }
+      return { created, updated };
+    });
+
+    this.audit.record({
+      action: 'product.variants_batch', entity: 'product', entityId: productId, shopId,
+      meta: { ...result, total: cleaned.variants.length },
+    });
+    this.realtime.emitShop(shopId, 'product', { id: productId, reason: 'variants_batch' });
+    return { ...result, product: await this.product(shopId, productId) };
   }
 
   /** لینک محصول به پست اینستاگرام (تسک ۸): mediaId↔productId یکتا در هر فروشگاه. */

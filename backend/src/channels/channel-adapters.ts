@@ -10,6 +10,7 @@
  * این آداپتورها عمداً کم‌ضخامت‌اند: فقط ارسال پیام و نرمال‌سازی ورودی.
  * منطق پاسخ‌گویی (مغز بات) در سرویس‌های کانال می‌ماند.
  */
+import { timingSafeEqual } from 'crypto';
 
 export interface IncomingMessage {
   platform: 'BALE' | 'RUBIKA';
@@ -28,6 +29,26 @@ export interface OutgoingMessage {
 }
 
 export type AdapterResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * بررسی سکرت webhook با مقایسه‌ی زمان‌ثابت (مثل کنترلر webhook تلگرام).
+ * خالص و تست‌پذیر است؛ هیچ‌وقت خود سکرت را لاگ نمی‌کنیم.
+ */
+export function verifyWebhookSecret(expected: string, provided: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(provided);
+  return a.length > 0 && a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * استخراج کد فروشگاه از متن شروع بات: `/start <code>` (مثل لینک تلگرام
+ * `t.me/<bot>?start=<code>`). بات مشترک است، پس بدون کد نمی‌دانیم پیام
+ * مال کدام فروشگاه است.
+ */
+export function extractShopCode(text: string): string {
+  const match = /^\s*\/?start\s+([A-Za-z0-9_-]{4,64})\s*$/i.exec(text ?? '');
+  return match ? match[1] : '';
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

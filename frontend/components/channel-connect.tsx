@@ -2,27 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import { api, ApiError, type ChannelConnection } from '@/lib/api';
-import { Field, Modal, PageHeader, SkeletonBlock, Spinner, useToast } from '@/components/ui';
+import { Field, Modal, SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import { IconAlertCircle, IconCheckCircle, IconPlus } from '@/components/icons';
 
 type Platform = 'BALE' | 'RUBIKA';
 
-const PLATFORM_INFO: Record<Platform, { label: string; hint: string; tokenHint: string }> = {
+const PLATFORM_INFO: Record<Platform, { label: string; hint: string }> = {
   BALE: {
     label: 'بله',
-    hint: 'بات بله را از @BotFather بسازید و توکنش را این‌جا بگذارید. پیام‌های بله مثل تلگرام به همین دستیار می‌رسند.',
-    tokenHint: 'توکن بات بله (از @BotFather).',
+    hint: 'بات بله یک بات مشترک است که فروش‌یار آن را مدیریت می‌کند؛ نیازی به وارد کردن توکن نیست. کافی است اتصال را فعال کنید تا پیام‌های بله به همین دستیار برسند.',
   },
   RUBIKA: {
     label: 'روبیکا',
-    hint: 'بات روبیکا را از بخش بات‌های روبیکا بسازید و توکنش را این‌جا بگذارید.',
-    tokenHint: 'توکن بات روبیکا.',
+    hint: 'بات روبیکا یک بات مشترک است که فروش‌یار آن را مدیریت می‌کند؛ نیازی به وارد کردن توکن نیست. کافی است اتصال را فعال کنید.',
   },
 };
 
 /**
  * اتصال یک کانال پیام‌رسان ایرانی (بله یا روبیکا) — هر پلتفرم مودال جدا دارد.
  * `platform` مشخص می‌کند فقط همان پلتفرم نمایش داده شود.
+ *
+ * توکن بات مشترک است و فقط از env یا پنل ادمین تنظیم می‌شود؛ فروشنده فقط
+ * اتصال را فعال می‌کند و هیچ توکنی وارد نمی‌کند.
  */
 export function ChannelConnect({ platform, onChanged }: { platform: Platform; onChanged?: () => void }) {
   const toast = useToast();
@@ -65,7 +66,6 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
             </div>
             <div className="small muted">
               {connection.status === 'CONNECTED' ? 'وصل است' : connection.status === 'DISCONNECTED' ? 'قطع شده' : connection.status}
-              {connection.hasSecret ? ' · توکن ثبت شده' : ''}
               {connection.lastError ? ` · ${connection.lastError}` : ''}
             </div>
           </div>
@@ -97,19 +97,12 @@ function ConnectModal({ platform, onClose, onSaved }: { platform: Platform; onCl
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const secret = String(data.get('secret') ?? '').trim();
-    const externalId = String(data.get('externalId') ?? '').trim();
-    if (!secret && !externalId) {
-      toast.error('توکن بات یا شناسه‌ی حساب لازم است.');
-      return;
-    }
     setBusy(true);
     try {
       await api.connectChannel({
         platform,
-        externalId: externalId || 'bot',
+        externalId: 'bot',
         displayName: String(data.get('displayName') ?? '').trim(),
-        secret: secret || undefined,
       });
       toast.success(`${info.label} وصل شد.`);
       onSaved();
@@ -124,21 +117,19 @@ function ConnectModal({ platform, onClose, onSaved }: { platform: Platform; onCl
     <Modal
       open onClose={onClose} title={`اتصال ${info.label}`}
       description={info.hint}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>انصراف</button><button className="btn btn-primary" form="channel-form" disabled={busy}>{busy && <Spinner size={14} />}اتصال</button></>}
+      footer={<><button className="btn btn-ghost" onClick={onClose}>انصراف</button><button className="btn btn-primary" form="channel-form" disabled={busy}>{busy && <Spinner size={14} />}فعال‌سازی اتصال</button></>}
     >
       <form id="channel-form" onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
         <Field label="نام نمایشی بات" htmlFor="displayName">
-          <input id="displayName" name="displayName" className="input" maxLength={200} placeholder="بات فروشگاه من" />
-        </Field>
-        <Field label="توکن بات" required htmlFor="secret" hint="توکن فقط رمزنگاری‌شده ذخیره می‌شود و هرگز در پاسخ‌ها دیده نمی‌شود.">
-          <input id="secret" name="secret" className="input input-ltr" required maxLength={500} placeholder="123456:ABC-DEF…" autoFocus />
-        </Field>
-        <Field label="شناسه‌ی حساب (اختیاری)" htmlFor="externalId" hint="اگر خالی بماند، «bot» ثبت می‌شود؛ برای چند بات در یک فروشگاه شناسه‌ی یکتا بگذارید.">
-          <input id="externalId" name="externalId" className="input input-ltr" maxLength={200} placeholder="my-shop-bot" />
+          <input id="displayName" name="displayName" className="input" maxLength={200} placeholder="بات فروشگاه من" autoFocus />
         </Field>
         <div className="alert alert-info">
+          <IconCheckCircle />
+          <span>توکن بات {info.label} را فروش‌یار تنظیم می‌کند؛ شما فقط اتصال را فعال می‌کنید. بعد از فعال‌سازی، یک پیام آزمایشی به بات بفرستید تا مطمئن شوید وصل است.</span>
+        </div>
+        <div className="alert alert-info">
           <IconAlertCircle />
-          <span>بعد از اتصال، یک پیام آزمایشی به بات بفرستید تا مطمئن شوید webhook وصل است.</span>
+          <span>مشتری‌ها از لینک فروشگاه وارد بات می‌شوند؛ پیام‌هایشان مستقیم به همین پنل می‌آید.</span>
         </div>
       </form>
     </Modal>

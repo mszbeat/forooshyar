@@ -8,7 +8,7 @@ import { adminApi, adminToken, AdminError, type AdminIdentity, type Overview } f
 import { Spinner } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
 import {
-  IconAlertCircle, IconBolt, IconDashboard, IconLogout, IconMenu, IconSettings, IconShield,
+  IconAlertCircle, IconBolt, IconChat, IconDashboard, IconLogout, IconMenu, IconSettings, IconShield,
   IconSparkles, IconStore, IconWallet, IconX,
 } from '@/components/icons';
 
@@ -17,6 +17,7 @@ const NAV = [
   { href: '/admin/shops', label: 'فروشگاه‌ها', icon: IconStore, note: 'shops' },
   { href: '/admin/ai', label: 'هوش مصنوعی', icon: IconSparkles, note: 'ai' },
   { href: '/admin/telegram', label: 'تلگرام و ربات', icon: IconBolt, note: 'telegram' },
+  { href: '/admin/messengers', label: 'پیام‌رسان‌های ایرانی', icon: IconChat, note: 'messengers' },
   { href: '/admin/integrations', label: 'یکپارچه‌سازی‌ها', icon: IconBolt, note: 'integrations' },
   { href: '/admin/payments', label: 'پرداخت', icon: IconWallet, note: 'payments' },
   { href: '/admin/otp', label: 'SMS و OTP', icon: IconShield, note: 'otp' },
@@ -31,6 +32,7 @@ const TITLES: Record<string, { title: string; crumb: string }> = {
   '/admin/shops': { title: 'مدیریت فروشگاه‌ها', crumb: 'SHOPS · ACCOUNTS' },
   '/admin/ai': { title: 'مدل هوش مصنوعی', crumb: 'AI · MODEL ROUTING' },
   '/admin/telegram': { title: 'تلگرام و ربات', crumb: 'BOT · WEBHOOK' },
+  '/admin/messengers': { title: 'پیام‌رسان‌های ایرانی', crumb: 'BALE · RUBIKA · SHARED BOT' },
   '/admin/payments': { title: 'درگاه پرداخت', crumb: 'PAYMENTS' },
   '/admin/otp': { title: 'پیامک و OTP', crumb: 'OTP' },
   '/admin/plans': { title: 'پلن‌های اشتراک', crumb: 'PLANS · BILLING' },
