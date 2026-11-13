@@ -703,9 +703,26 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
     api.attributeSuggestions().then(setSuggestions).catch(() => setSuggestions(null));
   }, []);
 
-  const cleaned = drafts
-    .map(draft => ({ name: draft.name.trim(), values: draft.values.map(v => v.trim()).filter(Boolean) }))
-    .filter(draft => draft.name && draft.values.length > 0);
+  // نام‌های تکراری ادغام می‌شوند (اجتماع مقادیر) تا ترکیب همه‌ی حالت‌ها ساخته شود؛
+  // مثلاً دو ردیف «رنگ» یکی می‌شوند و همه‌ی رنگ‌ها در ضرب دکارتی می‌آیند.
+  const cleaned = (() => {
+    const merged: AttrDraft[] = [];
+    const byName = new Map<string, AttrDraft>();
+    for (const draft of drafts) {
+      const name = draft.name.trim();
+      const values = draft.values.map(v => v.trim()).filter(Boolean);
+      if (!name || values.length === 0) continue;
+      const existing = byName.get(name);
+      if (existing) {
+        existing.values = [...new Set([...existing.values, ...values])];
+      } else {
+        const row = { name, values: [...new Set(values)] };
+        byName.set(name, row);
+        merged.push(row);
+      }
+    }
+    return merged;
+  })();
 
   // ترکیب‌های مرتب: ضرب دکارتی ویژگی‌ها (مثل رنگ × سایز → مشکی/M، مشکی/L، آبی/M، آبی/L).
   const preview = useMemo(() => {

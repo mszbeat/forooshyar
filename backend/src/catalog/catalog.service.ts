@@ -255,14 +255,24 @@ export class CatalogService {
   async setAttributes(shopId: string, productId: string, attributes: { name: string; values: string[] }[]) {
     const product = await this.db.product.findFirst({ where: { shopId, id: productId }, select: { id: true } });
     if (!product) throw new NotFoundException('Product not found');
-    const cleaned = attributes
-      .map((a) => ({
-        name: a.name.trim(),
-        values: [...new Set(a.values.map((v) => v.trim()).filter(Boolean))],
-      }))
-      .filter((a) => a.name && a.values.length > 0);
+    // نام‌های تکراری ادغام می‌شوند (اجتماع مقادیر) تا ترکیب همه‌ی حالت‌ها
+    // ساخته شود، نه اینکه خطای «نام ویژگی تکراری» بدهیم.
+    const cleaned: { name: string; values: string[] }[] = [];
+    const byName = new Map<string, { name: string; values: string[] }>();
+    for (const raw of attributes) {
+      const name = raw.name.trim();
+      const values = [...new Set(raw.values.map((v) => v.trim()).filter(Boolean))];
+      if (!name || values.length === 0) continue;
+      const existing = byName.get(name);
+      if (existing) {
+        existing.values = [...new Set([...existing.values, ...values])];
+      } else {
+        const row = { name, values };
+        byName.set(name, row);
+        cleaned.push(row);
+      }
+    }
     const names = new Set(cleaned.map((a) => a.name));
-    if (names.size !== cleaned.length) throw new BadRequestException('نام ویژگی تکراری است');
 
     await this.db.$transaction(async (tx) => {
       const existing = await tx.productAttribute.findMany({ where: { shopId, productId } });

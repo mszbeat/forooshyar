@@ -115,12 +115,19 @@ test('cleanBatchInput قیمت و موجودی منفی را رد می‌کند'
   }), /موجودی/);
 });
 
-test('cleanBatchInput نام ویژگی تکراری را رد می‌کند', () => {
-  assert.throws(() => cleanBatchInput({
+test('cleanBatchInput نام ویژگی تکراری را ادغام می‌کند (اجتماع مقادیر)', () => {
+  const cleaned = cleanBatchInput({
     attributes: [
       { name: 'رنگ', values: ['مشکی'] },
-      { name: 'رنگ', values: ['آبی'] },
+      { name: 'رنگ', values: ['آبی', 'مشکی'] },
+      { name: 'سایز', values: ['M', 'L'] },
     ],
-    variants: [{ options: { رنگ: 'مشکی' }, price: 10, stock: 1 }],
-  }), /تکراری/);
+    variants: [
+      { options: { رنگ: 'مشکی', سایز: 'M' }, price: 10, stock: 1 },
+      { options: { رنگ: 'آبی', سایز: 'L' }, price: 10, stock: 1 },
+    ],
+  });
+  assert.equal(cleaned.attributes.length, 2);
+  assert.deepEqual(cleaned.attributes[0], { name: 'رنگ', values: ['مشکی', 'آبی'] });
+  assert.deepEqual(cleaned.attributes[1], { name: 'سایز', values: ['M', 'L'] });
 });

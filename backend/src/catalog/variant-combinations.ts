@@ -122,7 +122,8 @@ export interface BatchInput {
  * BadRequestException تبدیل کند.
  *
  * قانون‌ها:
- *  - نام ویژگی تکراری ممنوع؛ حداکثر ۱۰ ویژگی.
+ *  - نام ویژگی تکراری ادغام می‌شود (اجتماع مقادیر) تا ترکیب همه‌ی حالت‌ها
+ *    ساخته شود؛ حداکثر ۱۰ ویژگی.
  *  - کلیدهای هر واریانت باید زیرمجموعه‌ی نام ویژگی‌ها باشند و دست‌کم یک
  *    ویژگی داشته باشد (ترکیب جزئی هم مجاز است، نه فقط ضرب دکارتی کامل).
  *  - قیمت و موجودی عدد صحیح نامنفی‌اند.
@@ -132,14 +133,22 @@ export function cleanBatchInput(input: BatchInput): {
   attributes: AttributeOption[];
   variants: (BatchVariantInput & { key: string })[];
 } {
-  const attributes = input.attributes
-    .map((a) => ({
-      name: a.name.trim(),
-      values: [...new Set(a.values.map((v) => v.trim()).filter(Boolean))],
-    }))
-    .filter((a) => a.name && a.values.length > 0);
+  const attributes: AttributeOption[] = [];
+  const byName = new Map<string, AttributeOption>();
+  for (const raw of input.attributes) {
+    const name = raw.name.trim();
+    const values = [...new Set(raw.values.map((v) => v.trim()).filter(Boolean))];
+    if (!name || values.length === 0) continue;
+    const existing = byName.get(name);
+    if (existing) {
+      existing.values = [...new Set([...existing.values, ...values])];
+    } else {
+      const row = { name, values };
+      byName.set(name, row);
+      attributes.push(row);
+    }
+  }
   const names = new Set(attributes.map((a) => a.name));
-  if (names.size !== attributes.length) throw new Error('نام ویژگی تکراری است');
   if (attributes.length > 10) throw new Error('حداکثر ۱۰ ویژگی مجاز است');
 
   const variants = input.variants.map((v) => {
