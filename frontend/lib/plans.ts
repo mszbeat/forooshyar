@@ -16,6 +16,10 @@ export type Plan = {
   dailyMessageLimit?: number;
   automationLimit?: number;
   smsLimit?: number;
+  /** پیامک سفارش در این پلن گنجانده شده؟ */
+  orderSmsIncluded?: boolean;
+  /** هزینه‌ی ماهانه‌ی افزودنی پیامک سفارش (تومان)؛ صفر یعنی غیرقابل خرید */
+  orderSmsMonthlyPrice?: number;
   productLimit: number;
   isPopular: boolean;
   sortOrder: number;
@@ -25,6 +29,7 @@ export type Plan = {
 export type Quote = {
   monthly: number;
   addonMonthly: number;
+  orderSmsMonthly: number;
   subtotal: number;
   durationDiscountPercent: number;
   durationDiscountAmount: number;
@@ -35,8 +40,29 @@ export type Quote = {
   months: number;
   extraInstagram: number;
   addonUnitPrice: number;
+  orderSms?: boolean;
+  orderSmsUnitPrice?: number;
+  orderSmsIncluded?: boolean;
   discountCode: string | null;
   endsAt: string;
+};
+
+export type SubscriptionStatus = {
+  active: boolean;
+  mode: 'paid' | 'trial' | 'expired';
+  trialStartedAt: string | null;
+  trialEndsAt: string | null;
+  subscription: { planName: string; startsAt?: string; endsAt?: string; months: number } | null;
+  orderSms?: {
+    enabled: boolean;
+    available: boolean;
+    included: boolean;
+    purchased: boolean;
+    addonPrice: number;
+    canBuy: boolean;
+  };
+  aiUsage?: unknown;
+  plans?: Plan[];
 };
 
 /**
@@ -62,6 +88,8 @@ function normalizePlan(raw: Partial<Plan> & { id: string; name: string }): Plan 
     dailyMessageLimit: raw.dailyMessageLimit ?? 0,
     automationLimit: raw.automationLimit ?? 0,
     smsLimit: raw.smsLimit ?? 0,
+    orderSmsIncluded: raw.orderSmsIncluded ?? false,
+    orderSmsMonthlyPrice: raw.orderSmsMonthlyPrice ?? 0,
     productLimit: raw.productLimit ?? 0,
     isPopular: raw.isPopular ?? false,
     sortOrder: raw.sortOrder ?? 0,
@@ -80,10 +108,14 @@ export const plansApi = {
     const raw = await request<Partial<Plan> & { id: string; name: string }>(`/subscriptions/plans/${encodeURIComponent(slug)}`, { auth: false });
     return normalizePlan(raw);
   },
-  quote: (body: { planId: string; months: number; extraInstagram: number; discountCode?: string }) =>
+  quote: (body: { planId: string; months: number; extraInstagram: number; discountCode?: string; orderSms?: boolean }) =>
     request<Quote>('/subscriptions/quote', { method: 'POST', body, auth: false }),
-  checkout: (body: { planId: string; months: number; extraInstagram: number; discountCode?: string }) =>
+  checkout: (body: { planId: string; months: number; extraInstagram: number; discountCode?: string; orderSms?: boolean }) =>
     request<{ url: string; provider: string }>('/subscriptions/checkout', { method: 'POST', body }),
+  status: () => request<SubscriptionStatus>('/subscriptions/status'),
+  /** خرید افزودنی پیامک سفارش از داخل پنل (اشتراک فعال لازم است). */
+  orderSmsAddon: () =>
+    request<{ url: string; provider: string; amount: number }>('/subscriptions/order-sms-addon', { method: 'POST' }),
 };
 
 /** درصد تخفیف مدت — آینه‌ی سمت سرور برای نمایش فوری (مبلغ نهایی از سرور می‌آید). */

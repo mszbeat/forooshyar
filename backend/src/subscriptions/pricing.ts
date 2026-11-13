@@ -32,16 +32,32 @@ export function instagramAddonMonthlyPrice(): number {
   return Number.isSafeInteger(raw) && raw >= 0 ? raw : 250000;
 }
 
+/**
+ * قیمت ماهانه‌ی افزودنی پیامک سفارش (تومان).
+ * این افزودنی opt-in است: فروشنده هنگام خرید پلن می‌تواند فعالش کند و
+ * هزینه‌ی اضافه‌اش را بپردازد، یا بعداً از پنل بخرد و فعال کند.
+ */
+export function orderSmsAddonMonthlyPrice(): number {
+  const raw = Number(process.env.ORDER_SMS_ADDON_PRICE ?? 49000);
+  return Number.isSafeInteger(raw) && raw >= 0 ? raw : 49000;
+}
+
 export type QuoteInput = {
   monthlyPrice: number;
   months: number;
   extraInstagram: number;
   discountPercent?: number;
+  /** افزودنی پیامک سفارش فعال شود؟ (هزینه‌ی اضافه روی مبلغ می‌آید) */
+  orderSms?: boolean;
+  /** قیمت ماهانه‌ی افزودنی پیامک سفارش برای این پلن (۰ یعنی غیرقابل خرید) */
+  orderSmsMonthlyPrice?: number;
 };
 
 export type Quote = {
   monthly: number;
   addonMonthly: number;
+  /** هزینه‌ی ماهانه‌ی افزودنی پیامک سفارش (اگر فعال شده باشد) */
+  orderSmsMonthly: number;
   subtotal: number;
   durationDiscountPercent: number;
   durationDiscountAmount: number;
@@ -57,7 +73,8 @@ export function quotePrice(input: QuoteInput): Quote {
   const extra = Math.max(0, Math.floor(input.extraInstagram) || 0);
   const monthly = Math.max(0, Math.floor(input.monthlyPrice) || 0);
   const addonMonthly = instagramAddonMonthlyPrice() * extra;
-  const perMonth = monthly + addonMonthly;
+  const orderSmsMonthly = input.orderSms ? Math.max(0, Math.floor(input.orderSmsMonthlyPrice ?? 0) || 0) : 0;
+  const perMonth = monthly + addonMonthly + orderSmsMonthly;
   const subtotal = perMonth * months;
 
   const durationPercent = durationDiscountPercent(months);
@@ -71,6 +88,7 @@ export function quotePrice(input: QuoteInput): Quote {
   return {
     monthly: perMonth,
     addonMonthly,
+    orderSmsMonthly,
     subtotal,
     durationDiscountPercent: durationPercent,
     durationDiscountAmount: durationAmount,

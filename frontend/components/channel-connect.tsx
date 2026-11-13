@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type ChannelConnection } from '@/lib/api';
 import { Field, Modal, SkeletonBlock, Spinner, useToast } from '@/components/ui';
-import { IconAlertCircle, IconCheckCircle, IconPlus } from '@/components/icons';
+import { IconAlertCircle, IconCheckCircle, IconCopy, IconPlus } from '@/components/icons';
 
 type Platform = 'BALE' | 'RUBIKA';
 
@@ -30,13 +30,25 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
   const [connections, setConnections] = useState<ChannelConnection[] | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [shopLink, setShopLink] = useState<string | null>(null);
   const info = PLATFORM_INFO[platform];
 
   const load = () => {
     api.channels().then(all => setConnections(all.filter(c => c.platform === platform))).catch(() => setConnections([]));
+    api.channelShopLink(platform).then(result => setShopLink(result.link)).catch(() => setShopLink(null));
   };
 
   useEffect(load, [platform]);
+
+  const copyLink = async () => {
+    if (!shopLink) return;
+    try {
+      await navigator.clipboard.writeText(shopLink);
+      toast.success('لینک فروشگاه کپی شد.');
+    } catch {
+      toast.error('کپی نشد', 'دسترسی به حافظه ندارید.');
+    }
+  };
 
   async function disconnect(connection: ChannelConnection) {
     setBusy(true);
@@ -77,6 +89,29 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
       <button className="btn btn-primary" onClick={() => setOpen(true)} style={{ width: '100%' }}>
         <IconPlus size={15} />اتصال {info.label}
       </button>
+
+      {shopLink && (
+        <div style={{ display: 'grid', gap: 8 }}>
+          <div className="small muted">لینک فروشگاه برای مشتریان {info.label}:</div>
+          <div className="row" style={{ gap: 8 }}>
+            <input
+              className="input input-ltr mono"
+              readOnly
+              dir="ltr"
+              value={shopLink}
+              onFocus={event => event.currentTarget.select()}
+              aria-label={`لینک فروشگاه در ${info.label}`}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <button className="btn btn-outline" onClick={() => void copyLink()} type="button">
+              <IconCopy size={15} />کپی
+            </button>
+          </div>
+          <p className="small muted" style={{ margin: 0, lineHeight: 1.9 }}>
+            این لینک را در بیو یا پست‌ها بگذارید؛ هر مشتری که آن را باز کند به همین فروشگاه وصل می‌شود.
+          </p>
+        </div>
+      )}
 
       {open && (
         <ConnectModal

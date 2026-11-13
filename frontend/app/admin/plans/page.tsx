@@ -122,10 +122,15 @@ export default function AdminPlansPage() {
                   <span className="field-label">سقف محصول (۰ = نامحدود)</span>
                   <input className="input input-ltr" type="number" min="0" value={active.productLimit} onChange={e => update(active.id, 'productLimit', Number(e.target.value))} />
                 </label>
+                <label className="field">
+                  <span className="field-label">قیمت ماهانه افزودنی پیامک سفارش (۰ = غیرقابل خرید)</span>
+                  <input className="input input-ltr" type="number" min="0" value={active.orderSmsMonthlyPrice ?? 0} onChange={e => update(active.id, 'orderSmsMonthlyPrice', Number(e.target.value))} />
+                </label>
               </div>
               <div className="row">
                 <label className="row"><input type="checkbox" checked={active.active} onChange={e => update(active.id, 'active', e.target.checked)} /><span>نمایش و فروش فعال</span></label>
                 <label className="row"><input type="checkbox" checked={active.isPopular} onChange={e => update(active.id, 'isPopular', e.target.checked)} /><span>پلن محبوب</span></label>
+                <label className="row"><input type="checkbox" checked={active.orderSmsIncluded ?? false} onChange={e => update(active.id, 'orderSmsIncluded', e.target.checked)} /><span>پیامک سفارش گنجانده شده</span></label>
               </div>
               <button className="btn btn-primary" disabled={busy} onClick={() => void save(active)}>
                 {busy ? <Spinner size={15} /> : null}ذخیره پلن

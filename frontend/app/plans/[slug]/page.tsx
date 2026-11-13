@@ -24,6 +24,7 @@ export default function PlanDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [months, setMonths] = useState(1);
   const [extraInstagram, setExtraInstagram] = useState(0);
+  const [orderSms, setOrderSms] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -37,7 +38,7 @@ export default function PlanDetailPage() {
     if (!plan) return;
     setQuoteLoading(true);
     try {
-      const q = await plansApi.quote({ planId: plan.id, months, extraInstagram });
+      const q = await plansApi.quote({ planId: plan.id, months, extraInstagram, orderSms });
       setQuote(q);
       setError('');
     } catch {
@@ -45,7 +46,7 @@ export default function PlanDetailPage() {
     } finally {
       setQuoteLoading(false);
     }
-  }, [plan, months, extraInstagram]);
+  }, [plan, months, extraInstagram, orderSms]);
 
   useEffect(() => {
     const timer = setTimeout(refreshQuote, 250);
@@ -77,7 +78,7 @@ export default function PlanDetailPage() {
     }
     setPaying(true);
     try {
-      const { url } = await plansApi.checkout({ planId: plan.id, months, extraInstagram });
+      const { url } = await plansApi.checkout({ planId: plan.id, months, extraInstagram, orderSms });
       window.location.href = url;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'خطا در پرداخت');
@@ -180,6 +181,30 @@ export default function PlanDetailPage() {
                 </div>
                 <p className="small muted">درگاه پرداخت اینستاگرام برای هر پیج جداگانه فعال می‌شود.</p>
               </div>
+
+              <div className="plan-opt">
+                <div className="plan-opt-head">
+                  <span>پیامک سفارش</span>
+                  {plan.orderSmsIncluded ? (
+                    <span className="plan-card-discount">در این پلن گنجانده شده</span>
+                  ) : (plan.orderSmsMonthlyPrice ?? 0) > 0 ? (
+                    <span className="small muted">{toman(plan.orderSmsMonthlyPrice ?? 0)} در ماه</span>
+                  ) : null}
+                </div>
+                {plan.orderSmsIncluded ? (
+                  <p className="small muted">پس از هر سفارش، پیامک تأیید برای مشتری و اطلاع به شما ارسال می‌شود.</p>
+                ) : (plan.orderSmsMonthlyPrice ?? 0) > 0 ? (
+                  <>
+                    <label className="row" style={{ gap: 8 }}>
+                      <input type="checkbox" checked={orderSms} onChange={event => setOrderSms(event.target.checked)} />
+                      فعال‌کردن پیامک سفارش با هزینه‌ی اضافه
+                    </label>
+                    <p className="small muted">پس از هر سفارش پرداخت‌شده، پیامک تأیید برای مشتری و اطلاع به شما ارسال می‌شود. اگر الان فعال نکنید، بعداً از پنل هم می‌توانید بخرید و فعال کنید.</p>
+                  </>
+                ) : (
+                  <p className="small muted">پیامک سفارش در این پلن در دسترس نیست.</p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -194,6 +219,9 @@ export default function PlanDetailPage() {
                 )}
                 {quote && quote.extraInstagram > 0 && (
                   <div><dt>پیج اضافه ({fa(quote.extraInstagram)})</dt><dd>{toman(quote.addonMonthly * quote.months)}</dd></div>
+                )}
+                {quote && quote.orderSmsMonthly > 0 && (
+                  <div><dt>پیامک سفارش</dt><dd>{toman(quote.orderSmsMonthly * quote.months)}</dd></div>
                 )}
                 {quote && quote.codeDiscountAmount > 0 && (
                   <div><dt>تخفیف</dt><dd className="plan-summary-save">−{toman(quote.codeDiscountAmount)}</dd></div>

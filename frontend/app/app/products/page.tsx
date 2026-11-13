@@ -793,7 +793,7 @@ function AttributesModal({ product, onClose, onSaved }: { product: Product; onCl
 
   return (
     <Modal
-      open onClose={onClose} size="lg" title="ساخت واریانت از ویژگی‌ها"
+      open onClose={onClose} size="wide" title="ساخت واریانت از ویژگی‌ها"
       description={`${product.title} — ویژگی‌ها را بنویسید (مثل رنگ و سایز)؛ ترکیب‌ها به ترتیب ساخته می‌شوند و قیمت/موجودی هر کدام را می‌توانید جدا تغییر دهید.`}
       footer={
         <>

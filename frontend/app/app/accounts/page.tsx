@@ -32,14 +32,67 @@ function statusChip(status: string): { label: string; cls: string } {
  * بعد از اتصال، کارت حساب در همین صفحه اضافه می‌شود و با کلیک روی کارت،
  * همان مودال در حالت ویرایش باز می‌شود. بله و روبیکا مودال‌های جدا دارند.
  */
+type ConnectedCard = {
+  id: string;
+  platform: Platform;
+  displayName: string;
+  username: string;
+  status: string;
+  lastSeenAt: string | null;
+};
+
 export default function AccountsPage() {
   const [channels, setChannels] = useState<ChannelConnection[] | null>(null);
+  const [extraCards, setExtraCards] = useState<ConnectedCard[]>([]);
   const [openPlatform, setOpenPlatform] = useState<Platform | null>(null);
 
-  const load = () => api.channels().then(setChannels).catch(() => setChannels([]));
+  const load = () => {
+    api.channels().then(setChannels).catch(() => setChannels([]));
+    // اینستاگرام و تلگرام در جدول Channel ذخیره می‌شوند، نه ChannelConnection؛
+    // وضعیتشان را جدا می‌خوانیم تا در «حساب‌های متصل» هم دیده شوند.
+    const cards: ConnectedCard[] = [];
+    api.instagramStatus().then(status => {
+      if (status.accountLinked && status.account) {
+        cards.push({
+          id: `ig:${status.account.id}`,
+          platform: 'INSTAGRAM',
+          displayName: status.account.username,
+          username: status.account.username,
+          status: status.account.active ? 'CONNECTED' : 'EXPIRED',
+          lastSeenAt: status.stats.lastEventAt,
+        });
+      }
+      setExtraCards([...cards]);
+    }).catch(() => { /* ignore */ });
+    api.telegramStatus().then(status => {
+      if (status.active) {
+        cards.push({
+          id: 'tg:bot',
+          platform: 'TELEGRAM',
+          displayName: status.botUsername ? `@${status.botUsername}` : 'بات فروشگاه',
+          username: status.botUsername,
+          status: 'CONNECTED',
+          lastSeenAt: null,
+        });
+      }
+      setExtraCards([...cards]);
+    }).catch(() => { /* ignore */ });
+  };
   useEffect(() => { void load(); }, []);
 
-  const connected = (channels ?? []).filter(c => c.status === 'ACTIVE' || c.status === 'CONNECTED');
+  const connected: ConnectedCard[] = [
+    ...(channels ?? [])
+      .filter(c => c.status === 'ACTIVE' || c.status === 'CONNECTED')
+      .map(c => ({
+        id: c.id,
+        platform: c.platform,
+        displayName: c.displayName || '',
+        username: c.username,
+        status: c.status,
+        lastSeenAt: c.lastSeenAt,
+      })),
+    ...extraCards,
+  ];
   const platformName = (id: Platform) => PLATFORMS.find(p => p.id === id)?.name ?? id;
 
   return (

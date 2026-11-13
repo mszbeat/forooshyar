@@ -298,7 +298,9 @@ export class CatalogService {
               sortOrder: i,
               values: {
                 deleteMany: {},
-                create: attr.values.map((value, j) => ({ shopId, value, sortOrder: j })),
+                // shopId/attributeId در nested create خودکار از والد پر می‌شود؛
+                // گذاشتن صریح آن خطای Prisma می‌دهد (Unknown argument).
+                create: attr.values.map((value, j) => ({ value, sortOrder: j })),
               },
             },
           });

@@ -169,7 +169,7 @@ export class OrdersService {
   async markPaid(input: { authority: string; refId?: string; provider?: string }) {
     const order = await this.db.order.findFirst({
       where: { paymentAuthority: input.authority },
-      include: { items: true, shop: { select: { id: true, name: true, smsPhone: true, notifySellerBySms: true, smsEnabled: true } } },
+      include: { items: true, shop: { select: { id: true, name: true, smsPhone: true, notifySellerBySms: true, smsEnabled: true, orderSmsEnabled: true } } },
     });
     if (!order) return { ok: false as const, reason: 'order_not_found' as const };
 
@@ -214,9 +214,11 @@ export class OrdersService {
       const send = paid.chatId.startsWith('ig:') ? this.instagram.sendOrderConfirmation(paid.shopId, paid.chatId, message) : this.telegram.sendTo(paid.chatId, message);
       void send.catch(error => this.logger.warn(`customer payment notification failed: ${String(error)}`));
     }
-    // Required customer notification (Mock until provider selection); seller is opt-in.
-    if (order.shop.smsEnabled) void this.sms.send(paid.customerPhone, `پرداخت تأیید شد؛ سفارش ${paid.code} به مبلغ ${toman(paid.total)} ثبت شد.`, 'order_customer', paid.shopId).catch(error => this.logger.warn(`customer SMS failed: ${String(error)}`));
-    if (order.shop.smsEnabled && order.shop.notifySellerBySms && order.shop.smsPhone) void this.sms.send(order.shop.smsPhone, `سفارش ${paid.code} پرداخت شد. مبلغ ${toman(paid.total)}؛ مشتری ${order.customerName || '—'}.`, 'order_seller', paid.shopId).catch(error => this.logger.warn(`seller SMS failed: ${String(error)}`));
+    // پیامک سفارش opt-in است: فقط وقتی پلن آن را دارد یا افزودنی‌اش خریداری
+    // شده و فروشنده در پنل روشنش کرده (`orderSmsEnabled`). پیامک مشتری پس از
+    // پرداخت و پیامک فروشنده هر دو زیر همین گیت‌اند.
+    if (order.shop.smsEnabled && order.shop.orderSmsEnabled) void this.sms.send(paid.customerPhone, `پرداخت تأیید شد؛ سفارش ${paid.code} به مبلغ ${toman(paid.total)} ثبت شد.`, 'order_customer', paid.shopId).catch(error => this.logger.warn(`customer SMS failed: ${String(error)}`));
+    if (order.shop.smsEnabled && order.shop.orderSmsEnabled && order.shop.notifySellerBySms && order.shop.smsPhone) void this.sms.send(order.shop.smsPhone, `سفارش ${paid.code} پرداخت شد. مبلغ ${toman(paid.total)}؛ مشتری ${order.customerName || '—'}.`, 'order_seller', paid.shopId).catch(error => this.logger.warn(`seller SMS failed: ${String(error)}`));
 
     return { ok: true as const, order: paid, already: false };
   }

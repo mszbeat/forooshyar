@@ -107,6 +107,11 @@ export class ChannelsService {
           data: { shopId, platform: input.platform, externalId, ...data },
         });
 
+    // بله/روبیکا هم برای مسیریابی webhook به کد لینک فروشگاه نیاز دارند.
+    if (input.platform === 'BALE' || input.platform === 'RUBIKA') {
+      await this.ensureChannelCode(shopId);
+    }
+
     this.audit.record({
       action: 'channel.connect',
       entity: 'channel_connection',
@@ -115,6 +120,38 @@ export class ChannelsService {
       meta: { platform: input.platform, externalId, username: row.username },
     });
     return toView(row);
+  }
+
+  /**
+   * کد لینک فروشگاه (همان `Channel.code` تلگرام) را تضمین می‌کند.
+   * مسیریابی webhook بله/روبیکا به فروشگاه با همین کد انجام می‌شود
+   * (`/start <code>`)، پس فروشگاهی که فقط بله/روبیکا وصل کرده هم باید
+   * ردیف Channel داشته باشد.
+   */
+  async ensureChannelCode(shopId: string): Promise<string> {
+    const existing = await this.db.channel.findUnique({ where: { shopId }, select: { code: true } });
+    if (existing) return existing.code;
+    const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+    let code = '';
+    for (let i = 0; i < 8; i += 1) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    await this.db.channel.create({ data: { shopId, code } });
+    return code;
+  }
+
+  /**
+   * لینک فروشگاه برای مشتریان در بله/روبیکا (مثل لینک تلگرام).
+   * نام کاربری بات از تنظیمات ادمین/env می‌آید؛ اگر ست نشده باشد لینک null
+   * برمی‌گردد تا پنل به‌جای لینک خراب، راهنما نشان دهد.
+   */
+  async shopLink(shopId: string, platform: 'BALE' | 'RUBIKA'): Promise<{
+    link: string | null; code: string; botUsername: string;
+  }> {
+    const code = await this.ensureChannelCode(shopId);
+    const botUsername = (process.env[platform === 'BALE' ? 'BALE_BOT_USERNAME' : 'RUBIKA_BOT_USERNAME'] ?? '')
+      .trim().replace(/^@/, '');
+    if (!botUsername) return { link: null, code, botUsername: '' };
+    const base = platform === 'BALE' ? `https://ble.ir/${botUsername}` : `https://rubika.ir/${botUsername}`;
+    return { link: `${base}?start=${code}`, code, botUsername };
   }
 
   async disconnect(shopId: string, id: string): Promise<{ ok: true }> {

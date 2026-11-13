@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard, Principal } from '../auth/auth.guard';
 import { parse, text } from '../common/validation';
@@ -23,6 +23,12 @@ export class ChannelsController {
 
   @Get() list(@Req() req: Request) {
     return this.channels.list(req.principal.shopId);
+  }
+
+  /** لینک فروشگاه برای مشتریان در بله/روبیکا (مثل لینک تلگرام). */
+  @Get('shop-link') shopLink(@Req() req: Request, @Query('platform') platform: string) {
+    const parsed = parse(z.object({ platform: z.enum(['BALE', 'RUBIKA']) }), { platform });
+    return this.channels.shopLink(req.principal.shopId, parsed.platform);
   }
 
   @Post('connect') connect(@Req() req: Request, @Body() body: unknown) {

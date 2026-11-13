@@ -51,6 +51,9 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [loginMethod,setLoginMethod]=useState<'password'|'otp'>('password');
   const [otpPhone,setOtpPhone]=useState(''); const [otpCode,setOtpCode]=useState(''); const [otpSent,setOtpSent]=useState(false);
+  // ثبت‌نام با شماره موبایل (OTP): اختیاری ولی توصیه‌شده — شماره برای پیامک
+  // خوش‌آمد و اعلان سفارش استفاده می‌شود.
+  const [regPhone,setRegPhone]=useState(''); const [regCode,setRegCode]=useState(''); const [regOtpSent,setRegOtpSent]=useState(false); const [regOtpVerified,setRegOtpVerified]=useState(false);
   const [values, setValues] = useState({ shopName: '', email: '', password: '' });
   const [terms, setTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -119,6 +122,8 @@ export default function LoginPage() {
         setFieldErrors(errors);
         return;
       }
+      // اگر شماره وارد شده، کد باید تأیید شده باشد.
+      if (regPhone.trim() && !regOtpVerified) { setError('شماره موبایل را با کد یک‌بارمصرف تأیید کنید یا شماره را خالی بگذارید.'); return; }
     } else {
       const parsed = loginSchema.safeParse(values);
       if (!parsed.success) {
@@ -135,7 +140,7 @@ export default function LoginPage() {
     try {
       if (mode === 'login' && loginMethod === 'otp') { await loginOtp(otpPhone,otpCode); router.replace(safeNext()); return; }
       if (mode === 'register') {
-        await register(values.email.trim(), values.password, values.shopName.trim());
+        await register(values.email.trim(), values.password, values.shopName.trim(), regPhone.trim() || undefined, regPhone.trim() ? regCode.trim() : undefined);
         toast.success('فروشگاه شما ساخته شد', 'حالا کاتالوگ را کامل کنید تا پاسخ خودکار آماده شود.');
       } else {
         await login(values.email.trim(), values.password);
@@ -159,7 +164,11 @@ export default function LoginPage() {
 
   return (
     <div className={`authx ${isRegister ? 'register' : 'login'}`}>
-      <div className="authx-page-tools"><Link href="/" className="authx-home" aria-label="رفتن به صفحهٔ اصلی سایت"><IconLogo size={17} /><span>صفحهٔ اصلی</span></Link><ThemeToggle /></div>
+      <div className="authx-page-tools">
+        <span className="authx-mobile-logo" aria-hidden="true"><BrandMascot size={40} variant="face" /></span>
+        <Link href="/" className="authx-home" aria-label="رفتن به صفحهٔ اصلی سایت"><IconLogo size={17} /><span>صفحهٔ اصلی</span></Link>
+        <ThemeToggle />
+      </div>
       <span className="authx-seam" aria-hidden="true" />
 
       {/* نیمه‌ی روایت — با تغییر حالت جابه‌جا می‌شود */}
@@ -168,7 +177,7 @@ export default function LoginPage() {
         <span className="authx-glow b" />
         <div className="authx-visual-inner">
           <div className="authx-brand">
-            <span className="mark"><BrandMascot size={42} expression={isRegister ? 'wave' : 'smile'} /></span>
+            <span className="mark"><BrandMascot size={40} expression={isRegister ? 'wave' : 'smile'} /></span>
             <div>
               <div className="name">فروش‌یار</div>
               <div className="role">دستیار پاسخ‌گوی فروش</div>
@@ -176,20 +185,6 @@ export default function LoginPage() {
           </div>
 
           <div className="authx-copy" key={mode}>
-            <span className="kick">{isRegister ? 'شروع در ۳ دقیقه' : 'خوش برگشتید'}</span>
-            <h2>
-              {isRegister ? (
-                <>کاتالوگ را یک‌بار وارد کنید؛<br />پاسخ‌دادن را <em>همیشه</em> ما انجام می‌دهیم.</>
-              ) : (
-                <>کاتالوگ‌تان را دقیق نگه دارید،<br />قیمت را ما <em>اشتباه</em> نمی‌گوییم.</>
-              )}
-            </h2>
-            <p>
-              {isRegister
-                ? 'محصول و موجودی را وارد کنید، ارسال و ساعت کاری را بنویسید. از همان لحظه، هر سؤال قیمت و موجودی از دیتابیس خودتان جواب می‌گیرد.'
-                : 'هر پاسخ از کاتالوگ زنده‌ی فروشگاه شما ساخته می‌شود؛ نه از حافظه‌ی مدل و نه از حدس.'}
-            </p>
-
             <div className="authx-feats">
               <div className="authx-feat">
                 <span className="tick"><IconCheck size={12} /></span>
@@ -307,6 +302,35 @@ export default function LoginPage() {
               </Field>
 
               </>}
+
+              {isRegister && (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <Field label="شماره موبایل (اختیاری)" htmlFor="regPhone" hint="برای پیامک خوش‌آمد و اعلان سفارش؛ با کد یک‌بارمصرف تأیید می‌شود.">
+                    <input id="regPhone" className="input input-ltr" dir="ltr" inputMode="tel" placeholder="09123456789" value={regPhone} onChange={e=>{setRegPhone(e.target.value);setRegOtpVerified(false);setRegOtpSent(false);}} />
+                  </Field>
+                  {regPhone.trim() && (
+                    <>
+                      {regOtpSent && (
+                        <Field label="کد یک‌بارمصرف" htmlFor="regCode">
+                          <input id="regCode" className="input input-ltr" dir="ltr" inputMode="numeric" maxLength={6} value={regCode} onChange={e=>{setRegCode(e.target.value);setRegOtpVerified(false);}} />
+                        </Field>
+                      )}
+                      <div className="row">
+                        {!regOtpSent && (
+                          <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={async()=>{setBusy(true);try{await request('/auth/register/otp/request',{method:'POST',body:{phone:regPhone},auth:false});setRegOtpSent(true);setError('');}catch(e){setError(e instanceof Error?e.message:'درخواست کد انجام نشد.');}finally{setBusy(false);}}}>ارسال کد</button>
+                        )}
+                        {regOtpSent && !regOtpVerified && (
+                          <button type="button" className="btn btn-outline btn-sm" disabled={busy||regCode.length!==6} onClick={async()=>{setBusy(true);try{await request('/auth/register/otp/verify',{method:'POST',body:{phone:regPhone,code:regCode},auth:false});setRegOtpVerified(true);setError('');}catch(e){setError(e instanceof Error?e.message:'کد نامعتبر است.');}finally{setBusy(false);}}}>تأیید شماره</button>
+                        )}
+                        {regOtpSent && !regOtpVerified && (
+                          <button type="button" className="authx-link" disabled={busy} onClick={async()=>{setBusy(true);try{await request('/auth/register/otp/request',{method:'POST',body:{phone:regPhone},auth:false});}catch(e){setError(e instanceof Error?e.message:'درخواست کد انجام نشد.');}finally{setBusy(false);}}}>ارسال دوباره</button>
+                        )}
+                        {regOtpVerified && <span className="small" style={{ color: 'var(--ok, #16a34a)' }}>شماره تأیید شد ✓</span>}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {isRegister && (
                 <div>

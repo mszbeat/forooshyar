@@ -41,6 +41,14 @@ const schema = z.object({
   BALE_WEBHOOK_SECRET: z.string().optional(),
   RUBIKA_BOT_TOKEN: z.string().optional(),
   RUBIKA_WEBHOOK_SECRET: z.string().optional(),
+  BALE_BOT_USERNAME: z.string().optional(),
+  RUBIKA_BOT_USERNAME: z.string().optional(),
+  // پیامک sms.ir: کلید و قالب از env یا پنل ادمین (اولویت با دیتابیس).
+  SMS_API_KEY: z.string().optional(),
+  SMS_SENDER_NUMBER: z.string().optional(),
+  SMS_OTP_TEMPLATE_ID: z.string().optional(),
+  SMS_OTP_PARAM_NAME: z.string().optional(),
+  SMS_API_BASE: z.string().optional(),
 }).superRefine((config, context) => {
   const origins = config.CORS_ORIGINS.split(',').map(value => value.trim()).filter(Boolean);
   for (const origin of origins) {

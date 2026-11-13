@@ -10,6 +10,7 @@ const checkoutSchema = z.object({
   months: z.number().int().min(1).max(18),
   extraInstagram: z.number().int().min(0).max(50).default(0),
   discountCode: z.string().max(40).default(''),
+  orderSms: z.boolean().default(false),
 });
 
 const quoteSchema = z.object({
@@ -17,6 +18,7 @@ const quoteSchema = z.object({
   months: z.number().int().min(1).max(18),
   extraInstagram: z.number().int().min(0).max(50).default(0),
   discountCode: z.string().max(40).default(''),
+  orderSms: z.boolean().default(false),
 });
 
 @Controller('subscriptions')
@@ -31,7 +33,7 @@ export class SubscriptionsController {
   @Post('quote') quote(@Body() body: unknown) {
     const p = quoteSchema.safeParse(body);
     if (!p.success) throw new BadRequestException('پلن یا مدت اشتراک نامعتبر است.');
-    return this.service.quote(p.data.planId, p.data.months, p.data.extraInstagram, p.data.discountCode);
+    return this.service.quote(p.data.planId, p.data.months, p.data.extraInstagram, p.data.discountCode, p.data.orderSms);
   }
 
   @Get('status') @UseGuards(AuthGuard) status(@Req() req: { principal: Principal }) { return this.service.status(req.principal.shopId); }
@@ -39,7 +41,12 @@ export class SubscriptionsController {
   @Post('checkout') @UseGuards(AuthGuard) checkout(@Req() req: { principal: Principal }, @Body() body: unknown) {
     const p = checkoutSchema.safeParse(body);
     if (!p.success) throw new BadRequestException('پلن یا مدت اشتراک نامعتبر است.');
-    return this.service.checkout(req.principal.shopId, p.data.planId, p.data.months, p.data.extraInstagram, p.data.discountCode, (process.env.PUBLIC_API_URL ?? '').replace(/\/+$/, ''));
+    return this.service.checkout(req.principal.shopId, p.data.planId, p.data.months, p.data.extraInstagram, p.data.discountCode, (process.env.PUBLIC_API_URL ?? '').replace(/\/+$/, ''), p.data.orderSms);
+  }
+
+  /** خرید افزودنی پیامک سفارش از داخل پنل (برای اشتراک فعال). */
+  @Post('order-sms-addon') @UseGuards(AuthGuard) orderSmsAddon(@Req() req: { principal: Principal }) {
+    return this.service.purchaseOrderSmsAddon(req.principal.shopId, (process.env.PUBLIC_API_URL ?? '').replace(/\/+$/, ''));
   }
 
   @Get('callback') async callback(@Query('Authority') authority: string, @Query('Status') status: string, @Res() res: Response) {
@@ -95,6 +102,8 @@ export class AdminPlansController {
       telegramLimit: z.number().int().min(0).max(1000),
       monthlyMessageLimit: z.number().int().min(0).max(100000000).default(0),
       productLimit: z.number().int().min(0).max(100000000).default(0),
+      orderSmsIncluded: z.boolean().default(false),
+      orderSmsMonthlyPrice: z.number().int().min(0).max(2147483647).default(0),
       isPopular: z.boolean().default(false),
       active: z.boolean(),
       sortOrder: z.number().int().min(0).max(10000),

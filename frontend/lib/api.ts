@@ -42,7 +42,7 @@ export type Product = {
 };
 export type Shop = {
   id: string; name: string; tone: string; shipping: string; payment: string;
-  workingHours: string; returns: string; handoffMessage: string; smsPhone?: string; notifySellerBySms?: boolean; smsEnabled?: boolean;
+  workingHours: string; returns: string; handoffMessage: string; smsPhone?: string; notifySellerBySms?: boolean; smsEnabled?: boolean; orderSmsEnabled?: boolean;
   receiptAutoConfirm?: boolean; receiptAutoConfirmMax?: number | null; paymentWaitHours?: number;
 };
 export type PaymentMethod = {
@@ -368,8 +368,8 @@ export type Customers = {
 export const api = {
   login: (email: string, password: string) =>
     request<AuthResult>('/auth/login', { method: 'POST', body: { email, password }, auth: false }),
-  register: (email: string, password: string, shopName: string) =>
-    request<AuthResult>('/auth/register', { method: 'POST', body: { email, password, shopName }, auth: false }),
+  register: (email: string, password: string, shopName: string, phone?: string, code?: string) =>
+    request<AuthResult>('/auth/register', { method: 'POST', body: { email, password, shopName, ...(phone ? { phone, code } : {}) }, auth: false }),
 
   shop: () => request<Shop>('/shop'),
   updateShop: (body: Partial<Shop>) => request<Shop>('/shop', { method: 'PATCH', body }),
@@ -512,6 +512,8 @@ export const api = {
     request<{ matched: boolean }>(`/automations/${id}/test-trigger`, { method: 'POST', body: { text } }),
 
   channels: () => request<ChannelConnection[]>('/channels'),
+  channelShopLink: (platform: 'BALE' | 'RUBIKA') =>
+    request<{ link: string | null; code: string; botUsername: string }>(`/channels/shop-link?platform=${platform}`),
   connectChannel: (body: { platform: ChannelConnection['platform']; externalId: string; displayName?: string; username?: string; avatarUrl?: string; secret?: string; expiresAt?: string }) =>
     request<ChannelConnection>('/channels/connect', { method: 'POST', body }),
   disconnectChannel: (id: string) =>

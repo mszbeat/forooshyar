@@ -4,7 +4,7 @@ import { AuthGuard, Principal } from '../auth/auth.guard';
 import { optionalText, parse, text } from '../common/validation';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
-const settings = z.object({ name: text.optional(), tone: optionalText.optional(), shipping: optionalText.optional(), payment: optionalText.optional(), workingHours: optionalText.optional(), returns: optionalText.optional(), handoffMessage: optionalText.optional(), notifySellerBySms: z.boolean().optional(), smsEnabled: z.boolean().optional() }).strict().refine(v => Object.keys(v).length > 0);
+const settings = z.object({ name: text.optional(), tone: optionalText.optional(), shipping: optionalText.optional(), payment: optionalText.optional(), workingHours: optionalText.optional(), returns: optionalText.optional(), handoffMessage: optionalText.optional(), notifySellerBySms: z.boolean().optional(), smsEnabled: z.boolean().optional(), orderSmsEnabled: z.boolean().optional() }).strict().refine(v => Object.keys(v).length > 0);
 @Controller('shop')
 @UseGuards(AuthGuard)
 export class ShopController {

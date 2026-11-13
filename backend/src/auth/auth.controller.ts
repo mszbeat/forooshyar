@@ -10,9 +10,15 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('register') register(@Body() body: unknown) {
-    const input = parse(credentials.extend({ shopName: text }), body);
-    return this.auth.register(input.email, input.password, input.shopName);
+    const input = parse(credentials.extend({
+      shopName: text,
+      phone: z.string().min(8).max(20).optional(),
+      code: z.string().regex(/^\d{6}$/u).optional(),
+    }), body);
+    return this.auth.register(input.email, input.password, input.shopName, input.phone, input.code);
   }
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) @Post('register/otp/request') requestRegisterOtp(@Body() b: unknown) { const x=parse(z.object({phone:z.string().min(8).max(20)}),b); return this.auth.requestRegisterOtp(x.phone); }
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) @Post('register/otp/verify') verifyRegisterOtp(@Body() b: unknown) { const x=parse(z.object({phone:z.string().min(8).max(20),code:z.string().regex(/^\d{6}$/u)}),b); return this.auth.verifyRegisterOtp(x.phone,x.code); }
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login') login(@Body() body: unknown) {
     const input = parse(credentials, body);

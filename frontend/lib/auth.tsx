@@ -11,7 +11,7 @@ type AuthValue = {
   shop: Shop | null;
   login: (email: string, password: string) => Promise<void>;
   loginOtp: (phone:string, code:string) => Promise<void>;
-  register: (email: string, password: string, shopName: string) => Promise<void>;
+  register: (email: string, password: string, shopName: string, phone?: string, code?: string) => Promise<void>;
   logout: () => void;
   reloadShop: () => Promise<void>;
 };
@@ -44,8 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginOtp = useCallback(async (phone:string, code:string) => { const result=await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? '/api'}/auth/otp/verify`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,code})}); if(!result.ok) throw new Error('کد نادرست است یا OTP فعال نیست.'); const auth=await result.json() as {accessToken:string}; tokenStore.set(auth.accessToken);setToken(auth.accessToken);setShop(await api.shop()); },[]);
 
-  const register = useCallback(async (email: string, password: string, shopName: string) => {
-    const result = await api.register(email, password, shopName);
+  const register = useCallback(async (email: string, password: string, shopName: string, phone?: string, code?: string) => {
+    const result = await api.register(email, password, shopName, phone, code);
     tokenStore.set(result.accessToken);
     setToken(result.accessToken);
     setShop(await api.shop());

@@ -38,7 +38,7 @@ export const GROUPS: { id: SettingGroup; label: string; description: string }[] 
   { id: 'ai', label: 'مدل هوش مصنوعی', description: 'مدل زبانی که «نفهمیدم»های بات را جواب می‌دهد؛ بدون کلید، بات با موتور قاعده‌محور کار می‌کند.' },
   { id: 'telegram', label: 'تلگرام', description: 'توکن بات، سکرت webhook و آدرس عمومی سرویس.' },
   { id: 'payments', label: 'پرداخت', description: 'درگاه پلتفرم فقط برای فروش پلن/اعتبار به فروشنده است؛ پرداخت مشتری کارت‌به‌کارت است.' },
-  { id: 'otp', label: 'پیامک و OTP', description: 'تنظیمات سرویس پیامک Mock و ورود یک‌بارمصرف.' },
+  { id: 'otp', label: 'پیامک و OTP', description: 'درگاه sms.ir، قالب کد تأیید و ورود یک‌بارمصرف.' },
   { id: 'database', label: 'دیتابیس', description: 'اتصال PostgreSQL؛ تنها تنظیمی که برای اثر قطعی یک ری‌استارت سرویس لازم دارد.' },
   { id: 'system', label: 'سیستم', description: 'CORS، کش، لاگ گردش و پرچم‌های عیب‌یابی.' },
 ];
@@ -191,6 +191,14 @@ export const SETTINGS: SettingDef[] = [
     key: 'RUBIKA_WEBHOOK_SECRET', group: 'messengers', label: 'سکرت webhook روبیکا', kind: 'secret', optional: true,
     hint: 'حداقل ۱۶ کاراکتر؛ بخش آخر مسیر webhook روبیکا است (`/rubika/webhook/<secret>`).',
   },
+  {
+    key: 'BALE_BOT_USERNAME', group: 'messengers', label: 'نام کاربری بات بله', kind: 'text', optional: true,
+    placeholder: 'forooshyar_bot', hint: 'برای ساختن لینک فروشگاه مشتریان (ble.ir/<username>?start=<code>).',
+  },
+  {
+    key: 'RUBIKA_BOT_USERNAME', group: 'messengers', label: 'نام کاربری بات روبیکا', kind: 'text', optional: true,
+    placeholder: 'forooshyar_bot', hint: 'برای ساختن لینک فروشگاه مشتریان (rubika.ir/<username>?start=<code>).',
+  },
 
   // --------------------------------------------------------------------- پرداخت
   // درگاه آنلاین فقط برای فروش پلن/اعتبار به فروشنده است (ماژول subscriptions).
@@ -204,8 +212,13 @@ export const SETTINGS: SettingDef[] = [
     key: 'CARD_ENCRYPTION_KEY', group: 'payments', label: 'کلید رمزنگاری شماره کارت', kind: 'secret', optional: true, restart: true,
     hint: 'base64 از ۳۲ بایت؛ برای رمزنگاری شماره کارت‌های فروشگاه. در production حتماً ست شود.',
   },
-  { key: 'SMS_ENABLED', group: 'otp', label: 'فعال‌بودن SMS Mock', kind: 'bool', fallback: 'true', hint: 'پیامک واقعی ارسال نمی‌شود تا درگاه مشخص شود.' },
-  { key: 'OTP_ENABLED', group: 'otp', label: 'فعال‌بودن ورود OTP', kind: 'bool', fallback: 'false' },
+  { key: 'SMS_ENABLED', group: 'otp', label: 'فعال‌بودن ارسال پیامک', kind: 'bool', fallback: 'true', hint: 'با کلید sms.ir پیامک واقعی ارسال می‌شود؛ بدون کلید، حالت Mock (فقط لاگ).' },
+  { key: 'SMS_API_KEY', group: 'otp', label: 'کلید API پیامک (sms.ir)', kind: 'secret', optional: true, hint: 'از پنل sms.ir؛ در هدر x-api-key فرستاده می‌شود و هرگز نمایش داده نمی‌شود.' },
+  { key: 'SMS_SENDER_NUMBER', group: 'otp', label: 'شماره خط فرستنده', kind: 'text', optional: true, hint: 'خط اختصاصی sms.ir برای پیامک‌های متنی عادی (bulk).' },
+  { key: 'SMS_OTP_TEMPLATE_ID', group: 'otp', label: 'شناسه قالب کد تأیید', kind: 'text', optional: true, hint: 'قالب تأییدشده‌ی sms.ir برای OTP (POST /v1/send/verify).' },
+  { key: 'SMS_OTP_PARAM_NAME', group: 'otp', label: 'نام پارامتر کد در قالب', kind: 'text', fallback: 'Code', hint: 'نام متغیر کد در قالب sms.ir (پیش‌فرض Code).' },
+  { key: 'SMS_API_BASE', group: 'otp', label: 'آدرس API پیامک', kind: 'url', fallback: 'https://api.sms.ir' },
+  { key: 'OTP_ENABLED', group: 'otp', label: 'فعال‌بودن ورود/ثبت‌نام با OTP', kind: 'bool', fallback: 'false' },
   { key: 'OTP_TTL_SECONDS', group: 'otp', label: 'اعتبار کد (ثانیه)', kind: 'number', fallback: '300', min: 60, max: 600 },
 
   // ------------------------------------------------------------------- دیتابیس

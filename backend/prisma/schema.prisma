@@ -69,6 +69,9 @@ model Shop {
   notifySellerBySms Boolean @default(true)
   /// ارسال پیامک برای این فروشگاه فعال است؟ (سطح پلتفرم: SMS_ENABLED)
   smsEnabled     Boolean  @default(true)
+  /// پیامک سفارش (به مشتری و فروشنده) برای این فروشگاه فعال است؟
+  /// فقط وقتی پلن آن را دارد یا افزودنی‌اش خریداری شده.
+  orderSmsEnabled Boolean @default(false)
   subscriptions  Subscription[]
   products       Product[]
   variants       Variant[]
@@ -577,6 +580,10 @@ model SubscriptionPlan {
   automationLimit     Int      @default(0)
   /// سقف پیامک ماهانه؛ صفر یعنی نامحدود.
   smsLimit            Int      @default(0)
+  /// پیامک سفارش در این پلن گنجانده شده؟ (opt-in پیش‌فرض)
+  orderSmsIncluded     Boolean  @default(false)
+  /// هزینه‌ی ماهانه‌ی افزودنی پیامک سفارش (تومان)؛ صفر یعنی غیرقابل خرید.
+  orderSmsMonthlyPrice Int      @default(0)
   isPopular           Boolean  @default(false)
   active              Boolean  @default(false)
   sortOrder           Int      @default(0)
@@ -598,6 +605,8 @@ model Subscription {
   amount         Int
   /// تعداد پیج اینستاگرام اضافه‌ی خریداری‌شده (افزودنیِ هر پیج هزینه دارد).
   extraInstagram Int      @default(0)
+  /// افزودنی پیامک سفارش در این خرید فعال شده؟ (هزینه‌ی اضافه پرداخت شده)
+  orderSms      Boolean  @default(false)
   discountCode   String   @default("")
   authority      String?  @unique
   referenceId    String   @default("")

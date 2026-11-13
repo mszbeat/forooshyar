@@ -5,6 +5,8 @@ import type { FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { api, request, ApiError, type PaymentMethod, type ReceiptPolicy, type ShippingMethod, type Shop } from '@/lib/api';
+import { plansApi, type SubscriptionStatus } from '@/lib/plans';
+import { toman } from '@/lib/format';
 import { Field, Modal, PageHeader, SkeletonBlock, Spinner, Switch, useToast } from '@/components/ui';
 import { IconAlertCircle, IconCheckCircle, IconChat, IconSettings, IconStore } from '@/components/icons';
 
@@ -39,6 +41,9 @@ export default function SettingsPage() {
   const [smsCode, setSmsCode] = useState('');
   const [smsOtpSent, setSmsOtpSent] = useState(false);
   const [notifySellerSms, setNotifySellerSms] = useState(true);
+  const [orderSmsEnabled, setOrderSmsEnabled] = useState(false);
+  const [subStatus, setSubStatus] = useState<SubscriptionStatus | null>(null);
+  const [buyingAddon, setBuyingAddon] = useState(false);
   const [form, setForm] = useState<Pick<Shop, 'shipping' | 'payment' | 'workingHours' | 'returns' | 'handoffMessage' | 'tone'>>({
     shipping: '', payment: '', workingHours: '', returns: '', handoffMessage: '', tone: '',
   });
@@ -53,9 +58,11 @@ export default function SettingsPage() {
         setSmsPhone(data.smsPhone ?? '');
         setNotifySellerSms(data.notifySellerBySms ?? true);
         setSmsEnabled(data.smsEnabled ?? true);
+        setOrderSmsEnabled(data.orderSmsEnabled ?? false);
       })
       .catch(() => { if (alive) setError('دریافت تنظیمات انجام نشد.'); })
       .finally(() => { if (alive) setLoading(false); });
+    plansApi.status().then(status => { if (alive) setSubStatus(status); }).catch(() => undefined);
     return () => { alive = false; };
   }, []);
 
@@ -95,6 +102,28 @@ export default function SettingsPage() {
     } catch {
       setNotifySellerSms(!next);
       toast.error('ذخیره انجام نشد.');
+    }
+  }
+
+  async function toggleOrderSms(next: boolean) {
+    setOrderSmsEnabled(next);
+    try {
+      await api.updateShop({ orderSmsEnabled: next });
+      toast.success(next ? 'پیامک سفارش فعال شد.' : 'پیامک سفارش غیرفعال شد.');
+    } catch (problem) {
+      setOrderSmsEnabled(!next);
+      toast.error('تغییر وضعیت انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    }
+  }
+
+  async function buyOrderSmsAddon() {
+    setBuyingAddon(true);
+    try {
+      const { url } = await plansApi.orderSmsAddon();
+      window.location.href = url;
+    } catch (problem) {
+      toast.error('خرید افزودنی انجام نشد', problem instanceof ApiError ? problem.message : 'خطا');
+      setBuyingAddon(false);
     }
   }
 
@@ -237,7 +266,7 @@ export default function SettingsPage() {
             </Field>
           )}
           <div className="row">
-            <button type="button" className="btn btn-outline" onClick={async () => { try { await request('/auth/phone/otp/request', { method: 'POST', body: { phone: smsPhone } }); setSmsOtpSent(true); toast.success('کد ارسال شد', 'درگاه فعلی Mock است.'); } catch (problem) { toast.error('ارسال نشد', problem instanceof Error ? problem.message : 'خطا'); } }}>
+            <button type="button" className="btn btn-outline" onClick={async () => { try { await request('/auth/phone/otp/request', { method: 'POST', body: { phone: smsPhone } }); setSmsOtpSent(true); toast.success('کد ارسال شد'); } catch (problem) { toast.error('ارسال نشد', problem instanceof Error ? problem.message : 'خطا'); } }}>
               {smsOtpSent ? 'ارسال دوباره کد' : 'تأیید شماره'}
             </button>
             {smsOtpSent && (
@@ -247,6 +276,30 @@ export default function SettingsPage() {
             )}
           </div>
           <label className="row"><input type="checkbox" checked={notifySellerSms} onChange={event => void toggleNotify(event.target.checked)} />ارسال پیامک سفارش برای من (اختیاری)</label>
+
+          <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, display: 'grid', gap: 10 }}>
+            <Switch
+              label="پیامک سفارش (به مشتری و به من)"
+              checked={orderSmsEnabled}
+              onChange={next => void toggleOrderSms(next)}
+            />
+            {subStatus?.orderSms && !subStatus.orderSms.available && subStatus.orderSms.canBuy && (
+              <div className="row" style={{ justifyContent: 'space-between' }}>
+                <span className="small muted">پیامک سفارش در پلن شما نیست؛ با هزینه‌ی اضافه فعال می‌شود.</span>
+                <button type="button" className="btn btn-primary btn-sm" disabled={buyingAddon} onClick={() => void buyOrderSmsAddon()}>
+                  {buyingAddon ? 'در حال انتقال…' : `خرید افزودنی (${toman(subStatus.orderSms.addonPrice)} در ماه)`}
+                </button>
+              </div>
+            )}
+            {subStatus?.orderSms && subStatus.orderSms.available && (
+              <p className="small muted">
+                {subStatus.orderSms.included ? 'پیامک سفارش در پلن شما گنجانده شده است.' : 'افزودنی پیامک سفارش برای اشتراک شما فعال است.'}
+              </p>
+            )}
+            {!subStatus?.orderSms?.available && !subStatus?.orderSms?.canBuy && (
+              <p className="small muted">برای فعال‌کردن پیامک سفارش، اشتراک پولی لازم است.</p>
+            )}
+          </div>
         </div>
       </section>
 

@@ -525,6 +525,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .overlay { position: fixed; inset: 0; z-index: 80; background: rgba(8, 9, 10, 0.55); backdrop-filter: blur(6px); display: grid; place-items: center; padding: 20px; animation: fade 0.2s var(--ease); }
 .modal { width: min(560px, 100%); max-height: min(88dvh, 760px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--sh-lg); animation: pop 0.24s var(--ease); }
 .modal-lg { max-width: 700px; }
+.modal-wide { max-width: 650px; }
 .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: var(--sp-6) var(--sp-6) 0; }
 .modal-title { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.02em; }
 .modal-desc { font-size: var(--fs-xs); color: var(--ink-3); margin-top: 4px; }

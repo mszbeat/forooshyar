@@ -5,10 +5,13 @@
    اول (راست) و پنل دوم (چپ) است؛ در ثبت‌نام فرم به چپ و پنل به راست می‌رود.
    ========================================================================== */
 .authx {
-  position: relative; display: flex;
+  position: relative; display: flex; justify-content: center;
   min-height: 100dvh; background: var(--bg); isolation: isolate; overflow: hidden;
 }
-.authx-form-side, .authx-visual { flex: 0 0 50%; min-width: 0; }
+.authx-form-side, .authx-visual { flex: 0 0 650px; min-width: 0; }
+@media (max-width: 1320px) {
+  .authx-form-side, .authx-visual { flex: 0 0 50%; }
+}
 /* چیدمان پایه (ورود): فرم راست، پنل چپ. order صریح است تا مستقل از ترتیب DOM
    و جهت RTL باشد؛ جابه‌جایی ثبت‌نام با transform انجام می‌شود. */
 .authx-form-side { order: 1; position: relative; z-index: 1; transition: transform .65s cubic-bezier(.22,1,.36,1); will-change: transform; }
@@ -80,6 +83,7 @@
 @keyframes authxRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes authxPane { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .authx-page-tools { position: absolute; z-index: 5; inset-block-start: 18px; inset-inline-start: 22px; display: flex; align-items: center; gap: 10px; }
+.authx-mobile-logo { display: none; }
 .authx-home { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); padding: 8px 13px; border-radius: var(--r-full); border: 1px solid var(--line); background: var(--surface); transition: all 0.16s var(--ease); }
 .authx-home:hover { color: var(--ink); border-color: var(--line-strong); transform: translateY(-1px); }
 .authx-seam { display: none; }
@@ -110,17 +114,18 @@
 .authx-demo { margin-top: 20px; padding: 13px 15px; border-radius: var(--r-md); border: 1px dashed var(--line-strong); background: var(--surface-2); font-size: 12px; line-height: 1.9; color: var(--ink-2); }
 .authx-demo b { color: var(--ink); }
 @media (max-width: 900px) {
-  .authx { flex-direction: column; }
+  .authx { flex-direction: column; justify-content: flex-start; }
   .authx-form-side, .authx-visual { flex: none; }
   /* در موبایل جابه‌جایی ترنسفورم ندارد؛ فقط کراس‌فید محتوا. */
   .authx.register .authx-form-side, .authx.register .authx-visual { transform: none; }
-  /* در موبایل کارت خوش‌آمد به بنر فشرده‌ی بالای فرم تبدیل می‌شود (حذف نمی‌شود). */
-  .authx-visual { min-height: 0; }
-  .authx-visual-card { margin: 0; border-radius: 0 0 24px 24px; min-height: 0; height: auto; }
-  .authx-visual-inner { padding: 22px 20px 18px; gap: 14px; }
-  .authx-visual .authx-feats, .authx-visual .authx-chat, .authx-visual .authx-foot { display: none; }
-  .authx-visual .authx-copy p { margin-top: 8px; }
-  .authx-form-side { padding: 28px 20px 40px; min-height: 0; }
+  /* هدر موبایل: لوگو + فقط دکمه‌ی صفحه‌ی اصلی (بدون متن)؛ دکمه‌ی تم نیست. */
+  .authx-page-tools { position: static; width: 100%; padding: 12px 16px; justify-content: space-between; }
+  .authx-mobile-logo { display: grid; place-items: center; }
+  .authx-home span { display: none; }
+  .authx-page-tools .theme-toggle { display: none; }
+  /* پنل روایت در موبایل مخفی است؛ هدر بالا لوگو را نشان می‌دهد. */
+  .authx-visual { display: none; }
+  .authx-form-side { padding: 20px 20px 40px; min-height: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .authx-tabs .thumb { transition: none; }

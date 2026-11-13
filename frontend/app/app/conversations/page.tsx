@@ -9,7 +9,7 @@ import {
 import { useRealtime } from '@/lib/realtime';
 import { faNum, relativeTime, toman } from '@/lib/format';
 import { EmptyState, SkeletonBlock, Spinner, useToast } from '@/components/ui';
-import { IconAlertCircle, IconChat, IconRefresh, IconSearch, IconSend } from '@/components/icons';
+import { IconAlertCircle, IconArrowRight, IconChat, IconRefresh, IconSearch, IconSend } from '@/components/icons';
 
 type Filter = 'all' | 'pending';
 
@@ -235,8 +235,8 @@ export default function ConversationsPage() {
           {active && (
             <>
               <div className="conv-thread-head">
-                <button type="button" className="btn btn-ghost btn-sm conv-back" onClick={() => setActive(null)}>
-                  بازگشت به فهرست
+                <button type="button" className="btn btn-ghost btn-icon btn-sm conv-back" onClick={() => setActive(null)} aria-label="بازگشت به فهرست">
+                  <IconArrowRight size={17} />
                 </button>
                 <div className="conv-thread-id">
                   <strong>{thread?.conversation.name ?? 'گفتگو'}</strong>

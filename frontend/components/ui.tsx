@@ -58,7 +58,7 @@ export function Modal({
   open, onClose, title, description, children, footer, size = 'md', closeOnBackdrop = true,
 }: {
   open: boolean; onClose: () => void; title: string; description?: string;
-  children: ReactNode; footer?: ReactNode; size?: 'md' | 'lg'; closeOnBackdrop?: boolean;
+  children: ReactNode; footer?: ReactNode; size?: 'md' | 'lg' | 'wide'; closeOnBackdrop?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -72,7 +72,7 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="overlay" onMouseDown={event => { if (closeOnBackdrop && event.target === event.currentTarget) onClose(); }}>
-      <div className={`modal ${size === 'lg' ? 'modal-lg' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`modal ${size === 'lg' ? 'modal-lg' : size === 'wide' ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head">
           <div>
             <h2 className="modal-title">{title}</h2>

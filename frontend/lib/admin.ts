@@ -215,6 +215,7 @@ export type AdminPlan = {
   features: string[]; monthlyPrice: number; listMonthlyPrice: number;
   instagramLimit: number; telegramLimit: number; monthlyMessageLimit: number;
   productLimit: number; isPopular: boolean; active: boolean; sortOrder: number;
+  orderSmsIncluded?: boolean; orderSmsMonthlyPrice?: number;
 };
 export const plansAdminApi = {
   list: () => call<AdminPlan[]>('/admin/plans'),

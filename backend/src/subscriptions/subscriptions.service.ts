@@ -2,7 +2,8 @@ import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
-import { endsAtFrom, instagramAddonMonthlyPrice, quotePrice } from './pricing';
+import { SmsService } from '../sms/sms.service';
+import { endsAtFrom, instagramAddonMonthlyPrice, orderSmsAddonMonthlyPrice, quotePrice } from './pricing';
 
 /**
  * پلن‌های پیش‌فرض (مقادیر نمونه — ادمین در `/admin/plans` قیمت نهایی را تنظیم می‌کند).
@@ -30,6 +31,8 @@ const SEED_PLANS = [
     productLimit: 50,
     automationLimit: 1,
     smsLimit: 0,
+    orderSmsIncluded: false,
+    orderSmsMonthlyPrice: 49000,
     isPopular: false,
     sortOrder: 0,
   },
@@ -54,6 +57,8 @@ const SEED_PLANS = [
     productLimit: 500,
     automationLimit: 5,
     smsLimit: 100,
+    orderSmsIncluded: false,
+    orderSmsMonthlyPrice: 49000,
     isPopular: true,
     sortOrder: 1,
   },
@@ -78,6 +83,8 @@ const SEED_PLANS = [
     productLimit: 2000,
     automationLimit: 20,
     smsLimit: 500,
+    orderSmsIncluded: true,
+    orderSmsMonthlyPrice: 0,
     isPopular: false,
     sortOrder: 2,
   },
@@ -102,6 +109,8 @@ const SEED_PLANS = [
     productLimit: 0,
     automationLimit: 0,
     smsLimit: 2000,
+    orderSmsIncluded: true,
+    orderSmsMonthlyPrice: 0,
     isPopular: false,
     sortOrder: 3,
   },
@@ -124,6 +133,8 @@ const SEED_PLANS = [
     productLimit: 0,
     automationLimit: 0,
     smsLimit: 0,
+    orderSmsIncluded: false,
+    orderSmsMonthlyPrice: 0,
     isPopular: false,
     sortOrder: 4,
   },
@@ -134,6 +145,7 @@ function toPublicPlan(plan: {
   features: unknown; monthlyPrice: number; listMonthlyPrice: number;
   instagramLimit: number; telegramLimit: number; monthlyMessageLimit: number;
   dailyMessageLimit?: number; productLimit: number; automationLimit?: number; smsLimit?: number;
+  orderSmsIncluded?: boolean; orderSmsMonthlyPrice?: number;
   isPopular: boolean; sortOrder: number;
 }) {
   return {
@@ -152,6 +164,8 @@ function toPublicPlan(plan: {
     productLimit: plan.productLimit,
     automationLimit: plan.automationLimit ?? 0,
     smsLimit: plan.smsLimit ?? 0,
+    orderSmsIncluded: plan.orderSmsIncluded ?? false,
+    orderSmsMonthlyPrice: plan.orderSmsMonthlyPrice ?? 0,
     isPopular: plan.isPopular,
     sortOrder: plan.sortOrder,
     extraInstagramPrice: instagramAddonMonthlyPrice(),
@@ -160,7 +174,7 @@ function toPublicPlan(plan: {
 
 @Injectable()
 export class SubscriptionsService implements OnModuleInit {
-  constructor(private readonly db: PrismaService, private readonly audit: AuditService) {}
+  constructor(private readonly db: PrismaService, private readonly audit: AuditService, private readonly sms: SmsService) {}
 
   async onModuleInit() {
     // seed idempotent: پلن‌های جدید ساخته و پلن‌های موجود به‌روزرسانی می‌شوند.
@@ -171,7 +185,7 @@ export class SubscriptionsService implements OnModuleInit {
       } else {
         await this.db.subscriptionPlan.update({
           where: { id: existing.id },
-          data: { name: plan.name, tagline: plan.tagline, description: plan.description, features: plan.features as unknown as import('@prisma/client').Prisma.InputJsonValue, monthlyPrice: plan.monthlyPrice, listMonthlyPrice: plan.listMonthlyPrice, instagramLimit: plan.instagramLimit, telegramLimit: plan.telegramLimit, monthlyMessageLimit: plan.monthlyMessageLimit, dailyMessageLimit: plan.dailyMessageLimit, productLimit: plan.productLimit, automationLimit: plan.automationLimit, smsLimit: plan.smsLimit, isPopular: plan.isPopular, sortOrder: plan.sortOrder },
+          data: { name: plan.name, tagline: plan.tagline, description: plan.description, features: plan.features as unknown as import('@prisma/client').Prisma.InputJsonValue, monthlyPrice: plan.monthlyPrice, listMonthlyPrice: plan.listMonthlyPrice, instagramLimit: plan.instagramLimit, telegramLimit: plan.telegramLimit, monthlyMessageLimit: plan.monthlyMessageLimit, dailyMessageLimit: plan.dailyMessageLimit, productLimit: plan.productLimit, automationLimit: plan.automationLimit, smsLimit: plan.smsLimit, orderSmsIncluded: plan.orderSmsIncluded, orderSmsMonthlyPrice: plan.orderSmsMonthlyPrice, isPopular: plan.isPopular, sortOrder: plan.sortOrder },
         }).catch(() => undefined);
       }
     }
@@ -221,7 +235,7 @@ export class SubscriptionsService implements OnModuleInit {
   }
 
   /** قیمت قطعی سمت سرور؛ کلاینت فقط نمایش می‌دهد. */
-  async quote(planId: string, months: number, extraInstagram: number, discountCode?: string) {
+  async quote(planId: string, months: number, extraInstagram: number, discountCode?: string, orderSms?: boolean) {
     const plan = await this.db.subscriptionPlan.findFirst({ where: { id: planId, active: true } });
     if (!plan) throw new NotFoundException('پلن در دسترس نیست.');
     if (plan.monthlyPrice <= 0) throw new BadRequestException('قیمت این پلن هنوز تنظیم نشده است.');
@@ -232,13 +246,18 @@ export class SubscriptionsService implements OnModuleInit {
       if (!found || !found.active) throw new BadRequestException('کد تخفیف معتبر نیست.');
       percent = found.percent;
     }
-    const result = quotePrice({ monthlyPrice: plan.monthlyPrice, months, extraInstagram, discountPercent: percent });
+    const wantOrderSms = Boolean(orderSms) && !plan.orderSmsIncluded;
+    if (wantOrderSms && plan.orderSmsMonthlyPrice <= 0) throw new BadRequestException('افزودنی پیامک سفارش برای این پلن قابل خرید نیست.');
+    const result = quotePrice({ monthlyPrice: plan.monthlyPrice, months, extraInstagram, discountPercent: percent, orderSms: wantOrderSms, orderSmsMonthlyPrice: plan.orderSmsMonthlyPrice });
     const now = new Date();
     return {
       ...result,
       months: Math.min(18, Math.max(1, Math.floor(months) || 1)),
       extraInstagram: Math.max(0, Math.floor(extraInstagram) || 0),
       addonUnitPrice: instagramAddonMonthlyPrice(),
+      orderSms: wantOrderSms,
+      orderSmsUnitPrice: plan.orderSmsMonthlyPrice,
+      orderSmsIncluded: plan.orderSmsIncluded,
       discountCode: code || null,
       endsAt: endsAtFrom(now, Math.min(18, Math.max(1, Math.floor(months) || 1))).toISOString(),
     };
@@ -246,19 +265,74 @@ export class SubscriptionsService implements OnModuleInit {
 
   async status(shopId: string) {
     const [shop, current] = await Promise.all([
-      this.db.shop.findUniqueOrThrow({ where: { id: shopId }, select: { trialStartedAt: true, trialEndsAt: true } }),
+      this.db.shop.findUniqueOrThrow({ where: { id: shopId }, select: { trialStartedAt: true, trialEndsAt: true, orderSmsEnabled: true } }),
       this.db.subscription.findFirst({ where: { shopId, status: 'ACTIVE', endsAt: { gt: new Date() } }, include: { plan: true }, orderBy: { endsAt: 'desc' } }),
     ]);
     const trialActive = Boolean(shop.trialEndsAt && shop.trialEndsAt > new Date());
+    const plan = current?.plan ?? null;
+    const orderSmsIncluded = Boolean(plan?.orderSmsIncluded);
+    const orderSmsPurchased = Boolean(current?.orderSms);
+    const orderSmsAvailable = orderSmsIncluded || orderSmsPurchased;
     return {
       active: Boolean(current) || trialActive,
       mode: current ? 'paid' : trialActive ? 'trial' : 'expired',
       trialStartedAt: shop.trialStartedAt?.toISOString() ?? null,
       trialEndsAt: shop.trialEndsAt?.toISOString() ?? null,
       subscription: current ? { planName: current.plan.name, startsAt: current.startsAt?.toISOString(), endsAt: current.endsAt?.toISOString(), months: current.months } : null,
+      orderSms: {
+        enabled: shop.orderSmsEnabled,
+        available: orderSmsAvailable,
+        included: orderSmsIncluded,
+        purchased: orderSmsPurchased,
+        // قیمت ماهانه‌ی خرید بعدی از پنل (اگر پلن قیمت ندارد، قیمت پیش‌فرض env)
+        addonPrice: plan?.orderSmsMonthlyPrice && plan.orderSmsMonthlyPrice > 0 ? plan.orderSmsMonthlyPrice : orderSmsAddonMonthlyPrice(),
+        canBuy: Boolean(current) && !orderSmsAvailable,
+      },
       aiUsage: await this.aiUsage(shopId).catch(() => null),
       plans: await this.plans(),
     };
+  }
+
+  /**
+   * خرید افزودنی پیامک سفارش از داخل پنل (برای فروشنده‌ای که هنگام خرید پلن
+   * فعالش نکرده). مبلغ = قیمت ماهانه‌ی افزودنی × ماه‌های باقی‌مانده‌ی اشتراک.
+   * درگاه آزمایشی/زرین‌پال مثل خرید پلن کار می‌کند؛ بعد از پرداخت، افزودنی روی
+   * همان اشتراک فعال و پیامک سفارش روشن می‌شود.
+   */
+  async purchaseOrderSmsAddon(shopId: string, publicUrl: string) {
+    const current = await this.db.subscription.findFirst({ where: { shopId, status: 'ACTIVE', endsAt: { gt: new Date() } }, include: { plan: true }, orderBy: { endsAt: 'desc' } });
+    if (!current) throw new BadRequestException('برای خرید افزودنی پیامک سفارش، اشتراک فعالی لازم است.');
+    if (current.plan.orderSmsIncluded || current.orderSms) throw new BadRequestException('افزودنی پیامک سفارش برای اشتراک شما فعال است.');
+    const unitPrice = current.plan.orderSmsMonthlyPrice > 0 ? current.plan.orderSmsMonthlyPrice : orderSmsAddonMonthlyPrice();
+    const remainingMonths = Math.max(1, Math.ceil((current.endsAt!.getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000)));
+    const amount = unitPrice * remainingMonths;
+    if (!Number.isSafeInteger(amount) || amount <= 0) throw new BadRequestException('مبلغ افزودنی پیامک سفارش معتبر نیست.');
+
+    const pending = await this.db.subscription.create({
+      data: { shopId, planId: current.planId, months: remainingMonths, amount, extraInstagram: 0, orderSms: true, status: 'PENDING' },
+    });
+    const merchantId = (process.env.ZARINPAL_MERCHANT_ID ?? '').trim();
+    if (!merchantId) {
+      const authority = `sbx_${randomBytes(12).toString('hex')}`;
+      await this.db.subscription.update({ where: { id: pending.id }, data: { authority } });
+      this.audit.record({ action: 'subscription.order_sms_addon_sandbox', entity: 'subscription', entityId: pending.id, shopId, meta: { amount, remainingMonths } });
+      return { url: `${publicUrl}/subscriptions/sandbox/${authority}`, provider: 'sandbox' as const, amount };
+    }
+    if (!publicUrl.startsWith('https://')) throw new BadRequestException('PUBLIC_API_URL با HTTPS باید تنظیم شود.');
+    const res = await fetch(`${(process.env.ZARINPAL_API_BASE ?? 'https://api.zarinpal.com').replace(/\/+$/, '')}/pg/v4/payment/request.json`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ merchant_id: merchantId, amount: amount * 10, description: `افزودنی پیامک سفارش - ${remainingMonths} ماه`, callback_url: `${publicUrl}/subscriptions/callback`, metadata: {} }),
+      signal: AbortSignal.timeout(15000),
+    }).catch(() => null);
+    const payload = res ? await res.json().catch(() => null) as { data?: { authority?: string } } | null : null;
+    if (!res?.ok || !payload?.data?.authority) {
+      await this.db.subscription.update({ where: { id: pending.id }, data: { status: 'FAILED' } });
+      throw new BadRequestException('درگاه پرداخت درخواست را نپذیرفت.');
+    }
+    await this.db.subscription.update({ where: { id: pending.id }, data: { authority: payload.data.authority } });
+    this.audit.record({ action: 'subscription.order_sms_addon', entity: 'subscription', entityId: pending.id, shopId, meta: { amount } });
+    return { url: `https://www.zarinpal.com/pg/StartPay/${payload.data.authority}`, provider: 'zarinpal' as const, amount };
   }
 
   async assertCanConnect(shopId: string) {
@@ -270,7 +344,7 @@ export class SubscriptionsService implements OnModuleInit {
    * درگاه واقعی (زرین‌پال) اگر مرچنت‌آیدی ست باشد؛ وگرنه درگاه آزمایشی داخلی
    * که همان جریان را بدون جابه‌جایی پول قابل تست می‌کند.
    */
-  async checkout(shopId: string, planId: string, months: number, extraInstagram: number, discountCode: string, publicUrl: string) {
+  async checkout(shopId: string, planId: string, months: number, extraInstagram: number, discountCode: string, publicUrl: string, orderSms?: boolean) {
     if (!Number.isInteger(months) || months < 1 || months > 18) throw new BadRequestException('مدت اشتراک باید بین ۱ تا ۱۸ ماه باشد.');
     if (!Number.isInteger(extraInstagram) || extraInstagram < 0 || extraInstagram > 50) throw new BadRequestException('تعداد پیج اضافه نامعتبر است.');
     const plan = await this.db.subscriptionPlan.findFirst({ where: { id: planId, active: true } });
@@ -283,12 +357,14 @@ export class SubscriptionsService implements OnModuleInit {
       if (!found || !found.active) throw new BadRequestException('کد تخفیف معتبر نیست.');
       percent = found.percent;
     }
-    const priced = quotePrice({ monthlyPrice: plan.monthlyPrice, months, extraInstagram, discountPercent: percent });
+    const wantOrderSms = Boolean(orderSms) && !plan.orderSmsIncluded;
+    if (wantOrderSms && plan.orderSmsMonthlyPrice <= 0) throw new BadRequestException('افزودنی پیامک سفارش برای این پلن قابل خرید نیست.');
+    const priced = quotePrice({ monthlyPrice: plan.monthlyPrice, months, extraInstagram, discountPercent: percent, orderSms: wantOrderSms, orderSmsMonthlyPrice: plan.orderSmsMonthlyPrice });
     const amount = priced.total;
     if (!Number.isSafeInteger(amount) || amount <= 0) throw new BadRequestException('مبلغ اشتراک معتبر نیست.');
 
     const pending = await this.db.subscription.create({
-      data: { shopId, planId, months, amount, extraInstagram, discountCode: code, status: 'PENDING' },
+      data: { shopId, planId, months, amount, extraInstagram, discountCode: code, orderSms: wantOrderSms, status: 'PENDING' },
     });
 
     const merchantId = (process.env.ZARINPAL_MERCHANT_ID ?? '').trim();
@@ -352,13 +428,37 @@ export class SubscriptionsService implements OnModuleInit {
     return this.activate(pending, String(payload.data.ref_id ?? ''));
   }
 
-  private async activate(pending: { id: string; shopId: string; months: number; plan: { name: string } }, refId: string) {
+  private async activate(pending: { id: string; shopId: string; months: number; planId?: string; orderSms?: boolean; plan: { name: string; orderSmsIncluded?: boolean } }, refId: string) {
     const now = new Date();
     const previous = await this.db.subscription.findFirst({ where: { shopId: pending.shopId, status: 'ACTIVE', endsAt: { gt: now } }, orderBy: { endsAt: 'desc' } });
-    const startsAt = previous?.endsAt ?? now;
-    const endsAt = endsAtFrom(startsAt, pending.months);
+    // خرید افزودنی پیامک سفارش از پنل: اشتراک موجود را تمدید نمی‌کند؛ فقط
+    // افزودنی روی همان اشتراک فعال می‌شود (بدون تغییر تاریخ پایان).
+    const isAddonPurchase = Boolean(pending.orderSms) && Boolean(previous) && (!pending.planId || previous!.planId === pending.planId);
+    let startsAt: Date;
+    let endsAt: Date;
+    if (isAddonPurchase) {
+      startsAt = previous!.startsAt ?? now;
+      endsAt = previous!.endsAt ?? endsAtFrom(now, pending.months);
+      await this.db.subscription.update({ where: { id: previous!.id }, data: { orderSms: true } });
+    } else {
+      startsAt = previous?.endsAt ?? now;
+      endsAt = endsAtFrom(startsAt, pending.months);
+    }
     await this.db.subscription.update({ where: { id: pending.id }, data: { status: 'ACTIVE', referenceId: refId, startsAt, endsAt } });
-    this.audit.record({ action: 'subscription.paid', entity: 'subscription', entityId: pending.id, shopId: pending.shopId, meta: { refId, endsAt: endsAt.toISOString() } });
+    this.audit.record({ action: 'subscription.paid', entity: 'subscription', entityId: pending.id, shopId: pending.shopId, meta: { refId, endsAt: endsAt.toISOString(), addon: isAddonPurchase } });
+    // پیامک سفارش: اگر پلن آن را دارد یا افزودنی‌اش خریداری شده، روی فروشگاه روشن می‌شود.
+    const orderSmsAvailable = Boolean(pending.plan.orderSmsIncluded) || Boolean(pending.orderSms);
+    if (orderSmsAvailable) {
+      await this.db.shop.update({ where: { id: pending.shopId }, data: { orderSmsEnabled: true } }).catch(() => undefined);
+    }
+    // پیامک اطلاع خرید پلن/افزودنی به فروشنده (اگر شماره‌ی تأییدشده دارد).
+    const shop = await this.db.shop.findUnique({ where: { id: pending.shopId }, select: { smsPhone: true, name: true } }).catch(() => null);
+    if (shop?.smsPhone) {
+      const text = isAddonPurchase
+        ? `افزودنی پیامک سفارش برای فروشگاه ${shop.name} فعال شد. از این به بعد پس از هر سفارش پیامک می‌گیرید.`
+        : `اشتراک ${pending.plan.name} برای فروشگاه ${shop.name} فعال شد. تا ${endsAt.toLocaleDateString('fa-IR')} فعال است.`;
+      void this.sms.send(shop.smsPhone, text, isAddonPurchase ? 'order_sms_addon' : 'plan_purchase', pending.shopId).catch(() => undefined);
+    }
     return { ok: true as const, shopId: pending.shopId };
   }
 
@@ -385,6 +485,7 @@ export class SubscriptionsService implements OnModuleInit {
     features?: string[]; monthlyPrice: number; listMonthlyPrice?: number;
     instagramLimit: number; telegramLimit: number; monthlyMessageLimit?: number;
     productLimit?: number; isPopular?: boolean; active: boolean; sortOrder: number;
+    orderSmsIncluded?: boolean; orderSmsMonthlyPrice?: number;
   }, adminId: string) {
     if (!Number.isSafeInteger(input.monthlyPrice) || input.monthlyPrice < 0
       || !Number.isInteger(input.instagramLimit) || input.instagramLimit < 0
@@ -405,6 +506,8 @@ export class SubscriptionsService implements OnModuleInit {
       telegramLimit: input.telegramLimit,
       monthlyMessageLimit: Math.max(0, Math.floor(input.monthlyMessageLimit ?? 0) || 0),
       productLimit: Math.max(0, Math.floor(input.productLimit ?? 0) || 0),
+      orderSmsIncluded: Boolean(input.orderSmsIncluded),
+      orderSmsMonthlyPrice: Math.max(0, Math.floor(input.orderSmsMonthlyPrice ?? 0) || 0),
       isPopular: Boolean(input.isPopular),
       active: input.active,
       sortOrder: input.sortOrder,

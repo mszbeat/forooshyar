@@ -16,6 +16,8 @@ import { actionOf, actionsKeyboard, BOT_COMMANDS, helpText, welcomeText } from '
 import { isDeliveryConfirmation } from './delivery';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CartService } from '../orders/cart.service';
+import { InstagramService } from '../instagram/instagram.service';
+import { BaleAdapter, RubikaAdapter } from '../channels/channel-adapters';
 
 type TelegramChat = { id: number | string; type?: string; username?: string; first_name?: string };
 /** پیامی که این پیام پاسخش است؛ برای «پاسخ فروشنده به مشتری» لازم است. */
@@ -105,6 +107,9 @@ export class TelegramService {
     private readonly realtime: RealtimeService,
     private readonly subscriptions: SubscriptionsService,
     private readonly cart: CartService,
+    // چرخه‌ی عمدی: اینستاگرام از تلگرام استفاده می‌کند و تلگرام برای اعلان
+    // شارژ موجودی به اینستاگرام نیاز دارد (مسیریابی بر اساس پیشوند chatId).
+    @Inject(forwardRef(() => InstagramService)) private readonly instagram: InstagramService,
   ) {}
 
   get configured(): boolean {
@@ -1181,7 +1186,9 @@ export class TelegramService {
 
     let sent = 0;
     for (const alert of alerts) {
-      const ok = await this.sendWithButtons(alert.chatId, text, [[{ text: '🛍 دیدن و سفارش', data: `p:${product.id}` }]], 'HTML');
+      // ارسال با همان کانالِ گفتگو انجام می‌شود (پیشوند chatId مشخص می‌کند)؛
+      // مشتری اینستاگرام/بله/روبیکا هم مثل تلگرام خبر می‌شود.
+      const ok = await this.sendRestockNotice(shopId, alert.chatId, text, product.id);
       if (ok) {
         sent += 1;
         await this.db.stockAlert.update({ where: { id: alert.id }, data: { notifiedAt: new Date() } });
@@ -1194,6 +1201,26 @@ export class TelegramService {
       });
     }
     return sent;
+  }
+
+  /** ارسال اعلان شارژ موجودی با باتِ همان کانال (پیشوند chatId). */
+  private async sendRestockNotice(shopId: string, chatId: string, htmlText: string, productId: string): Promise<boolean> {
+    const plain = htmlText.replace(/<[^>]+>/g, '');
+    if (chatId.startsWith('ig:')) {
+      const result = await this.instagram.sendFromPanel(shopId, chatId, plain);
+      return result.ok;
+    }
+    if (chatId.startsWith('bale:')) {
+      const result = await new BaleAdapter((process.env.BALE_BOT_TOKEN ?? '').trim())
+        .send({ chatId: chatId.slice('bale:'.length), text: plain });
+      return result.ok;
+    }
+    if (chatId.startsWith('rubika:')) {
+      const result = await new RubikaAdapter((process.env.RUBIKA_BOT_TOKEN ?? '').trim())
+        .send({ chatId: chatId.slice('rubika:'.length), text: plain });
+      return result.ok;
+    }
+    return this.sendWithButtons(chatId, htmlText, [[{ text: '🛍 دیدن و سفارش', data: `p:${productId}` }]], 'HTML');
   }
 
   /**

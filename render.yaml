@@ -96,6 +96,26 @@ services:
       # openssl rand -hex 32 — بخش آخر مسیر /rubika/webhook/<secret>
       - key: RUBIKA_WEBHOOK_SECRET
         generateValue: true
+      # نام کاربری بات‌ها برای لینک فروشگاه مشتریان؛ در Dashboard مقدار بده.
+      - key: BALE_BOT_USERNAME
+        sync: false
+      - key: RUBIKA_BOT_USERNAME
+        sync: false
+      # --- پیامک sms.ir و OTP -------------------------------------------------
+      # کلید API از پنل sms.ir؛ در Dashboard مقدار بده (یا از پنل ادمین).
+      - key: SMS_API_KEY
+        sync: false
+      # خط فرستنده‌ی اختصاصی برای پیامک‌های متنی عادی.
+      - key: SMS_SENDER_NUMBER
+        sync: false
+      # شناسه‌ی قالب تأییدشده‌ی sms.ir برای کد یک‌بارمصرف.
+      - key: SMS_OTP_TEMPLATE_ID
+        sync: false
+      - key: SMS_OTP_PARAM_NAME
+        value: Code
+      # ورود/ثبت‌نام با کد یک‌بارمصرف فعال باشد؟
+      - key: OTP_ENABLED
+        value: "true"
       # آدرس عمومی همین سرویس API: لینک پرداخت و آدرس webhook از این ساخته می‌شود.
       - key: PUBLIC_API_URL
         sync: false
