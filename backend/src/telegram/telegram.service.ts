@@ -1,4 +1,5 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -107,9 +108,11 @@ export class TelegramService {
     private readonly realtime: RealtimeService,
     private readonly subscriptions: SubscriptionsService,
     private readonly cart: CartService,
-    // چرخه‌ی عمدی: اینستاگرام از تلگرام استفاده می‌کند و تلگرام برای اعلان
-    // شارژ موجودی به اینستاگرام نیاز دارد (مسیریابی بر اساس پیشوند chatId).
-    @Inject(forwardRef(() => InstagramService)) private readonly instagram: InstagramService,
+    // InstagramService عمداً تزریق مستقیم نمی‌شود: چرخه‌ی
+    // TelegramModule ↔ InstagramModule ↔ OrdersModule با forwardRef می‌شکند
+    // (همان خطایی که در telegram.module.ts مستند شده). به‌جای آن، در زمان
+    // صدا با ModuleRef به‌صورت lazy گرفته می‌شود (sendRestockNotice).
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   get configured(): boolean {
@@ -1207,7 +1210,10 @@ export class TelegramService {
   private async sendRestockNotice(shopId: string, chatId: string, htmlText: string, productId: string): Promise<boolean> {
     const plain = htmlText.replace(/<[^>]+>/g, '');
     if (chatId.startsWith('ig:')) {
-      const result = await this.instagram.sendFromPanel(shopId, chatId, plain);
+      // lazy: InstagramService در کانتکست TelegramModule نیست (چرخه‌ی ماژول‌ها)؛
+      // در زمان اجرا از کل درخت ماژول‌ها گرفته می‌شود.
+      const instagram = this.moduleRef.get(InstagramService, { strict: false });
+      const result = await instagram.sendFromPanel(shopId, chatId, plain);
       return result.ok;
     }
     if (chatId.startsWith('bale:')) {
