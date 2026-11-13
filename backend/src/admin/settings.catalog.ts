@@ -215,7 +215,7 @@ export const SETTINGS: SettingDef[] = [
   { key: 'SMS_ENABLED', group: 'otp', label: 'فعال‌بودن ارسال پیامک', kind: 'bool', fallback: 'true', hint: 'با کلید sms.ir پیامک واقعی ارسال می‌شود؛ بدون کلید، حالت Mock (فقط لاگ).' },
   { key: 'SMS_API_KEY', group: 'otp', label: 'کلید API پیامک (sms.ir)', kind: 'secret', optional: true, hint: 'از پنل sms.ir؛ در هدر x-api-key فرستاده می‌شود و هرگز نمایش داده نمی‌شود.' },
   { key: 'SMS_SENDER_NUMBER', group: 'otp', label: 'شماره خط فرستنده', kind: 'text', optional: true, hint: 'خط اختصاصی sms.ir برای پیامک‌های متنی عادی (bulk).' },
-  { key: 'SMS_OTP_TEMPLATE_ID', group: 'otp', label: 'شناسه قالب کد تأیید', kind: 'text', optional: true, hint: 'قالب تأییدشده‌ی sms.ir برای OTP (POST /v1/send/verify).' },
+  { key: 'SMS_OTP_TEMPLATE_ID', group: 'otp', label: 'شناسه قالب کد تأیید (اختیاری)', kind: 'text', optional: true, hint: 'قالب تأییدشده‌ی sms.ir برای OTP. اگر خالی باشد، کد تأیید به‌صورت پیامک متنی عادی با خط فرستنده ارسال می‌شود و نیازی به قالب نیست.' },
   { key: 'SMS_OTP_PARAM_NAME', group: 'otp', label: 'نام پارامتر کد در قالب', kind: 'text', fallback: 'Code', hint: 'نام متغیر کد در قالب sms.ir (پیش‌فرض Code).' },
   { key: 'SMS_API_BASE', group: 'otp', label: 'آدرس API پیامک', kind: 'url', fallback: 'https://api.sms.ir' },
   { key: 'OTP_ENABLED', group: 'otp', label: 'فعال‌بودن ورود/ثبت‌نام با OTP', kind: 'bool', fallback: 'false' },

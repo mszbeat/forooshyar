@@ -6,12 +6,16 @@ import { AuditService } from '../logging/audit.service';
 /**
  * سرویس پیامک — درگاه sms.ir (پکیج وب‌سرویس).
  *
- * دو مسیر ارسال داریم:
+ * مسیرهای ارسال:
  *  - پیامک متنی عادی: `POST /v1/send/bulk` با خط فرستنده‌ی `SMS_SENDER_NUMBER`
- *    (اگر خط ست نشده باشد، ارسال عادی غیرفعال می‌ماند و فقط لاگ می‌شود).
- *  - کد تأیید (OTP): `POST /v1/send/verify` با قالب تأییدشده‌ی sms.ir؛
- *    شماره‌ی قالب در `SMS_OTP_TEMPLATE_ID` و نام پارامتر در `SMS_OTP_PARAM_NAME`
- *    (پیش‌فرض `Code`) قابل تنظیم است.
+ *    (بدنه: `lineNumber`/`messageText`/`mobiles`).
+ *  - کد تأیید (OTP) — دو حالت:
+ *      ۱) اگر قالب ست باشد (`SMS_OTP_TEMPLATE_ID`): `POST /v1/send/verify`
+ *         با قالب تأییدشده‌ی sms.ir (بدون نیاز به خط فرستنده).
+ *      ۲) اگر قالب ست نباشد ولی خط فرستنده باشد: کد به‌صورت پیامک متنی عادی
+ *         با bulk ارسال می‌شود — نیازی به ساخت قالب در پنل sms.ir نیست.
+ *    قالب را نمی‌توان از طریق API ساخت (sms.ir فقط در پنل وب قالب می‌سازد و
+ *    تأیید می‌کند)؛ به همین دلیل حالت ۲ پیش‌فرضِ بدون‌قالب است.
  *
  * کلید API (`SMS_API_KEY` یا پنل ادمین) هرگز در لاگ/پاسخ دیده نمی‌شود.
  * اگر کلید ست نشده باشد، رفتار Mock قبلی حفظ می‌شود تا توسعه‌ی محلی نشکند.
@@ -54,11 +58,16 @@ export class SmsService {
       this.audit.record({ action: 'sms.mock_sent', entity: 'sms', shopId, meta: { category, phone: this.mask(phone), chars: text.length } });
       return { sent: true as const };
     }
+    const lineNumber = Number(this.senderNumber);
+    if (!Number.isFinite(lineNumber) || lineNumber <= 0) {
+      this.logger.warn(`SMS_SENDER_NUMBER عددی نیست؛ پیامک ارسال نشد.`);
+      return { sent: false as const };
+    }
     try {
       const res = await fetch(`${this.baseUrl}/v1/send/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'text/plain', 'x-api-key': this.apiKey },
-        body: JSON.stringify({ mobile: toLocalMobile(phone), templateId: 0, parameters: [], text, senderNumber: this.senderNumber }),
+        body: JSON.stringify({ lineNumber, messageText: text, mobiles: [toLocalMobile(phone)], sendDateTime: null }),
         signal: AbortSignal.timeout(15000),
       });
       const body = await res.text().catch(() => '');
@@ -75,13 +84,26 @@ export class SmsService {
     }
   }
 
-  /** ارسال کد تأیید با قالب sms.ir؛ در غیاب کلید/قالب، Mock (فقط لاگ). */
+  /**
+   * ارسال کد تأیید:
+   *  ۱) قالب ست باشد → verify با قالب تأییدشده.
+   *  ۲) قالب نباشد ولی خط فرستنده باشد → پیامک متنی عادی (bulk) با خود کد.
+   *  ۳) هیچ‌کدام نباشد → Mock (فقط لاگ).
+   */
   private async sendOtp(phone: string, code: string, category: string, shopId?: string) {
-    if (!this.configured || !this.otpTemplateId) {
-      this.logger.log(`[MOCK SMS] ${category} ${this.mask(phone)}${process.env.NODE_ENV !== 'production' ? ` code=${code}` : ''}`);
-      this.audit.record({ action: 'sms.mock_sent', entity: 'sms', shopId, meta: { category, phone: this.mask(phone) } });
-      return { sent: true as const };
+    if (this.configured && this.otpTemplateId) {
+      return this.sendOtpViaTemplate(phone, code, category, shopId);
     }
+    if (this.configured && this.senderNumber) {
+      return this.send(phone, `کد تأیید فروش‌یار: ${code}`, category, shopId);
+    }
+    this.logger.log(`[MOCK SMS] ${category} ${this.mask(phone)}${process.env.NODE_ENV !== 'production' ? ` code=${code}` : ''}`);
+    this.audit.record({ action: 'sms.mock_sent', entity: 'sms', shopId, meta: { category, phone: this.mask(phone) } });
+    return { sent: true as const };
+  }
+
+  /** ارسال OTP با قالب تأییدشده‌ی sms.ir (`POST /v1/send/verify`). */
+  private async sendOtpViaTemplate(phone: string, code: string, category: string, shopId?: string) {
     try {
       const res = await fetch(`${this.baseUrl}/v1/send/verify`, {
         method: 'POST',
