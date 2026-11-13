@@ -10,6 +10,33 @@ import {
   verifyMetaState,
 } from '../src/instagram/instagram.service';
 import { splitMetaText } from '../src/instagram/instagram.provider';
+import { readInstagramConfig } from '../src/instagram/instagram.config';
+
+describe('readInstagramConfig fallback (پروژه همیشه بالا می‌آید)', () => {
+  it('بدون هیچ env اینستاگرام: boxapi و تنظیم‌نشده', () => {
+    const config = readInstagramConfig({});
+    assert.equal(config.provider, 'boxapi');
+  });
+
+  it('INSTAGRAM_PROVIDER=meta بدون متغیرهای Meta: fallback به boxapi', () => {
+    const config = readInstagramConfig({ INSTAGRAM_PROVIDER: 'meta' });
+    assert.equal(config.provider, 'boxapi');
+  });
+
+  it('INSTAGRAM_PROVIDER=meta با فقط یکی از متغیرها: fallback به boxapi', () => {
+    assert.equal(readInstagramConfig({ INSTAGRAM_PROVIDER: 'meta', META_APP_ID: '123' }).provider, 'boxapi');
+    assert.equal(readInstagramConfig({ INSTAGRAM_PROVIDER: 'meta', META_APP_SECRET: 's' }).provider, 'boxapi');
+  });
+
+  it('INSTAGRAM_PROVIDER=meta با هر دو متغیر: meta', () => {
+    const config = readInstagramConfig({ INSTAGRAM_PROVIDER: 'meta', META_APP_ID: '123', META_APP_SECRET: 's' });
+    assert.equal(config.provider, 'meta');
+  });
+
+  it('مقدار نامعتبر INSTAGRAM_PROVIDER: boxapi', () => {
+    assert.equal(readInstagramConfig({ INSTAGRAM_PROVIDER: 'something' }).provider, 'boxapi');
+  });
+});
 
 describe('findPostShortcode (پست فورواردشده در دایرکت)', () => {
   it('استخراج شورت‌کد از لینک ریل با پارامترهای utm', () => {

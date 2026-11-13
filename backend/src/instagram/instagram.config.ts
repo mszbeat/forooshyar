@@ -61,7 +61,12 @@ const DEFAULT_BASE = 'https://api.sendbox.chat/api/v1';
 
 export function readInstagramConfig(env: NodeJS.ProcessEnv = process.env): InstagramConfig {
   const timeout = Number(env.INSTAGRAM_TIMEOUT_MS ?? 10000);
-  const provider: InstagramProviderName = (env.INSTAGRAM_PROVIDER ?? 'boxapi').trim().toLowerCase() === 'meta' ? 'meta' : 'boxapi';
+  // ارائه‌دهنده‌ی مؤثر: فقط وقتی meta است که هم درخواست شده باشد و هم
+  // META_APP_ID/META_APP_SECRET ست باشند؛ در غیر این صورت boxapi تا پروژه
+  // همیشه بالا بیاید و به خطا نخورد (حتی اگر فقط INSTAGRAM_PROVIDER=meta ست شده باشد).
+  const requested: InstagramProviderName = (env.INSTAGRAM_PROVIDER ?? 'boxapi').trim().toLowerCase() === 'meta' ? 'meta' : 'boxapi';
+  const metaReady = (env.META_APP_ID ?? '').trim().length > 0 && (env.META_APP_SECRET ?? '').trim().length > 0;
+  const provider: InstagramProviderName = requested === 'meta' && metaReady ? 'meta' : 'boxapi';
   const publicBase = (env.PUBLIC_API_URL ?? env.RENDER_EXTERNAL_URL ?? '').trim().replace(/\/+$/, '');
   return {
     provider,

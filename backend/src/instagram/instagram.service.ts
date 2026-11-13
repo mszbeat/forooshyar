@@ -166,6 +166,12 @@ export class InstagramService {
   ) {
     this.config = readInstagramConfig();
     this.provider = createInstagramProvider(this.config, this.db);
+    // اگر meta درخواست شده ولی تنظیم نشده، بی‌صدا به boxapi برمی‌گردیم تا
+    // پروژه بالا بیاید؛ فقط یک هشدار در لاگ می‌ماند تا معلوم باشد چرا.
+    const requested = (process.env.INSTAGRAM_PROVIDER ?? 'boxapi').trim().toLowerCase();
+    if (requested === 'meta' && this.config.provider !== 'meta') {
+      this.logger.warn('INSTAGRAM_PROVIDER=meta ولی META_APP_ID/META_APP_SECRET ست نیست؛ اینستاگرام روی boxapi کار می‌کند.');
+    }
   }
 
   get configured(): boolean {
