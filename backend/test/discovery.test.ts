@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { discover, looksLikeProductQuestion, matchCode, productCode, suggest } from '../src/catalog/discovery';
 import { clarifyProducts, composeReply, describeProduct, orderButtons, productButtons } from '../src/telegram/brain';
-import { applyInput, fullAddress, MAX_QUANTITY, normalizePhone, normalizePostalCode, promptFor, startDraft } from '../src/telegram/order-flow';
+import { applyInput, fullAddress, MAX_QUANTITY, normalizePhone, normalizePostalCode, numericListPick, promptFor, startDraft } from '../src/telegram/order-flow';
 import { findCity, findProvince, PROVINCES } from '../src/geo/iran-geo';
 import { detectIntents, MAX_CLARIFY_ROUNDS, needsHuman } from '../src/telegram/understanding';
 
@@ -341,6 +341,71 @@ describe('سفارش گام‌به‌گام', () => {
     // نیم‌فاصله و «ي/ك» عربی نباید مانع شود
     const arabic = applyInput({ ...cityStep, province: 'خراسان رضوی' }, { text: 'مشهد' });
     assert.equal(arabic.kind, 'prompt');
+  });
+
+  it('حالت وب اینستاگرام: انتخاب استان/شهر با عدد (بدون دکمه)', () => {
+    // متن مرحلهٔ استان لیست شماره‌دار دارد
+    const provinceStep = { ...draft, step: 'province' as const, quantity: 1, page: 0 };
+    const prompt = promptFor(provinceStep);
+    assert.match(prompt.text, /۱\) /);
+    assert.match(prompt.text, /۱۱\) صفحهٔ بعد/);
+    assert.match(prompt.text, /۰\) لغو سفارش/);
+
+    // عدد ۱ = اولین استان صفحهٔ جاری
+    const first = applyInput(provinceStep, { text: '۱' });
+    assert.equal(first.kind, 'prompt');
+    if (first.kind === 'prompt') {
+      assert.equal(first.draft.step, 'city');
+      assert.ok(first.draft.province);
+    }
+
+    // عدد ۱۱ = صفحهٔ بعد
+    const nextPage = applyInput(provinceStep, { text: '۱۱' });
+    assert.equal(nextPage.kind, 'prompt');
+    if (nextPage.kind === 'prompt') assert.equal(nextPage.draft.page, 1);
+
+    // عدد ۰ = لغو
+    assert.equal(applyInput(provinceStep, { text: '۰' }).kind, 'cancel');
+
+    // عدد ۹۹ = بازگشت به مرحلهٔ موبایل
+    const back = applyInput(provinceStep, { text: '۹۹' });
+    assert.equal(back.kind, 'prompt');
+    if (back.kind === 'prompt') assert.equal(back.draft.step, 'phone');
+
+    // شهر هم با عدد انتخاب می‌شود
+    const cityStep = { ...draft, step: 'city' as const, quantity: 1, province: 'تهران', page: 0 };
+    const cityPrompt = promptFor(cityStep);
+    assert.match(cityPrompt.text, /۱\) /);
+    const pickedCity = applyInput(cityStep, { text: '1' });
+    assert.equal(pickedCity.kind, 'prompt');
+    if (pickedCity.kind === 'prompt') {
+      assert.equal(pickedCity.draft.step, 'street');
+      assert.ok(pickedCity.draft.city);
+    }
+  });
+
+  it('حالت وب اینستاگرام: تأیید نهایی با عدد ۱', () => {
+    const confirmStep = { ...draft, step: 'confirm' as const, quantity: 1, name: 'علی', phone: '09123456789', province: 'تهران', city: 'تهران', street: 'ولیعصر', alley: 'ندارد', plaque: '12' };
+    const prompt = promptFor(confirmStep);
+    assert.match(prompt.text, /۱\) تأیید و دریافت لینک پرداخت/);
+    assert.equal(applyInput(confirmStep, { text: '۱' }).kind, 'ready');
+    assert.equal(applyInput(confirmStep, { text: '0' }).kind, 'cancel');
+    const back = applyInput(confirmStep, { text: '۲' });
+    assert.equal(back.kind, 'prompt');
+    if (back.kind === 'prompt') assert.equal(back.draft.step, 'postal');
+  });
+
+  it('numericListPick فقط ورودی کاملاً عددی را می‌فهمد', () => {
+    assert.deepEqual(numericListPick('۳', 10, 0, 4), { kind: 'pick', index: 2 });
+    assert.deepEqual(numericListPick('11', 10, 0, 4), { kind: 'page', page: 1 });
+    assert.deepEqual(numericListPick('12', 10, 1, 4), { kind: 'page', page: 0 });
+    assert.deepEqual(numericListPick('99', 10, 0, 4), { kind: 'back' });
+    assert.deepEqual(numericListPick('0', 10, 0, 4), { kind: 'cancel' });
+    assert.equal(numericListPick('تهران', 10, 0, 4), null);
+    assert.equal(numericListPick('۵ تهران', 10, 0, 4), null);
+    assert.equal(numericListPick('11', 10, 3, 4), null, 'صفحهٔ بعد در آخرین صفحه نیست');
+    assert.equal(numericListPick('12', 10, 0, 4), null, 'صفحهٔ قبل در صفحهٔ اول نیست');
+    assert.equal(numericListPick('7', 3, 3, 4), null, 'عدد بزرگ‌تر از آیتم‌های صفحهٔ آخر');
   });
 
   it('ورودی نامعتبر از جریان بیرون نمی‌اندازد', () => {

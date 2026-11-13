@@ -130,7 +130,7 @@ export default function LandingPage() {
       <nav className={`land-nav ${scrolled ? 'scrolled' : ''}`}>
         <div className="land-wrap land-nav-in">
           <Link className="brand" href="/">
-            <span className="brand-mark"><BrandLogo size={38} /></span>
+            <span className="brand-mark"><BrandLogo size={40} /></span>
             <span>
               <span className="brand-name" style={{ display: 'block' }}>{brand.name}</span>
               <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>
@@ -470,7 +470,7 @@ export default function LandingPage() {
           <div className="foot-cols">
             <div className="foot-brand">
               <Link className="brand" href="/">
-                <span className="brand-mark"><BrandLogo size={38} /></span>
+                <span className="brand-mark"><BrandLogo size={40} /></span>
                 <span>
                   <span className="brand-name" style={{ display: 'block' }}>{brand.name}</span>
                   <span className="brand-sub" style={{ display: 'block' }}>دستیار فروش فارسی</span>

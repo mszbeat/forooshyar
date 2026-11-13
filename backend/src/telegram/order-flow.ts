@@ -184,6 +184,53 @@ function pagerRow(current: number, pages: number, prefix: string): BotButton[] {
   return row;
 }
 
+/**
+ * لیست شماره‌دار متنی برای حالت وب اینستاگرام که دکمه‌ها/پاسخ‌های سریع کار
+ * نمی‌کنند: مشتری با تایپ عدد (۱ تا ۱۰) آیتم صفحهٔ جاری را انتخاب می‌کند.
+ * شماره‌های رزرو: ۱۱ = صفحهٔ بعد، ۱۲ = صفحهٔ قبل، ۹۹ = بازگشت، ۰ = لغو.
+ */
+function numberedList(items: string[]): string {
+  return items.map((item, index) => `${fa(index + 1)}) ${item}`).join('\n');
+}
+
+/** خطوط کنترلی شماره‌دار زیر لیست (صفحه‌بندی/بازگشت/لغو) — فقط وقتی لازم است. */
+function numberedPagerLines(current: number, pages: number): string {
+  return [
+    current < pages - 1 ? `${fa(PAGE_SIZE + 1)}) صفحهٔ بعد` : '',
+    current > 0 ? `${fa(PAGE_SIZE + 2)}) صفحهٔ قبل` : '',
+    `${fa(99)}) بازگشت`,
+    `${fa(0)}) لغو سفارش`,
+  ].filter(Boolean).join('\n');
+}
+
+export type NumericPick =
+  | { kind: 'pick'; index: number }
+  | { kind: 'page'; page: number }
+  | { kind: 'back' }
+  | { kind: 'cancel' };
+
+/**
+ * تفسیر ورودی عددی در لیست‌های صفحه‌بندی‌شده (استان/شهر) برای حالت وب
+ * اینستاگرام که دکمه‌ها کار نمی‌کنند. فقط ورودیِ کاملاً عددی قبول می‌شود
+ * تا نام شهر/استان با عدد قاطی نشود. `null` یعنی ورودی عددی معتبر نیست.
+ */
+export function numericListPick(
+  text: string,
+  sliceLength: number,
+  current: number,
+  pages: number,
+): NumericPick | null {
+  const latin = toLatinDigits(text);
+  if (!/^\d+$/u.test(latin)) return null;
+  const num = Number(latin);
+  if (num === 0) return { kind: 'cancel' };
+  if (num === 99) return { kind: 'back' };
+  if (num >= 1 && num <= sliceLength) return { kind: 'pick', index: num - 1 };
+  if (num === PAGE_SIZE + 1 && current < pages - 1) return { kind: 'page', page: current + 1 };
+  if (num === PAGE_SIZE + 2 && current > 0) return { kind: 'page', page: current - 1 };
+  return null;
+}
+
 /** متن مرحله‌ی جاری. همه‌ی مقادیر کاربر با escape می‌آیند تا HTML تلگرام نشکند. */
 export function promptFor(draft: OrderDraft, telegramName = ''): BotReply {
   const head = progressLine(draft);
@@ -220,12 +267,15 @@ export function promptFor(draft: OrderDraft, telegramName = ''): BotReply {
     case 'province': {
       const { rows, pages } = provinceButtons(draft.page ?? 0);
       const current = Math.min(Math.max(draft.page ?? 0, 0), pages - 1);
+      const slice = PROVINCES.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
       return {
         kind: 'order',
         text: [
           head,
           '<b>استان</b>',
-          'استان را از لیست انتخاب کنید:',
+          'شمارهٔ استان را بفرستید یا از دکمه‌ها انتخاب کنید:',
+          numberedList(slice.map(province => province.name)),
+          numberedPagerLines(current, pages),
           `<i>(صفحه ${fa(current + 1)} از ${fa(pages)})</i>`,
         ].join('\n'),
         buttons: rows,
@@ -239,14 +289,19 @@ export function promptFor(draft: OrderDraft, telegramName = ''): BotReply {
         const next = { ...draft, step: 'province' as const, province: undefined, page: 0 };
         return promptFor(next, telegramName);
       }
-      const { rows } = cityButtons(province, draft.page ?? 0);
+      const { rows, pages } = cityButtons(province, draft.page ?? 0);
+      const current = Math.min(Math.max(draft.page ?? 0, 0), pages - 1);
+      const slice = province.cities.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
       return {
         kind: 'order',
         text: [
           head,
           `<b>شهر در استان ${escapeHtml(province.name)}</b>`,
-          'شهر را انتخاب کنید، یا نامش را بنویسید:',
-        ].join('\n'),
+          'شمارهٔ شهر را بفرستید، از دکمه‌ها انتخاب کنید، یا نامش را بنویسید:',
+          numberedList(slice),
+          numberedPagerLines(current, pages),
+          pages > 1 ? `<i>(صفحه ${fa(current + 1)} از ${fa(pages)})</i>` : '',
+        ].filter(Boolean).join('\n'),
         buttons: rows,
         parseMode: 'HTML',
       };
@@ -261,7 +316,7 @@ export function promptFor(draft: OrderDraft, telegramName = ''): BotReply {
     case 'alley':
       return {
         kind: 'order',
-        text: `${head}<b>کوچه</b>\nنام کوچه را بنویسید. اگر ندارد «ندارد» را بزنید.`,
+        text: `${head}<b>کوچه</b>\nنام کوچه را بنویسید. اگر ندارد «ندارد» را بفرستید.`,
         buttons: [[{ text: 'کوچه ندارد', data: 'flow:alley:none' }], navRow()],
         parseMode: 'HTML',
       };
@@ -285,7 +340,7 @@ export function promptFor(draft: OrderDraft, telegramName = ''): BotReply {
         text: [
           head,
           '<b>کد پستی</b> <i>(اختیاری)</i>',
-          'کد پستی ۱۰ رقمی را بفرستید یا «رد کردن» را بزنید.',
+          'کد پستی ۱۰ رقمی را بفرستید یا «رد کردن» را بنویسید.',
           '<i>با کد پستی، مرسوله دقیق‌تر و سریع‌تر می‌رسد.</i>',
         ].join('\n'),
         buttons: [[{ text: 'رد کردن کد پستی', data: 'flow:postal:skip' }], navRow()],
@@ -307,6 +362,10 @@ export function promptFor(draft: OrderDraft, telegramName = ''): BotReply {
           draft.postalCode ? `📮 کد پستی: ${escapeHtml(draft.postalCode)}` : '📮 کد پستی: ندارد',
           '',
           'اطلاعات درست است؟ با تأیید، لینک پرداخت برایتان می‌آید.',
+          '',
+          `${fa(1)}) تأیید و دریافت لینک پرداخت`,
+          `${fa(2)}) بازگشت و ویرایش`,
+          `${fa(0)}) لغو سفارش`,
         ].join('\n'),
         buttons: [
           [{ text: '✅ تأیید و دریافت لینک پرداخت', data: 'flow:confirm' }],
@@ -378,14 +437,8 @@ export function applyInput(
     const prompt = promptFor(draft, input.telegramName);
     return { kind: 'invalid', draft, reply: { ...prompt, text: `⚠️ ${message}\n\n${prompt.text}` } };
   };
-
-  if (data === 'flow:cancel' || /^(لغو|انصراف|بیخیال|بی‌خیال)$/u.test(text)) {
-    return { kind: 'cancel', reply: { kind: 'order', text: '✖ سفارش لغو شد. هر وقت خواستید دوباره شروع کنیم.' } };
-  }
-  if (data === 'flow:noop') {
-    return { kind: 'invalid', draft, reply: promptFor(draft, input.telegramName) };
-  }
-  if (data === 'flow:back') {
+  const cancel = (): FlowOutcome => ({ kind: 'cancel', reply: { kind: 'order', text: '✖ سفارش لغو شد. هر وقت خواستید دوباره شروع کنیم.' } });
+  const goBack = (): FlowOutcome => {
     const step = previousStep(draft.step);
     const cleared: Partial<OrderDraft> = {};
     // مقدار همان مرحله را پاک می‌کنیم تا دوباره پرسیده و بازنویسی شود.
@@ -400,6 +453,16 @@ export function applyInput(
     if (step === 'province') cleared.city = undefined;
     const updated: OrderDraft = { ...draft, ...cleared, step, page: 0, updatedAt: new Date().toISOString() };
     return { kind: 'prompt', draft: updated, reply: promptFor(updated, input.telegramName) };
+  };
+
+  if (data === 'flow:cancel' || /^(لغو|انصراف|بیخیال|بی‌خیال)$/u.test(text)) {
+    return cancel();
+  }
+  if (data === 'flow:noop') {
+    return { kind: 'invalid', draft, reply: promptFor(draft, input.telegramName) };
+  }
+  if (data === 'flow:back' || /^(بازگشت|برگرد|قبلی)$/u.test(text)) {
+    return goBack();
   }
 
   // ------------------------------------------------------------ دکمه‌های استان/شهر
@@ -411,11 +474,28 @@ export function applyInput(
   }
 
   if (draft.step === 'province') {
+    // حالت متنی (وب اینستاگرام): عدد ۱ تا ۱۰ = آیتم صفحهٔ جاری، ۱۱/۱۲ = صفحهٔ بعد/قبل، ۹۹ = بازگشت، ۰ = لغو.
+    if (!data) {
+      const pages = Math.ceil(PROVINCES.length / PAGE_SIZE);
+      const current = Math.min(Math.max(draft.page ?? 0, 0), pages - 1);
+      const slice = PROVINCES.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
+      const pick = numericListPick(text, slice.length, current, pages);
+      if (pick) {
+        if (pick.kind === 'cancel') return cancel();
+        if (pick.kind === 'back') return goBack();
+        if (pick.kind === 'page') {
+          const updated: OrderDraft = { ...draft, page: pick.page, updatedAt: new Date().toISOString() };
+          return { kind: 'prompt', draft: updated, reply: promptFor(updated, input.telegramName) };
+        }
+        const province = slice[pick.index];
+        if (province) return next({ province: province.name, city: undefined }, 'city');
+      }
+    }
     const chosen = data.startsWith('flow:prov:') ? data.slice('flow:prov:'.length) : text;
     const province = findProvince(chosen);
     if (!province) {
       // اگر استان را تایپ کرده و پیدا نشد، پیشنهاد لیست می‌دهیم (نه خطای خشک).
-      return retry('این استان در لیست نیست. یکی از دکمه‌ها را بزنید.');
+      return retry('این استان در لیست نیست. شمارهٔ استان را از لیست بفرستید یا از دکمه‌ها انتخاب کنید.');
     }
     return next({ province: province.name, city: undefined }, 'city');
   }
@@ -423,10 +503,27 @@ export function applyInput(
   if (draft.step === 'city') {
     const province = findProvince(draft.province ?? '');
     if (!province) return next({ province: undefined }, 'province');
+    // حالت متنی (وب اینستاگرام): عدد ۱ تا ۱۰ = آیتم صفحهٔ جاری، ۱۱/۱۲ = صفحهٔ بعد/قبل، ۹۹ = بازگشت، ۰ = لغو.
+    if (!data) {
+      const pages = Math.ceil(province.cities.length / PAGE_SIZE);
+      const current = Math.min(Math.max(draft.page ?? 0, 0), pages - 1);
+      const slice = province.cities.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
+      const pick = numericListPick(text, slice.length, current, pages);
+      if (pick) {
+        if (pick.kind === 'cancel') return cancel();
+        if (pick.kind === 'back') return goBack();
+        if (pick.kind === 'page') {
+          const updated: OrderDraft = { ...draft, page: pick.page, updatedAt: new Date().toISOString() };
+          return { kind: 'prompt', draft: updated, reply: promptFor(updated, input.telegramName) };
+        }
+        const city = slice[pick.index];
+        if (city) return next({ city }, 'street');
+      }
+    }
     const chosen = data.startsWith('flow:city:') ? data.slice('flow:city:'.length) : text;
     const city = findCity(province.name, chosen);
     if (!city) {
-      return retry(`«${escapeHtml(chosen.slice(0, 30))}» در استان ${escapeHtml(province.name)} پیدا نشد. از دکمه‌ها انتخاب کنید یا نام دقیق شهر را بنویسید.`);
+      return retry(`«${escapeHtml(chosen.slice(0, 30))}» در استان ${escapeHtml(province.name)} پیدا نشد. شمارهٔ شهر را از لیست بفرستید، از دکمه‌ها انتخاب کنید یا نام دقیق شهر را بنویسید.`);
     }
     return next({ city }, 'street');
   }
@@ -465,7 +562,7 @@ export function applyInput(
 
   if (draft.step === 'alley') {
     if (data === 'flow:alley:none') return next({ alley: 'ندارد' }, 'plaque');
-    if (text.length < 2) return retry('نام کوچه را بنویسید یا «کوچه ندارد» را بزنید.');
+    if (text.length < 2) return retry('نام کوچه را بنویسید یا «ندارد» را بفرستید.');
     return next({ alley: text.slice(0, 120) }, 'plaque');
   }
 
@@ -477,7 +574,7 @@ export function applyInput(
 
   if (draft.step === 'unit') {
     if (data === 'flow:unit:none' || /^(ندارد|نداره|نیست)$/u.test(text)) return next({ unit: 'ندارد' }, 'postal');
-    if (text.length < 1) return retry('شماره‌ی واحد را بفرستید یا «واحد ندارد» را بزنید.');
+    if (text.length < 1) return retry('شماره‌ی واحد را بفرستید یا «ندارد» را بفرستید.');
     // ارقام فارسی به لاتین تا برچسب پست یکدست باشد.
     return next({ unit: toLatinDigits(text).slice(0, 20) }, 'postal');
   }
@@ -485,15 +582,22 @@ export function applyInput(
   if (draft.step === 'postal') {
     if (data === 'flow:postal:skip' || /^(رد|رد کردن|ندارد|ندارم|skip)$/u.test(text)) return next({ postalCode: undefined }, 'confirm');
     const postal = normalizePostalCode(text);
-    if (!postal) return retry('کد پستی باید ۱۰ رقم باشد و با صفر شروع نشود. می‌توانید «رد کردن» را بزنید.');
+    if (!postal) return retry('کد پستی باید ۱۰ رقم باشد و با صفر شروع نشود. می‌توانید «رد کردن» را بنویسید.');
     return next({ postalCode: postal }, 'confirm');
   }
 
   if (draft.step === 'confirm') {
+    // حالت متنی (وب اینستاگرام): ۱ = تأیید، ۲ = بازگشت، ۰ = لغو.
+    if (!data) {
+      const latin = toLatinDigits(text);
+      if (latin === '1') return { kind: 'ready', draft, reply: { kind: 'order', text: 'در حال ساخت لینک پرداخت…' } };
+      if (latin === '2') return goBack();
+      if (latin === '0') return cancel();
+    }
     if (data === 'flow:confirm' || /^(تأیید|تایید|بله|درسته|باشه|✅)$/u.test(text)) {
       return { kind: 'ready', draft, reply: { kind: 'order', text: 'در حال ساخت لینک پرداخت…' } };
     }
-    return retry('برای ادامه دکمه‌ی «تأیید» را بزنید یا «لغو» بفرستید.');
+    return retry('برای ادامه «۱» (تأیید) را بفرستید، دکمه‌ی «تأیید» را بزنید، یا «لغو» بنویسید.');
   }
 
   return { kind: 'invalid', draft, reply: promptFor(draft, input.telegramName) };
