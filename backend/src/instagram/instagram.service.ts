@@ -23,7 +23,7 @@ import {
   type BrainShop,
 } from '../telegram/brain';
 import { addPersonality, resolveReply, type UnderstandResult } from '../ai/understand';
-import type { IntentId } from '../telegram/understanding';
+import { detectIntents, type IntentId } from '../telegram/understanding';
 import {
   applyInput,
   draftTitle,
@@ -1600,10 +1600,47 @@ export class InstagramService {
    * می‌شود؛ در غیر این صورت فقط ثبت می‌کنیم — پاسخ حدسی روی کامنت عمومی، آبروی
    * فروشنده است.
    */
+  /**
+   * پاسخ عمومی قیمت به کامنت «قیمت چنده؟» روی پستی که به محصول لینک شده.
+   * محصول از روی `mediaId` پست پیدا می‌شود (هر دو ستون mediaId/shortcode
+   * بررسی می‌شوند چون فروشنده ممکن است لینک یا آیدی عددی داده باشد).
+   * `false` یعنی پست لینک‌شده نیست و باید به مسیر مغز بات برگردیم.
+   */
+  private async replyPriceForPost(shopId: string, commentId: string, mediaId: string): Promise<boolean> {
+    const linked = await this.db.productPostLink.findFirst({
+      where: { shopId, OR: [{ mediaId }, { shortcode: mediaId }] },
+      include: { product: { include: { variants: { where: { active: true }, take: 20 } } } },
+    }).catch(() => null);
+    const product = linked?.product;
+    if (!product) return false;
+    const account = await this.account(shopId);
+    if (!account) return false;
+    const variantLines = product.variants.slice(0, 10).map(v => {
+      const spec = Object.entries((v.optionsJson as Record<string, string>) ?? {}).map(([k, val]) => `${k}: ${val}`).join('، ');
+      return `• ${spec || 'استاندارد'} — ${v.price.toLocaleString('fa-IR')} تومان (موجودی: ${v.stock.toLocaleString('fa-IR')})`;
+    }).join('\n');
+    const message = `🛍️ ${product.title}\n${variantLines}\nبرای سفارش، همین‌جا دایرکت بدهید 🌿`;
+    const result = await this.provider.replyComment(account.id, commentId, message);
+    this.audit.record({
+      action: result.ok ? 'instagram.comment_price_replied' : 'instagram.comment_failed',
+      entity: 'comment', shopId,
+      meta: { commentId, productId: product.id, error: result.ok ? null : result.error },
+    });
+    return result.ok;
+  }
+
   private async handleComment(shopId: string, comment: InstagramComment): Promise<void> {
     const commentId = (comment.comment_id ?? comment.id ?? '').trim();
     const text = (comment.text ?? '').trim();
     if (!commentId || !text) return;
+
+    // سؤال قیمت روی پست لینک‌شده («قیمت چنده؟»): محصول از روی پست مشخص است،
+    // نه از روی متن کامنت؛ پس قیمت همان محصول را عمومی جواب می‌دهیم.
+    const mediaId = (comment.media?.id ?? '').trim();
+    if (mediaId && detectIntents(text).some(hit => hit.id === 'price' && hit.score >= 1)) {
+      const replied = await this.replyPriceForPost(shopId, commentId, mediaId);
+      if (replied) return;
+    }
 
     const shop = await this.shop(shopId);
     const products = await this.catalog(shopId);

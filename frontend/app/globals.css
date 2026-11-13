@@ -860,7 +860,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
   .adm-scrim { display: block; position: fixed; inset: 0; z-index: 89; border: 0; background: rgba(8,9,10,.55); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .22s; }
   .adm-shell.nav-open .adm-scrim { opacity: 1; pointer-events: auto; }
   /* در RTL، inset-inline-end یعنی سمت چپ؛ برای پنهان‌کردن باید به چپ برود (-105%). */
-  .adm-side { position: fixed; z-index: 90; inset-block: 0; inset-inline-end: 0; width: min(86vw, 320px); height: 100dvh; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 18px 16px; overflow-y: auto; transform: translateX(-105%); visibility: hidden; transition: transform .25s cubic-bezier(.22,.9,.24,1), visibility .25s; }
+  .adm-side { position: fixed; z-index: 90; inset-block: 0; inset-inline-start: 0; width: min(86vw, 320px); height: 100dvh; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 18px 16px; overflow-y: auto; transform: translateX(105%); visibility: hidden; transition: transform .25s cubic-bezier(.22,.9,.24,1), visibility .25s; }
   .adm-shell.nav-open .adm-side { transform: translateX(0); visibility: visible; }
   .adm-brand { border-bottom: 1px solid var(--night-line); padding: 0 4px 14px; flex: 0 0 auto; }
   .adm-brand .rl { display: block; }

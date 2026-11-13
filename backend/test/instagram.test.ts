@@ -14,6 +14,7 @@ import { after, before, describe, it } from 'node:test';
 import { verifySignature, signPayload } from '../src/instagram/signature';
 import { toPlainText, toInstagramActions, splitInstagramMessage } from '../src/instagram/format';
 import { InstagramClient } from '../src/instagram/instagram.client';
+import { detectIntents } from '../src/telegram/understanding';
 
 type Captured = { action: string; body: Record<string, unknown>; apiKey: string };
 
@@ -513,5 +514,53 @@ describe('انتخاب محصول بدون دکمه (نسخه‌ی وب اینس
     reset();
     const result = await service.handleWebhook(event({ text: '۰' }));
     assert.notEqual((result as { kind?: string }).kind, 'product_pick');
+  });
+});
+
+describe('سؤال قیمت در کامنت روی پست لینک‌شده', () => {
+  it('عبارت‌های «قیمت چنده» intent قیمت می‌دهند', () => {
+    for (const text of ['قیمت چنده', 'قیمتش چنده', 'قیمت این چنده؟', 'قیمتش چند؟']) {
+      const hit = detectIntents(text).find(item => item.id === 'price');
+      assert.ok(hit && hit.score >= 1, `عبارت «${text}» intent قیمت ندارد`);
+    }
+  });
+
+  function commentEvent(text: string, mediaId: string) {
+    return {
+      event_id: `evt_${Math.random().toString(36).slice(2)}`,
+      event_type: 'comments',
+      account_id: ACCOUNT_ID,
+      data: {
+        comments: [{
+          comment_id: `c_${Math.random().toString(36).slice(2)}`,
+          text,
+          sender: { id: `1785${Math.floor(Math.random() * 1_000_000_000)}`, username: 'customer' },
+          media: { id: mediaId },
+        }],
+      },
+    };
+  }
+
+  it('کامنت «قیمت چنده» روی پست لینک‌شده، قیمت محصول را عمومی جواب می‌دهد', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    const mediaId = `media_${Date.now()}`;
+    await prisma.productPostLink.create({
+      data: { shopId: seed.shopId, productId: seed.productId, mediaId, shortcode: 'testpost' },
+    });
+    reset();
+    const result = await service.handleWebhook(commentEvent('قیمت چنده', mediaId));
+    assert.equal(result.status, 'handled');
+    const reply = captured.find(item => item.action === 'reply_comment');
+    assert.ok(reply, 'پاسخ عمومی به کامنت ارسال نشد');
+    const message = String(reply.body.message ?? '');
+    assert.ok(message.includes('مانتو کتان تابستانه'), 'نام محصول در پاسخ نیست');
+    assert.ok(message.includes('۸۹۰٬۰۰۰'), 'قیمت محصول در پاسخ نیست');
+  });
+
+  it('کامنت قیمت روی پست بدون لینک، پاسخ عمومی نمی‌دهد', async t => {
+    if (!databaseReady) return t.skip('DATABASE_URL لازم است');
+    reset();
+    await service.handleWebhook(commentEvent('قیمت چنده', `unlinked_${Date.now()}`));
+    assert.equal(captured.some(item => item.action === 'reply_comment'), false);
   });
 });

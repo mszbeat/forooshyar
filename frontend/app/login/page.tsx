@@ -12,7 +12,7 @@ import { ApiError } from '@/lib/api';
 import { request } from '@/lib/api';
 import { Field, Spinner, useToast } from '@/components/ui';
 import { ThemeToggle } from '@/components/theme';
-import { IconAlertCircle, IconArrowLeft, IconCheck, IconEye, IconLogo, IconShield } from '@/components/icons';
+import { IconAlertCircle, IconArrowLeft, IconCheck, IconCheckCircle, IconEye, IconLogo, IconShield } from '@/components/icons';
 
 /** اعتبارسنجی سمت کلاینت؛ پیام‌ها فارسی و برای کاربر نهایی نوشته شده‌اند. */
 const loginSchema = z.object({
@@ -48,6 +48,9 @@ export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // پیام موفقیت (مثل «کد ارسال شد») جدا از خطا نگه داشته می‌شود تا با
+  // استایل سبز/اطلاع نمایش داده شود، نه بنر قرمز خطا.
+  const [notice, setNotice] = useState('');
   const [remember, setRemember] = useState(false);
   const [loginMethod,setLoginMethod]=useState<'password'|'otp'>('password');
   const [otpPhone,setOtpPhone]=useState(''); const [otpCode,setOtpCode]=useState(''); const [otpSent,setOtpSent]=useState(false);
@@ -92,6 +95,7 @@ export default function LoginPage() {
     if (next === mode) return;
     setMode(next);
     setError('');
+    setNotice('');
     setFieldErrors({});
     setTerms(false);
     setValues(previous => ({ ...previous, shopName: '', password: '' }));
@@ -254,6 +258,13 @@ export default function LoginPage() {
               </div>
             )}
 
+            {notice && !error && (
+              <div className="alert alert-info" role="status" style={{ marginTop: 18 }}>
+                <IconCheckCircle />
+                <span>{notice}</span>
+              </div>
+            )}
+
             <form className="authx-form" onSubmit={submit} noValidate={false}>
               {isRegister && (
                 <Field label="نام فروشگاه" required htmlFor="shopName" hint="همین نام در پاسخ خودکار خطاب به مشتری استفاده می‌شود." error={fieldErrors.shopName}>
@@ -265,11 +276,12 @@ export default function LoginPage() {
                 </Field>
               )}
 
-              {!isRegister && <div className="authx-row"><button type="button" className="authx-link" onClick={()=>setLoginMethod('password')}>ورود با ایمیل و رمز</button><button type="button" className="authx-link" onClick={()=>setLoginMethod('otp')}>ورود با کد یک‌بارمصرف</button></div>}
+              {!isRegister && <div className="authx-row"><button type="button" className="authx-link" onClick={()=>{setLoginMethod('password');setError('');setNotice('');}}>ورود با ایمیل و رمز</button><button type="button" className="authx-link" onClick={()=>{setLoginMethod('otp');setError('');setNotice('');}}>ورود با کد یک‌بارمصرف</button></div>}
               {!isRegister && loginMethod === 'otp' ? <>
-                <Field label="شماره موبایل تأییدشده" required htmlFor="otpPhone"><input id="otpPhone" className="input input-ltr" dir="ltr" value={otpPhone} onChange={e=>setOtpPhone(e.target.value)} placeholder="09123456789" /></Field>
+                <Field label="شماره موبایل تأییدشده" required htmlFor="otpPhone"><input id="otpPhone" className="input input-ltr" dir="ltr" value={otpPhone} onChange={e=>{setOtpPhone(e.target.value);setNotice('');}} placeholder="09123456789" /></Field>
                 {otpSent && <Field label="کد یک‌بارمصرف" required htmlFor="otpCode"><input id="otpCode" className="input input-ltr" dir="ltr" inputMode="numeric" maxLength={6} value={otpCode} onChange={e=>setOtpCode(e.target.value)} /></Field>}
-                {!otpSent && <button type="button" className="btn btn-outline" disabled={busy||!otpPhone} onClick={async()=>{setBusy(true);try{await request('/auth/otp/request',{method:'POST',body:{phone:otpPhone},auth:false});setOtpSent(true);setError('در صورت تأیید بودن شماره، کد ارسال شد.');}catch(e){setError(e instanceof Error?e.message:'درخواست کد انجام نشد.');}finally{setBusy(false);}}}>ارسال کد</button>}
+                {!otpSent && <button type="button" className="btn btn-outline" disabled={busy||!otpPhone} onClick={async()=>{setBusy(true);setError('');try{await request('/auth/otp/request',{method:'POST',body:{phone:otpPhone},auth:false});setOtpSent(true);setNotice('کد تأیید به شمارهٔ شما ارسال شد.');}catch(e){setError(e instanceof Error?e.message:'درخواست کد انجام نشد.');}finally{setBusy(false);}}}>ارسال کد</button>}
+                {otpSent && <button type="button" className="authx-link" disabled={busy} onClick={async()=>{setBusy(true);setError('');try{await request('/auth/otp/request',{method:'POST',body:{phone:otpPhone},auth:false});setNotice('کد جدید ارسال شد.');}catch(e){setError(e instanceof Error?e.message:'درخواست کد انجام نشد.');}finally{setBusy(false);}}}>ارسال دوبارهٔ کد</button>}
               </> : <>
               <Field label="ایمیل" required htmlFor="email" error={fieldErrors.email}>
                 <input
