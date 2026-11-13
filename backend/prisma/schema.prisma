@@ -289,6 +289,10 @@ model Channel {
   /// تاریخ انقضای دسترسی پیج؛ بعد از آن فروشنده باید دوباره لاگین کند.
   instagramExpiresAt DateTime?
   instagramLinkedAt  DateTime?
+  /// ارائه‌دهنده‌ی اتصال اینستاگرام: 'boxapi' (پیش‌فرض) یا 'meta' (API رسمی).
+  instagramProvider String @default("boxapi")
+  /// توکن بلندمدت Meta، رمزنگاری‌شده (AES-256-GCM)؛ فقط برای provider=meta.
+  instagramAccessToken String?
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

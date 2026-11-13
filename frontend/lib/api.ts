@@ -212,6 +212,7 @@ export type InstagramAccount = {
   mine: boolean;
 };
 export type InstagramStatus = {
+  provider?: 'boxapi' | 'meta';
   configured: boolean;
   connectable: boolean;
   accountLinked: boolean;

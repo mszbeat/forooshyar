@@ -153,17 +153,23 @@ export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {})
     }
   }, [toast]);
 
-  // وقتی فروشنده از تب اینستاگرام برمی‌گردد، فهرست پیج‌ها را خودمان می‌خوانیم؛
+  // وقتی فروشنده از تب اینستاگرام برمی‌گردد، وضعیت را خودمان می‌خوانیم؛
   // لازم نیست یادش بیفتد دکمه‌ی «بررسی کن» را بزند.
+  // در Meta اتصال در همان callback انجام شده و فقط status عوض می‌شود؛
+  // در BoxAPI باید فهرست پیج‌ها خوانده شود تا فروشنده یکی را انتخاب کند.
+  const providerRef = useRef<string>('boxapi');
+  useEffect(() => { providerRef.current = status?.provider ?? 'boxapi'; }, [status?.provider]);
+
   useEffect(() => {
     function onReturn() {
       if (!pendingConnect.current) return;
       pendingConnect.current = false;
-      void refreshAccounts();
+      if (providerRef.current === 'meta') void load();
+      else void refreshAccounts();
     }
     window.addEventListener('focus', onReturn);
     return () => window.removeEventListener('focus', onReturn);
-  }, [refreshAccounts]);
+  }, [load, refreshAccounts]);
 
   async function link(account: InstagramAccount) {
     setBusy('link');
@@ -281,7 +287,9 @@ export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {})
               <div className="kv-k">۱ · پیج فروشگاه را اجازه بدهید</div>
               <p className="small muted" style={{ margin: 0, lineHeight: 1.95 }}>
                 روی دکمه‌ی زیر بزنید و با همان حسابی که پیج فروشگاه است وارد شوید. بعد از تأیید،
-                برمی‌گردید همین‌جا و پیج را انتخاب می‌کنید.
+                {status?.provider === 'meta'
+                  ? ' به‌صورت خودکار به همین صفحه برمی‌گردید و پیج وصل می‌شود.'
+                  : ' برمی‌گردید همین‌جا و پیج را انتخاب می‌کنید.'}
               </p>
               <div style={{ display: 'grid', gap: 8, marginTop: 4 }}>
                 <button
@@ -294,7 +302,7 @@ export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {})
                   {busy === 'connect' ? <Spinner size={15} /> : <IconInstagram size={15} />}
                   باز کردن صفحه‌ی اتصال حساب
                 </button>
-                <button className="btn btn-outline" type="button" style={{ width: '100%' }} disabled={busy !== null} onClick={refreshAccounts}>
+                <button className="btn btn-outline" type="button" style={{ width: '100%' }} disabled={busy !== null} onClick={() => (status?.provider === 'meta' ? void load() : void refreshAccounts())}>
                   {busy === 'accounts' ? <Spinner size={15} /> : <IconRefresh size={15} />}
                   پیج را وصل کردم؛ بررسی کن
                 </button>

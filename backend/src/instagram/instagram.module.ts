@@ -5,6 +5,7 @@ import { TelegramModule } from '../telegram/telegram.module';
 import { InstagramController } from './instagram.controller';
 import { InstagramService } from './instagram.service';
 import { InstagramWebhookController } from './instagram.webhook.controller';
+import { MetaOAuthController, MetaWebhookController } from './instagram.meta.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { AutomationModule } from '../automation/automation.module';
@@ -22,7 +23,7 @@ import { AutomationModule } from '../automation/automation.module';
  */
 @Module({
   imports: [forwardRef(() => OrdersModule), forwardRef(() => TelegramModule), AiModule, SubscriptionsModule, PaymentsModule, AutomationModule],
-  controllers: [InstagramWebhookController, InstagramController],
+  controllers: [InstagramWebhookController, InstagramController, MetaWebhookController, MetaOAuthController],
   providers: [InstagramService],
   exports: [InstagramService],
 })

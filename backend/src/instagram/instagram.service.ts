@@ -1,5 +1,7 @@
-import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Prisma } from '@prisma/client';
+import { decryptCard, encryptCard } from '../payments/card-crypto';
 import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { AuditService } from '../logging/audit.service';
@@ -32,7 +34,8 @@ import {
 } from '../telegram/order-flow';
 import { helpText, welcomeText, KEYBOARD_ACTIONS } from '../telegram/menu';
 import { isDeliveryConfirmation } from '../telegram/delivery';
-import { InstagramClient, type InstagramAccount } from './instagram.client';
+import { createInstagramProvider, type InstagramProvider } from './instagram.provider';
+import type { InstagramAccount } from './instagram.client';
 import {
   instagramConfigured,
   instagramConnectable,
@@ -146,7 +149,7 @@ const PROFILE_CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 export class InstagramService {
   private readonly logger = new Logger('Instagram');
   private readonly config: InstagramConfig;
-  private readonly client: InstagramClient;
+  private readonly provider: InstagramProvider;
 
   constructor(
     private readonly db: PrismaService,
@@ -162,7 +165,7 @@ export class InstagramService {
     private readonly cart: CartService,
   ) {
     this.config = readInstagramConfig();
-    this.client = new InstagramClient(this.config);
+    this.provider = createInstagramProvider(this.config, this.db);
   }
 
   get configured(): boolean {
@@ -205,9 +208,11 @@ export class InstagramService {
     const daysLeft = expiresAt ? Math.ceil((Date.parse(expiresAt) - Date.now()) / 86_400_000) : null;
 
     return {
-      /** سمت سرور آماده است (کلید API هست). */
+      /** ارائه‌دهنده‌ی فعال: boxapi (اشتراکی) یا meta (API رسمی رایگان). */
+      provider: this.config.provider,
+      /** سمت سرور آماده است (کلید/اپ تنظیم شده). */
       configured: this.configured,
-      /** دکمه‌ی «اتصال پیج» قابل استفاده است (لینک ورود حساب تنظیم شده). */
+      /** دکمه‌ی «اتصال پیج» قابل استفاده است. */
       connectable: instagramConnectable(this.config),
       /** آیا همین فروشگاه پیجی وصل کرده است. */
       accountLinked: Boolean(account?.id),
@@ -241,8 +246,9 @@ export class InstagramService {
     await this.subscriptions.assertCanConnect(shopId);
     this.audit.record({
       action: 'instagram.connect_link_opened', entity: 'shop', entityId: shopId, shopId, userId,
-      meta: {},
+      meta: { provider: this.config.provider },
     });
+    if (this.config.provider === 'meta') return this.metaOAuthUrl(shopId, userId ?? '');
     return this.config.loginUrl;
   }
 
@@ -260,7 +266,9 @@ export class InstagramService {
     if (!this.configured) {
       return { ok: false as const, error: 'کلید API اینستاگرام روی سرور تنظیم نشده است.', items: [] as AccountOption[] };
     }
-    const listed = await this.client.listAccounts();
+    // در Meta فهرست مرکزی نیست؛ اتصال با OAuth مستقیم انجام و همان‌جا لینک می‌شود.
+    if (this.config.provider === 'meta') return { ok: true as const, items: [] as AccountOption[] };
+    const listed = await this.provider.listAccounts();
     if (!listed.ok) {
       return { ok: false as const, error: `دریافت پیج‌ها از BoxAPI انجام نشد: ${listed.error}`, items: [] as AccountOption[] };
     }
@@ -308,7 +316,7 @@ export class InstagramService {
     const id = accountId.trim();
     if (!id) return { ok: false as const, error: 'پیجی انتخاب نشده است.' };
 
-    const listed = await this.client.listAccounts();
+    const listed = await this.provider.listAccounts();
     if (!listed.ok) return { ok: false as const, error: `دریافت پیج‌ها از BoxAPI انجام نشد: ${listed.error}` };
     const found = listed.data.find(item => item.id === id);
     if (!found) return { ok: false as const, error: 'این پیج در فهرست حساب باکس‌ای‌پی نیست؛ اول با لینک ورود، پیج را اجازه بدهید.' };
@@ -325,6 +333,7 @@ export class InstagramService {
         shopId,
         code: TelegramService.generateCode(),
         instagramAccountId: id,
+        instagramProvider: 'boxapi',
         instagramUsername: found.username,
         instagramProfilePhoto: found.profilePhoto,
         instagramExpiresAt: found.expiresAt ? new Date(found.expiresAt) : null,
@@ -332,6 +341,8 @@ export class InstagramService {
       },
       update: {
         instagramAccountId: id,
+        instagramProvider: 'boxapi',
+        instagramAccessToken: null,
         instagramUsername: found.username,
         instagramProfilePhoto: found.profilePhoto,
         instagramExpiresAt: found.expiresAt ? new Date(found.expiresAt) : null,
@@ -362,6 +373,7 @@ export class InstagramService {
         instagramProfilePhoto: null,
         instagramExpiresAt: null,
         instagramLinkedAt: null,
+        instagramAccessToken: null,
       },
     });
     this.audit.record({
@@ -369,6 +381,213 @@ export class InstagramService {
       meta: { accountId: mask(channel.instagramAccountId), username: channel.instagramUsername },
     });
     return { ok: true as const };
+  }
+
+  // ---------------------------------------------------------- Meta (API رسمی)
+
+  /**
+   * لینک گفتگوی OAuth متا (Instagram Login).
+   *
+   * `state` امضاشده است (HMAC با سکرت اپ) و shopId/userId/nonce/timestamp را
+   * حمل می‌کند؛ در callback بررسی می‌شود تا مهاجم نتواند پیج را به فروشگاه
+   * دیگری وصل کند (CSRF) یا state را دست‌کاری کند.
+   */
+  metaOAuthUrl(shopId: string, userId: string): string {
+    const state = signMetaState(shopId, userId, this.config.metaAppSecret);
+    const params = new URLSearchParams({
+      client_id: this.config.metaAppId,
+      redirect_uri: this.config.metaRedirectUri,
+      scope: 'instagram_basic,instagram_business_manage_messages,instagram_business_manage_comments',
+      response_type: 'code',
+      state,
+    });
+    return `https://www.facebook.com/${this.config.metaGraphVersion}/dialog/oauth?${params.toString()}`;
+  }
+
+  /**
+   * تکمیل اتصال Meta پس از بازگشت از گفتگوی OAuth.
+   *
+   * کد کوتاه‌مدت → توکن بلندمدت (۶۰ روزه) → `/me` برای IGSID و نام کاربری →
+   * ذخیره‌ی رمزنگاری‌شده روی Channel. هیچ توکنی به کلاینت برنمی‌گردد؛ فقط
+   * redirect به پنل انجام می‌شود.
+   */
+  async completeMetaConnect(code: string, state: string): Promise<{ ok: boolean; error?: string }> {
+    const parsed = verifyMetaState(state, this.config.metaAppSecret);
+    if (!parsed) return { ok: false, error: 'state نامعتبر است.' };
+    const { shopId, userId } = parsed;
+    const graphBase = `https://graph.facebook.com/${this.config.metaGraphVersion}`;
+    const get = async (path: string) => {
+      const res = await fetch(`${graphBase}/${path}`, { signal: AbortSignal.timeout(this.config.timeoutMs) }).catch(() => null);
+      return res ? await res.json().catch(() => null) as Record<string, unknown> | null : null;
+    };
+
+    // ۱) کد → توکن کوتاه‌مدت
+    const short = await get(`oauth/access_token?client_id=${encodeURIComponent(this.config.metaAppId)}&client_secret=${encodeURIComponent(this.config.metaAppSecret)}&redirect_uri=${encodeURIComponent(this.config.metaRedirectUri)}&code=${encodeURIComponent(code)}`);
+    const shortToken = typeof short?.access_token === 'string' ? short.access_token : '';
+    if (!shortToken) return { ok: false, error: 'تبادل کد با متا انجام نشد.' };
+
+    // ۲) کوتاه‌مدت → بلندمدت (۶۰ روز)
+    const long = await get(`oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(this.config.metaAppId)}&client_secret=${encodeURIComponent(this.config.metaAppSecret)}&access_token=${encodeURIComponent(shortToken)}`);
+    const longToken = typeof long?.access_token === 'string' ? long.access_token : '';
+    if (!longToken) return { ok: false, error: 'دریافت توکن بلندمدت از متا انجام نشد.' };
+
+    // ۳) شناسه‌ی پیج و نام کاربری
+    const me = await get(`me?fields=id,username&access_token=${encodeURIComponent(longToken)}`);
+    const igsid = typeof me?.id === 'string' ? me.id : '';
+    const username = typeof me?.username === 'string' ? me.username : '';
+    if (!igsid) return { ok: false, error: 'شناسه‌ی پیج از متا خوانده نشد.' };
+
+    const conflict = await this.db.channel.findFirst({
+      where: { instagramAccountId: igsid, NOT: { shopId } },
+      select: { shopId: true },
+    });
+    if (conflict) return { ok: false, error: 'این پیج قبلاً به فروشگاه دیگری وصل شده است.' };
+
+    await this.db.channel.upsert({
+      where: { shopId },
+      create: {
+        shopId,
+        code: TelegramService.generateCode(),
+        instagramAccountId: igsid,
+        instagramProvider: 'meta',
+        instagramAccessToken: encryptCard(longToken),
+        instagramUsername: username,
+        instagramExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        instagramLinkedAt: new Date(),
+      },
+      update: {
+        instagramAccountId: igsid,
+        instagramProvider: 'meta',
+        instagramAccessToken: encryptCard(longToken),
+        instagramUsername: username,
+        instagramExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        instagramLinkedAt: new Date(),
+      },
+    });
+    this.audit.record({
+      action: 'instagram.meta_connected', entity: 'shop', entityId: shopId, shopId, userId,
+      meta: { accountId: mask(igsid), username },
+    });
+    return { ok: true };
+  }
+
+  /**
+   * تمدید دوره‌ای توکن‌های بلندمدت Meta (هر ۲۴ ساعت؛ توکن ۶۰ روز اعتبار دارد
+   * و با همین تبادل، ۶۰ روز دیگر تمدید می‌شود). توکن باطل‌شده (کد ۱۹۰) پاک
+   * می‌شود تا فروشنده دوباره وصل شود.
+   */
+  onModuleInit() {
+    if (this.config.provider !== 'meta') return;
+    const timer = setInterval(() => { void this.refreshMetaTokens().catch(() => undefined); }, 24 * 60 * 60 * 1000);
+    timer.unref();
+    // یک بار هم زودهنگام برای توکن‌هایی که نزدیک انقضاست.
+    setTimeout(() => { void this.refreshMetaTokens().catch(() => undefined); }, 60_000).unref();
+  }
+
+  async refreshMetaTokens(): Promise<{ checked: number; refreshed: number; invalid: number }> {
+    const soon = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const rows = await this.db.channel.findMany({
+      where: { instagramProvider: 'meta', instagramAccessToken: { not: null }, instagramExpiresAt: { lt: soon } },
+      select: { id: true, shopId: true, instagramAccessToken: true },
+    }).catch(() => []);
+    let refreshed = 0;
+    let invalid = 0;
+    for (const row of rows) {
+      if (!row.instagramAccessToken) continue;
+      let token = '';
+      try { token = decryptCard(row.instagramAccessToken); } catch { token = ''; }
+      if (!token) continue;
+      const url = `https://graph.facebook.com/${this.config.metaGraphVersion}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(this.config.metaAppId)}&client_secret=${encodeURIComponent(this.config.metaAppSecret)}&access_token=${encodeURIComponent(token)}`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(this.config.timeoutMs) }).catch(() => null);
+      const payload = res ? await res.json().catch(() => null) as { access_token?: string; error?: { code?: number } } | null : null;
+      if (payload?.access_token) {
+        await this.db.channel.update({
+          where: { id: row.id },
+          data: {
+            instagramAccessToken: encryptCard(payload.access_token),
+            instagramExpiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+          },
+        }).catch(() => undefined);
+        refreshed += 1;
+      } else if (payload?.error?.code === 190) {
+        await this.db.channel.update({
+          where: { id: row.id },
+          data: { instagramAccessToken: null, instagramExpiresAt: new Date(0) },
+        }).catch(() => undefined);
+        invalid += 1;
+        this.audit.record({ action: 'instagram.meta_token_invalid', entity: 'shop', entityId: row.shopId, shopId: row.shopId, meta: {} });
+      }
+    }
+    if (rows.length > 0) {
+      this.logger.log(`تمدید توکن Meta: ${rows.length} بررسی، ${refreshed} تمدید، ${invalid} باطل`);
+    }
+    return { checked: rows.length, refreshed, invalid };
+  }
+
+  /**
+   * پردازش webhook متا (فرمت رسمی: entry[].changes[]).
+   *
+   * پیام‌ها و کامنت‌ها به همان مسیرهای BoxAPI می‌روند (`handleMessaging` و
+   * `handleComment` + اتوماسیون) تا رفتار دو ارائه‌دهنده یکسان بماند.
+   * dedupe با mid پیام / comment_id روی جدول InstagramEvent.
+   */
+  async handleMetaWebhook(payload: unknown): Promise<InstagramHandleResult> {
+    if (!this.configured) return { status: 'ignored', reason: 'not_configured' };
+    const root = (payload ?? {}) as { entry?: unknown[] };
+    const entries = Array.isArray(root.entry) ? root.entry : [];
+    let handled = 0;
+    let replies = 0;
+    for (const entryRaw of entries) {
+      const entry = (entryRaw ?? {}) as { id?: string; changes?: unknown[] };
+      const accountId = String(entry.id ?? '').trim();
+      if (!accountId) continue;
+      const shopId = await this.resolveShop(accountId);
+      if (!shopId) {
+        this.audit.record({ action: 'instagram.unrouted', entity: 'webhook', meta: { accountId: mask(accountId), eventType: 'meta' } });
+        continue;
+      }
+      if (!(await this.subscriptions.status(shopId)).active) continue;
+      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      for (const changeRaw of changes) {
+        const change = (changeRaw ?? {}) as { field?: string; value?: Record<string, unknown> };
+        const value = change.value ?? {};
+        if (change.field === 'messages') {
+          const item = metaMessageToMessaging(value);
+          if (!item) continue;
+          const mid = (item.message?.mid ?? '').trim();
+          if (mid && !(await this.markMetaEvent(mid, 'messages'))) continue;
+          const result = await this.handleMessaging(shopId, item).catch(() => null);
+          if (result?.status === 'handled') { handled += 1; replies += result.replies; }
+        } else if (change.field === 'comments') {
+          const item = metaCommentToComment(value);
+          if (!item) continue;
+          const commentId = (item.comment_id ?? '').trim();
+          if (commentId && !(await this.markMetaEvent(commentId, 'comments'))) continue;
+          await this.automation.processComment(shopId, {
+            commentId,
+            mediaId: (item.media?.id ?? '').trim(),
+            senderId: (item.sender?.id ?? '').trim(),
+            text: (item.text ?? '').trim(),
+            rawJson: item,
+          }).catch(() => undefined);
+          await this.handleComment(shopId, item).catch(() => undefined);
+          handled += 1;
+          replies += 1;
+        }
+      }
+    }
+    return handled > 0 ? { status: 'handled', replies, kind: 'meta' } : { status: 'ignored', reason: 'no_meta_events' };
+  }
+
+  /** ثبت dedupe برای رویدادهای متا؛ false یعنی تکراری است. */
+  private async markMetaEvent(eventId: string, eventType: string): Promise<boolean> {
+    try {
+      await this.db.instagramEvent.create({ data: { eventId: eventId.slice(0, 200), eventType } });
+      return true;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return false;
+      return true; // خطای غیرتکراری نباید پیام را گم کند
+    }
   }
 
   /** پیج متصلِ همین فروشگاه؛ تنها منبع مجاز برای `account_id` در هر ارسال. */
@@ -409,7 +628,7 @@ export class InstagramService {
     const target = recipientId.trim();
     if (!/^\d{5,32}$/.test(target)) return { ok: false as const, error: 'شناسه‌ی گیرنده باید عددی باشد (IGSID).' };
 
-    const result = await this.client.sendMessage(account.id, {
+    const result = await this.provider.sendMessage(account.id, {
       recipientId: target,
       message: 'پیام آزمایشی از فروش‌یار — اتصال اینستاگرام درست کار می‌کند ✅',
     });
@@ -624,6 +843,15 @@ export class InstagramService {
 
     const text = (item.message?.text ?? item.postback?.title ?? '').trim();
 
+    // پست فورواردشده به دایرکت: مشتری پست را share کرده و لینکش در متن یا
+    // داخل پیوست آمده. اگر آن پست به محصولی لینک شده باشد، اطلاعات همان
+    // محصول (قیمت/موجودی واریانت‌ها) را می‌فرستیم؛ وگرنه به مغز بات می‌رود.
+    const postShortcode = findPostShortcode(text) ?? findPostShortcodeInAttachments(item.message?.attachments);
+    if (postShortcode) {
+      const replied = await this.replyForPostLink(conversation, shopId, postShortcode);
+      if (replied) return { status: 'handled', replies: 1, kind: 'post_link' };
+    }
+
     // پیوست بدون متن (عکس/ویدیو/استوری ریپلای) — مغز بات فقط متن می‌خواند،
     // پس صادقانه می‌گوییم چه چیزی دیدیم، به‌جای سکوت.
     if (!text) {
@@ -681,8 +909,23 @@ export class InstagramService {
       if (!conversation) return false;
       const account = await this.account(conversation.shopId);
       if (!account) return false;
-      // درخواست آسنکرون است؛ نتیجه از webhook `show_profile` برمی‌گردد.
-      const result = await this.client.requestProfile(account.id, igsid);
+      // ۱) مسیر همگام (Meta): مستقیم بگیر و همان‌جا اعمال کن.
+      const sync = await this.provider.getProfile(account.id, igsid);
+      if (sync.ok) {
+        await this.applyProfile(conversation.shopId, {
+          senderId: igsid,
+          username: sync.data.username,
+          name: sync.data.fullName,
+          profilePic: sync.data.profilePic,
+        });
+        await this.db.telegramConversation.update({
+          where: { id: conversationId },
+          data: { profileEnrichedAt: new Date() },
+        });
+        return true;
+      }
+      // ۲) مسیر ناهمگام (BoxAPI): درخواست ثبت می‌شود؛ نتیجه از webhook برمی‌گردد.
+      const result = await this.provider.requestProfile(account.id, igsid);
       // حتی اگر درخواست ثبت نشد، کش را بزن تا هر پیام یک درخواست نسازد.
       await this.db.telegramConversation.update({
         where: { id: conversationId },
@@ -846,6 +1089,33 @@ export class InstagramService {
       meta: { via, productId: product.id, title: product.title },
     });
     return { status: 'handled', replies: sent ? 1 : 0, kind: 'product_pick' };
+  }
+
+  /**
+   * پاسخ به پست فورواردشده در دایرکت: اگر شورت‌کد به محصولی لینک شده باشد،
+   * اطلاعات همان محصول (واریانت‌ها با قیمت/موجودی) را می‌فرستیم.
+   * `false` یعنی پستی لینک‌شده نیست و باید به مسیر عادی برگردیم.
+   */
+  private async replyForPostLink(conversation: Conversation, shopId: string, shortcode: string): Promise<boolean> {
+    const linked = await this.db.productPostLink.findFirst({
+      where: { shopId, OR: [{ shortcode }, { mediaId: shortcode }] },
+      include: { product: { include: { variants: { where: { active: true }, take: 20 } } } },
+    }).catch(() => null);
+    const product = linked?.product;
+    if (!product) return false;
+    const variantLines = product.variants.slice(0, 10).map(v => {
+      const spec = Object.entries((v.optionsJson as Record<string, string>) ?? {}).map(([k, val]) => `${k}: ${val}`).join('، ');
+      return `• ${spec || 'استاندارد'} — ${v.price.toLocaleString('fa-IR')} تومان (موجودی: ${v.stock.toLocaleString('fa-IR')})`;
+    }).join('\n');
+    const text = `🛍️ ${product.title}\n${variantLines}\nبرای ثبت سفارش همین‌جا بگویید.`;
+    const sent = await this.send(conversation, text);
+    if (sent) {
+      this.audit.record({
+        action: 'instagram.post_link_replied', entity: 'product', entityId: product.id,
+        shopId, meta: { shortcode },
+      });
+    }
+    return sent;
   }
 
   /**
@@ -1344,7 +1614,7 @@ export class InstagramService {
       : `${toPlainText(reply.text).slice(0, 220)}\n\nبرای جزئیات بیشتر دایرکت بدهید 🌿`;
     const account = await this.account(shopId);
     if (!account) return;
-    const result = await this.client.replyComment(account.id, commentId, message);
+    const result = await this.provider.replyComment(account.id, commentId, message);
     this.audit.record({
       action: result.ok ? 'instagram.comment_replied' : 'instagram.comment_failed',
       entity: 'comment', shopId,
@@ -1388,7 +1658,7 @@ export class InstagramService {
     let allOk = true;
     for (const [index, part] of parts.entries()) {
       const last = index === parts.length - 1;
-      const result = await this.client.sendMessage(account.id, {
+      const result = await this.provider.sendMessage(account.id, {
         recipientId,
         message: part,
         buttons: last ? actions.buttons : undefined,
@@ -1591,6 +1861,107 @@ function extractProfile(data: unknown): { senderId: string; username: string; na
     if (senderId && (username || name)) return { senderId, username, name, profilePic };
   }
   return null;
+}
+
+// ---------------------------------------------------------- Meta: state و webhook
+
+/** امضای state برای OAuth متا: base64url(payload).hmac */
+export function signMetaState(shopId: string, userId: string, secret: string): string {
+  const payload = Buffer.from(JSON.stringify({ shopId, userId, nonce: randomBytes(8).toString('hex'), ts: Date.now() })).toString('base64url');
+  const sig = createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+/** بررسی state؛ اگر نامعتبر یا قدیمی‌تر از ۱۰ دقیقه باشد null. */
+export function verifyMetaState(state: string, secret: string): { shopId: string; userId: string } | null {
+  const [payload, sig] = (state ?? '').split('.');
+  if (!payload || !sig) return null;
+  const expected = createHmac('sha256', secret).update(payload).digest('base64url');
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { shopId?: string; userId?: string; ts?: number };
+    if (!parsed.shopId || typeof parsed.ts !== 'number') return null;
+    if (Date.now() - parsed.ts > 10 * 60 * 1000) return null;
+    return { shopId: parsed.shopId, userId: parsed.userId ?? '' };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * تبدیل مقدار `messages` وب‌هوک متا به `InstagramMessaging` داخلی.
+ * فرمت متا: value = { sender, recipient, timestamp, message: { mid, text, attachments, quick_reply, postback } }
+ */
+export function metaMessageToMessaging(value: Record<string, unknown>): InstagramMessaging | null {
+  const sender = (value.sender ?? {}) as { id?: string };
+  const senderId = String(sender.id ?? '').trim();
+  if (!senderId) return null;
+  const message = (value.message ?? {}) as {
+    mid?: string; text?: string;
+    attachments?: unknown[];
+    quick_reply?: { payload?: string };
+    postback?: { payload?: string; title?: string };
+  };
+  const attachments = Array.isArray(message.attachments) ? message.attachments : undefined;
+  return {
+    sender: { id: senderId },
+    recipient: { id: String(((value.recipient ?? {}) as { id?: string }).id ?? '') },
+    timestamp: typeof value.timestamp === 'number' ? value.timestamp : undefined,
+    message: {
+      mid: message.mid,
+      text: message.text,
+      attachments,
+      quick_reply: message.quick_reply?.payload ? { payload: message.quick_reply.payload } : undefined,
+    },
+    postback: message.postback?.payload ? { payload: message.postback.payload, title: message.postback.title } : undefined,
+  };
+}
+
+/**
+ * تبدیل مقدار `comments` وب‌هوک متا به `InstagramComment` داخلی.
+ * فرمت متا: value = { media: {id}, comment_id, text, from: {id, username} }
+ */
+export function metaCommentToComment(value: Record<string, unknown>): InstagramComment | null {
+  const from = (value.from ?? {}) as { id?: string; username?: string };
+  const commentId = String(value.comment_id ?? '').trim();
+  if (!commentId) return null;
+  return {
+    comment_id: commentId,
+    text: typeof value.text === 'string' ? value.text : '',
+    sender: { id: String(from.id ?? '').trim(), username: String(from.username ?? '').trim() },
+    media: { id: String(((value.media ?? {}) as { id?: string }).id ?? '').trim() },
+  };
+}
+
+/**
+ * استخراج شورت‌کد پست از متن دایرکت.
+ *
+ * مشتری وقتی پست را فوروارد/share می‌کند، لینک کامل (با پارامترهای utm و
+ * cplk/srtk) در متن می‌آید؛ مثلاً:
+ * `https://www.instagram.com/reel/DScNfn_CuqX/?utm_source=ig_web_copy_link&...`
+ * شورت‌کد همان بخش بعد از `/p/`، `/reel/` یا `/tv/` است و پارامترها نادیده
+ * گرفته می‌شوند (کاراکتر `?` در کلاس نیست، پس regex خودش آنجا می‌ایستد).
+ */
+export function findPostShortcode(text: string): string | null {
+  if (!text) return null;
+  const match = text.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]{5,30})/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * جستجوی لینک پست داخل پیوست‌ها (share پست در دایرکت ممکن است فقط پیوست
+ * باشد و متن نداشته باشد). کل JSON پیوست را برای الگوی لینک می‌گردیم تا
+ * هر شکل ساختاری BoxAPI/Meta پوشش داده شود.
+ */
+export function findPostShortcodeInAttachments(attachments: unknown[] | undefined): string | null {
+  if (!attachments?.length) return null;
+  try {
+    return findPostShortcode(JSON.stringify(attachments));
+  } catch {
+    return null;
+  }
 }
 
 export function collectMessages(payload: unknown): InstagramMessaging[] {

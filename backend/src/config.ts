@@ -49,6 +49,13 @@ const schema = z.object({
   SMS_OTP_TEMPLATE_ID: z.string().optional(),
   SMS_OTP_PARAM_NAME: z.string().optional(),
   SMS_API_BASE: z.string().optional(),
+  // اینستاگرام: boxapi (پیش‌فرض) یا meta (API رسمی رایگان).
+  INSTAGRAM_PROVIDER: z.string().optional(),
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_VERIFY_TOKEN: z.string().optional(),
+  META_GRAPH_VERSION: z.string().optional(),
+  META_REDIRECT_URI: z.string().optional(),
 }).superRefine((config, context) => {
   const origins = config.CORS_ORIGINS.split(',').map(value => value.trim()).filter(Boolean);
   for (const origin of origins) {

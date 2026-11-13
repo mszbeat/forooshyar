@@ -116,6 +116,18 @@ services:
       # ورود/ثبت‌نام با کد یک‌بارمصرف فعال باشد؟
       - key: OTP_ENABLED
         value: "true"
+      # --- اینستاگرام: boxapi (پیش‌فرض) یا meta (API رسمی رایگان) -----------
+      - key: INSTAGRAM_PROVIDER
+        value: boxapi
+      # Meta: اپ در developers.facebook.com؛ در Dashboard مقدار بده.
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_VERIFY_TOKEN
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: v21.0
       # آدرس عمومی همین سرویس API: لینک پرداخت و آدرس webhook از این ساخته می‌شود.
       - key: PUBLIC_API_URL
         sync: false

@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
-import { InstagramClient } from '../instagram/instagram.client';
+import { createInstagramProvider } from '../instagram/instagram.provider';
 import { readInstagramConfig } from '../instagram/instagram.config';
 
 /** نرمال‌سازی فارسی برای تطبیق تریگر: ی/ک عربی، نیم‌فاصله، اعداد. */
@@ -203,7 +203,7 @@ export class AutomationService {
     const channel = await this.db.channel.findUnique({ where: { shopId }, select: { instagramAccountId: true } });
     const accountId = channel?.instagramAccountId ?? '';
     if (!accountId) return 'FAILED';
-    const client = new InstagramClient(readInstagramConfig());
+    const client = createInstagramProvider(readInstagramConfig(), this.db);
 
     // پاسخ عمومی (تا ۳ گونه، چرخش تصادفی)
     if (automation.publicReplies.length > 0) {
@@ -212,8 +212,9 @@ export class AutomationService {
       if (!result.ok) return 'FAILED';
     }
 
-    // گیت فالو (آسنکرون؛ نتیجه از webhook برمی‌گردد)
-    if (automation.requireFollow) {
+    // گیت فالو (آسنکرون؛ نتیجه از webhook برمی‌گردد). در Meta API رسمی
+    // «فالوکننده است یا نه» وجود ندارد؛ پس گیت رد می‌شود و DM ادامه می‌یابد.
+    if (automation.requireFollow && client.supportsFollowCheck) {
       await client.post(accountId, 'follow_status', { sender_id: raw.senderId }).catch(() => null);
       return 'FOLLOW_WAIT';
     }
@@ -253,10 +254,7 @@ export class AutomationService {
       .replaceAll('{price}', priceText)
       .replaceAll('{stock}', stockText)
       .replaceAll('{product_variants}', variantLines);
-    const privateResult = await client.post(accountId, 'private_reply', {
-      comment_id: raw.commentId,
-      message: dm || 'سلام! برای اطلاعات بیشتر دایرکت بدهید 🌿',
-    });
+    const privateResult = await client.privateReply(accountId, raw.commentId, dm || 'سلام! برای اطلاعات بیشتر دایرکت بدهید 🌿');
     if (!privateResult.ok) return 'FAILED';
 
     const sent = await client.sendMessage(accountId, {

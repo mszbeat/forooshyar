@@ -118,11 +118,11 @@
   .authx-form-side, .authx-visual { flex: none; }
   /* در موبایل جابه‌جایی ترنسفورم ندارد؛ فقط کراس‌فید محتوا. */
   .authx.register .authx-form-side, .authx.register .authx-visual { transform: none; }
-  /* هدر موبایل: لوگو + فقط دکمه‌ی صفحه‌ی اصلی (بدون متن)؛ دکمه‌ی تم نیست. */
+  /* هدر موبایل: لوگو + دکمه‌ی صفحه‌ی اصلی (بدون متن) + دکمه‌ی تم. */
   .authx-page-tools { position: static; width: 100%; padding: 12px 16px; justify-content: space-between; }
   .authx-mobile-logo { display: grid; place-items: center; }
   .authx-home span { display: none; }
-  .authx-page-tools .theme-toggle { display: none; }
+  .authx-page-tools .theme-toggle { display: inline-flex; }
   /* پنل روایت در موبایل مخفی است؛ هدر بالا لوگو را نشان می‌دهد. */
   .authx-visual { display: none; }
   .authx-form-side { padding: 20px 20px 40px; min-height: 0; width: 100%; }
