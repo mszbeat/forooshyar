@@ -37,6 +37,7 @@ export type SettingDef = {
 export const GROUPS: { id: SettingGroup; label: string; description: string }[] = [
   { id: 'ai', label: 'مدل هوش مصنوعی', description: 'مدل زبانی که «نفهمیدم»های بات را جواب می‌دهد؛ بدون کلید، بات با موتور قاعده‌محور کار می‌کند.' },
   { id: 'telegram', label: 'تلگرام', description: 'توکن بات، سکرت webhook و آدرس عمومی سرویس.' },
+  { id: 'messengers', label: 'پیام‌رسان‌های ایرانی', description: 'توکن و webhook بات‌های مشترک بله و روبیکا، به‌همراه نام کاربری لازم برای ساخت لینک اختصاصی فروشگاه.' },
   { id: 'payments', label: 'پرداخت', description: 'درگاه پلتفرم فقط برای فروش پلن/اعتبار به فروشنده است؛ پرداخت مشتری کارت‌به‌کارت است.' },
   { id: 'otp', label: 'پیامک و OTP', description: 'درگاه sms.ir، قالب کد تأیید و ورود یک‌بارمصرف.' },
   { id: 'database', label: 'دیتابیس', description: 'اتصال PostgreSQL؛ تنها تنظیمی که برای اثر قطعی یک ری‌استارت سرویس لازم دارد.' },
