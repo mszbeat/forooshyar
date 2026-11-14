@@ -25,9 +25,8 @@
 }
 .authx-form-side::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
-  background:
-    radial-gradient(680px 420px at 82% 8%, rgba(124,108,255,.08), transparent 70%),
-    radial-gradient(560px 380px at 10% 92%, rgba(34,211,238,.06), transparent 70%);
+  /* فرم و پنل تصویری از یک رنگ پایه استفاده می‌کنند؛ بدون زمینه‌ی خاکستری/گرادیانی. */
+  background: var(--bg);
 }
 .authx-form-side {
   position: relative; display: grid; place-items: center;
@@ -42,16 +41,13 @@
 .authx-visual-card {
   position: relative; margin: 14px; border-radius: 28px; overflow: hidden;
   flex: 1 1 auto; min-height: calc(100dvh - 28px);
-  /* پایه مشکیِ هم‌رنگ body تا پنل با صفحه یکدست شود؛ فقط هاله‌های ملایم رنگی می‌ماند. */
-  background:
-    radial-gradient(80% 55% at 80% 8%, rgba(124,108,255,.32), transparent 70%),
-    radial-gradient(70% 60% at 8% 94%, rgba(34,211,238,.14), transparent 68%),
-    linear-gradient(145deg, #08090a, #0c0d10 68%, #08090a);
-  border: 1px solid rgba(255,255,255,.1);
-  box-shadow: 0 34px 80px -34px rgba(8,9,10,.6), inset 0 1px 0 rgba(255,255,255,.08);
+  /* دقیقاً هم‌رنگ پس‌زمینه‌ی صفحه؛ یک رنگ یکنواخت در تمام عرض لاگین. */
+  background: var(--bg);
+  border: 1px solid var(--line);
+  box-shadow: none;
 }
 .authx-visual::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.13'/%3E%3C/svg%3E");
   mix-blend-mode: overlay;
 }
