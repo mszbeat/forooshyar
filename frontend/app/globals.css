@@ -1216,19 +1216,4 @@ section[id] { scroll-margin-top: 70px; }
 .account-card-clickable { transition: border-color .18s var(--ease), transform .18s var(--ease); }
 .account-card-clickable:hover { border-color: var(--brand); transform: translateY(-1px); }
 
-/* سایدبار جمع‌شده (ریل آیکن) — دسکتاپ */
-.adm-shell.collapsed { grid-template-columns: minmax(0, 76px) minmax(0, 1fr); }
-.adm-shell.collapsed .adm-side { padding: 16px 9px; align-items: center; }
-.adm-shell.collapsed .adm-brand { justify-content: center; gap: 0; padding-inline: 0; }
-.adm-shell.collapsed .adm-brand > div, .adm-shell.collapsed .adm-brand .glyph, .adm-shell.collapsed .adm-nav-lab,
-.adm-shell.collapsed .adm-nav-item span, .adm-shell.collapsed .adm-status,
-.adm-shell.collapsed .adm-ident .av, .adm-shell.collapsed .adm-ident > div { display: none; }
-.adm-shell.collapsed .adm-nav { width: 100%; min-width: 0; }
-.adm-shell.collapsed .adm-nav-item { width: 100%; min-width: 0; box-sizing: border-box; justify-content: center; padding: 10px 0; }
-.adm-shell.collapsed .adm-ident { grid-template-columns: 1fr; justify-items: center; justify-content: center; padding: 8px 0; }
-.adm-shell.collapsed .adm-ident > button { margin: 0 !important; }
-.adm-shell.collapsed .adm-nav-toggle { display: inline-flex !important; }
-.adm-collapse-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--night-line); background: rgba(255,255,255,.04); color: rgba(247,248,248,.8); cursor: pointer; }
-.adm-collapse-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
-
 .plan-tabs { flex-wrap: wrap; }
