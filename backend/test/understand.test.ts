@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { composeReply, type BrainShop } from '../src/telegram/brain';
-import { resolveReply } from '../src/ai/understand';
+import { addPersonality, resolveReply } from '../src/ai/understand';
 import { suggest, type CatalogProduct } from '../src/catalog/discovery';
 import type { AiService } from '../src/ai/ai.service';
 
@@ -114,6 +114,18 @@ describe('تشخیص نیت با مدل', () => {
     const result = await resolveReply({ ai, shop: SHOP, products: PRODUCTS, text: 'کفش مجلسی زنانه دارید', rule });
     assert.equal(result.source, 'rules');
     assert.equal(called, false);
+  });
+
+  it('سؤال روشن‌کننده را مدل ناقص بازنویسی نمی‌کند', async () => {
+    let called = false;
+    const ai = { enabled: true, model: 'x', complete: async () => { called = true; return 'نیمه‌کاره'; } } as unknown as AiService;
+    const clarify = {
+      kind: 'clarify' as const, reason: 'needs_product', text: 'قیمت و موجودی کدام محصول را می‌خواهید بدانید؟',
+      buttons: [], source: 'rules' as const,
+    };
+    const result = await addPersonality(ai, SHOP, clarify, 'قیمت');
+    assert.equal(called, false);
+    assert.equal(result.text, clarify.text);
   });
 
   it('پاسخ روشن قاعده‌محور هرگز با مدل جایگزین نمی‌شود', async () => {

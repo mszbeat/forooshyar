@@ -972,7 +972,7 @@ export class TelegramService {
       const methods = await this.paymentMethods.activeForCustomer(conversation.shopId);
       const cardLines = methods.length > 0
         ? methods.map(method => [
-            `💳 کارت: <code>${method.masked}</code>`,
+            `💳 شماره کارت: <code>${escapeHtml(method.cardNumber.replace(/(\d{4})(?=\d)/g, '$1 '))}</code>`,
             `👤 به نام: ${escapeHtml(method.holderName)}`,
             method.bankName ? `🏦 ${escapeHtml(method.bankName)}` : '',
             method.instruction ? `📝 ${escapeHtml(method.instruction)}` : '',
@@ -1376,7 +1376,7 @@ export class TelegramService {
       const chunks = splitMessage(text);
       let ok = true;
       for (const [index, chunk] of chunks.entries()) {
-        const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text: chunk, parseMode, buttons: index === chunks.length - 1 ? buttons : undefined });
+        const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text: chunk, parseMode: TelegramService.parseModeOf(chunk, parseMode), buttons: index === chunks.length - 1 ? buttons : undefined });
         if (!result.ok) ok = false;
       }
       return ok;
@@ -1411,7 +1411,7 @@ export class TelegramService {
     replyMarkup?: ReplyMarkup,
     parseMode?: 'HTML',
   ): Promise<boolean> {
-    if (!this.client.configured) {
+    if (!this.client.configured && !chatId.startsWith('bale:') && !chatId.startsWith('rubika:')) {
       this.logger.warn(`TELEGRAM_BOT_TOKEN ست نشده؛ پیام به ${chatId} ارسال نشد.`);
       return false;
     }
@@ -1447,6 +1447,7 @@ export class TelegramService {
   }
 
   private async sendPart(chatId: string, text: string, parseMode?: 'HTML', replyMarkup?: ReplyMarkup): Promise<boolean> {
+    const mode = TelegramService.parseModeOf(text, parseMode);
     if (chatId.startsWith('bale:') || chatId.startsWith('rubika:')) {
       const adapter = chatId.startsWith('bale:')
         ? new BaleAdapter((process.env.BALE_BOT_TOKEN ?? '').trim())
@@ -1456,10 +1457,9 @@ export class TelegramService {
         : replyMarkup && 'inline_keyboard' in replyMarkup
           ? replyMarkup.inline_keyboard.map(row => row.map(button => ({ text: button.text, data: button.callback_data, url: button.url })))
           : undefined;
-      const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text, parseMode, buttons: keyboard });
+      const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text, parseMode: mode, buttons: keyboard });
       return result.ok;
     }
-    const mode = TelegramService.parseModeOf(text, parseMode);
     const body = { chat_id: chatId, text, ...(mode ? { parse_mode: mode } : {}) };
 
     let result = await this.client.sendMessage({

@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { AuditService } from '../logging/audit.service';
-import { encryptCard, hashCard, isValidCardNumber, maskCard } from './card-crypto';
+import { decryptCard, encryptCard, hashCard, isValidCardNumber, maskCard } from './card-crypto';
 
 export interface PaymentMethodView {
   id: string;
@@ -52,12 +52,12 @@ export class ShopPaymentMethodsService {
   }
 
   /** روش‌های فعال برای نمایش به مشتری (در فلو سفارش). */
-  async activeForCustomer(shopId: string): Promise<PaymentMethodView[]> {
+  async activeForCustomer(shopId: string): Promise<Array<PaymentMethodView & { cardNumber: string }>> {
     const rows = await this.db.shopPaymentMethod.findMany({
       where: { shopId, active: true },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
-    return rows.map(toView);
+    return rows.map(row => ({ ...toView(row), cardNumber: decryptCard(row.cardNumberEnc) }));
   }
 
   async create(shopId: string, input: {

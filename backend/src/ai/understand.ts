@@ -111,6 +111,9 @@ export async function addPersonality(
   reply: UnderstandResult,
   text: string,
 ): Promise<UnderstandResult> {
+  // Clarification prompts are short, fixed questions tied to the buttons below them.
+  // Rewriting them was producing incomplete colloquial fragments in production.
+  if (reply.kind === 'clarify') return reply;
   const polished = await polishReply(ai, shop, reply, text);
   if (!polished.ok) {
     return { ...reply, ai: { ...(reply.ai ?? { model: ai.model }), skip: reply.ai?.skip ?? polished.reason } };

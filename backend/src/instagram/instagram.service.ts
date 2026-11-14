@@ -1534,7 +1534,7 @@ export class InstagramService {
       const methods = await this.paymentMethods.activeForCustomer(conversation.shopId);
       const cardLines = methods.length > 0
         ? methods.map(method => [
-            `کارت: ${method.masked}`,
+            `شماره کارت: ${method.cardNumber.replace(/(\d{4})(?=\d)/g, '$1 ')}`,
             `به نام: ${method.holderName}`,
             method.bankName ? method.bankName : '',
             method.instruction ? method.instruction : '',

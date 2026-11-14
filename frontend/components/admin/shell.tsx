@@ -9,17 +9,17 @@ import { Spinner } from '@/components/ui';
 import { BrandLogo } from '@/components/brand-logo';
 import { ThemeToggle } from '@/components/theme';
 import {
-  IconAlertCircle, IconBolt, IconChat, IconDashboard, IconLogout, IconMenu, IconSettings, IconShield,
-  IconSparkles, IconStore, IconWallet, IconX,
+  IconAlertCircle, IconBolt, IconChat, IconDashboard, IconInstagram, IconLogout, IconMenu, IconSettings, IconShield,
+  IconSparkles, IconStore, IconTelegram, IconWallet, IconX,
 } from '@/components/icons';
 
 const NAV = [
   { href: '/admin', label: 'نمای کلی', icon: IconDashboard, exact: true, note: 'overview' },
   { href: '/admin/shops', label: 'فروشگاه‌ها', icon: IconStore, note: 'shops' },
   { href: '/admin/ai', label: 'هوش مصنوعی', icon: IconSparkles, note: 'ai' },
-  { href: '/admin/telegram', label: 'تلگرام و ربات', icon: IconBolt, note: 'telegram' },
+  { href: '/admin/telegram', label: 'تلگرام و ربات', icon: IconTelegram, note: 'telegram' },
   { href: '/admin/messengers', label: 'پیام‌رسان‌های ایرانی', icon: IconChat, note: 'messengers' },
-  { href: '/admin/integrations', label: 'یکپارچه‌سازی‌ها', icon: IconBolt, note: 'integrations' },
+  { href: '/admin/integrations', label: 'یکپارچه‌سازی‌ها', icon: IconInstagram, note: 'integrations' },
   { href: '/admin/payments', label: 'پرداخت', icon: IconWallet, note: 'payments' },
   { href: '/admin/otp', label: 'SMS و OTP', icon: IconShield, note: 'otp' },
   { href: '/admin/plans', label: 'پلن‌ها', icon: IconWallet, note: 'plans' },
@@ -126,7 +126,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             const Icon = item.icon;
             return (
               <Link key={item.href} href={item.href} className={`adm-nav-item${active ? ' active' : ''}`} title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined} onClick={() => setNavOpen(false)}>
-                <Icon size={16} />
+                <Icon size={16} style={item.note === 'telegram' ? { color: '#9ca3af' } : item.note === 'integrations' ? { color: '#d9468f' } : item.note === 'messengers' ? { color: '#a5b4fc' } : undefined} />
                 <span>{item.label}</span>
                 <span className="sp">{item.note}</span>
               </Link>

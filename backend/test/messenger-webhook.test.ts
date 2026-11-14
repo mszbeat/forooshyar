@@ -142,6 +142,21 @@ describe('Rubika update normalization', () => {
     }
   });
 
+  it('strips escaped HTML formatting from Rubika message bodies', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = '';
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = String(init?.body ?? '');
+      return new Response(JSON.stringify({ status: 'OK' }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      await new RubikaAdapter('token').send({ chatId: 'chat-1', text: '🛍 &amp;lt;b&amp;gt;Title&amp;lt;/b&amp;gt;', parseMode: 'HTML' });
+      assert.equal(JSON.parse(requestBody).text, '🛍 Title');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('sends clickable Rubika inline keypad buttons with stable callback ids', async () => {
     const originalFetch = globalThis.fetch;
     let requestBody = '';

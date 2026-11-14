@@ -397,7 +397,7 @@ export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {})
                   </span>
                 </span>
               </span>
-              <button className="btn btn-outline btn-sm" type="button" style={{ width: '100%' }} disabled={busy !== null} onClick={() => void unlink()}>
+              <button className="btn btn-outline btn-sm" type="button" style={{ justifySelf: 'start', width: 'auto', maxWidth: '100%' }} disabled={busy !== null} onClick={() => void unlink()}>
                 {busy === 'unlink' ? <Spinner size={14} /> : null}
                 قطع اتصال پیج
               </button>
@@ -455,8 +455,7 @@ export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {})
                     <span className="mono" dir="ltr"> @{account?.username || 'پیج'} </span>
                     یک دایرکت بفرستید؛ چند ثانیه بعد در «گفتگوها» و در همین فهرست ظاهر می‌شود.
                     <br />
-                    دایرکت از خودِ پیج به خودش گفتگو نمی‌سازد، و اگر چند ثانیه بعد هم چیزی نیامد
-                    اگر چند ثانیه بعد هم چیزی نیامد، با پشتیبانی در تماس باشید.
+                    دایرکت از خودِ پیج به خودش گفتگو نمی‌سازد. اگر چند ثانیه بعد هم چیزی نیامد، با پشتیبانی در تماس باشید.
                   </div>
                 ) : (
                   recent.slice(0, 4).map(item => (
@@ -464,7 +463,7 @@ export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {})
                       key={item.chatId}
                       className="btn btn-outline btn-sm"
                       type="button"
-                      style={{ justifyContent: 'space-between', gap: 10 }}
+                      style={{ justifyContent: 'space-between', gap: 10, justifySelf: 'start', width: 'auto', maxWidth: '100%' }}
                       disabled={busy !== null}
                       onClick={() => void sendTest(item.igsid)}
                     >
@@ -491,7 +490,7 @@ export function InstagramConnect({ onChanged }: { onChanged?: () => void } = {})
                 <button
                   className="btn btn-primary"
                   type="button"
-                  style={{ width: '100%' }}
+                  style={{ width: 'auto', justifySelf: 'start' }}
                   disabled={busy !== null || !/^\d{5,32}$/u.test(recipient.trim())}
                   onClick={() => void sendTest()}
                 >

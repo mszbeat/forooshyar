@@ -139,7 +139,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className={`shell${collapsed ? ' collapsed' : ''}`}>
-      {drawer && <div className="scrim" onClick={() => setDrawer(false)} />}
+      <div className={`scrim app-scrim${drawer ? ' visible' : ''}`} onClick={() => setDrawer(false)} aria-hidden="true" />
       {sidebar}
 
       <div className="main">

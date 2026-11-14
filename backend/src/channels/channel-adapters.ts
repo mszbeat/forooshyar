@@ -78,9 +78,18 @@ function escapeHtml(value: string): string {
 }
 
 function plainText(value: string): string {
-  return value.replace(/<\/?(?:b|i|u|s|code|pre|a)(?:\s[^>]*)?>/gi, '')
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+  // API wrappers may escape HTML once or twice; decode before stripping formatting.
+  let text = value;
+  for (let i = 0; i < 3; i += 1) {
+    const decoded = text.replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'").replace(/&amp;/gi, '&');
+    if (decoded === text) break;
+    text = decoded;
+  }
+  return text.replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(?:b|i|u|s|code|pre|a)(?:\s[^>]*)?>/gi, '')
+    .replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')
+    .replace(/:moneybag:/gi, '💰').replace(/:warning:/gi, '⚠️');
 }
 
 export class BaleAdapter {
@@ -102,7 +111,9 @@ export class BaleAdapter {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           chat_id: message.chatId,
-          text: message.parseMode === 'HTML' ? message.text : escapeHtml(message.text),
+          text: message.parseMode === 'HTML'
+            ? message.text.replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')
+            : escapeHtml(message.text.replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')),
           parse_mode: message.parseMode === 'HTML' ? 'HTML' : undefined,
           ...(message.buttons?.length ? { reply_markup: { inline_keyboard: message.buttons.map(row => row.map(button => button.url
             ? { text: button.text, url: button.url }
