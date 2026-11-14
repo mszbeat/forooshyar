@@ -147,15 +147,48 @@ export class MessengerWebhookController {
     });
     this.realtime.emitShop(shopId, 'chat', { chatId, messageId: saved.id, author: 'customer' });
 
-    // در این نسخه منطق کاتالوگ/سفارش برای بله و روبیکا فعال نیست؛
-    // هر پیام را تأیید می‌کنیم تا مشتری بی‌پاسخ نماند. در حالت تحویل به فروشنده
-    // فقط پیام ثبت می‌شود و فروشنده از پنل پاسخ می‌دهد.
+    // پاسخ‌های کاربردی برای بله و روبیکا: سلام، کاتالوگ/قیمت، ارسال، پرداخت و ساعت کاری.
+    // اگر موضوع محصول مشخص باشد قیمت/موجودی از کاتالوگ همان فروشگاه خوانده می‌شود.
     if (!conversation.humanTakeover) {
-      const acknowledgement = 'پیام شما به فروشگاه رسید و در گفت‌وگو ثبت شد؛ فروشنده از همین‌جا پاسخ‌تان را می‌دهد.';
-      const delivered = await adapter.send({ chatId: message.chatId, text: acknowledgement });
+      const normalized = message.text.toLocaleLowerCase('fa-IR').replace(/[؟?!.،,]/g, ' ').trim();
+      const shop = await this.db.shop.findUnique({
+        where: { id: shopId },
+        select: { name: true, shipping: true, payment: true, workingHours: true, returns: true },
+      });
+      const products = await this.db.product.findMany({
+        where: { shopId, active: true },
+        select: { title: true, description: true, defaultPrice: true, variants: { where: { active: true }, select: { price: true, stock: true } } },
+        take: 100,
+      });
+      const isGreeting = /^(سلام|درود|hi|hello|وقت بخیر)(\s|$)/i.test(normalized);
+      const wantsCatalog = /محصول|کالا|لیست|فهرست|کاتالوگ/.test(normalized);
+      const wantsPrice = /قیمت|چنده|چند تومان|موجود/.test(normalized);
+      const matched = products.find(product => normalized.includes(product.title.toLocaleLowerCase('fa-IR')));
+      let answer: string;
+      if (isGreeting) {
+        answer = `سلام! به ${shop?.name ?? 'فروشگاه'} خوش آمدید 🌷\nنام محصول یا «محصولات» را بفرستید تا قیمت و موجودی را ببینید.`;
+      } else if ((wantsPrice || wantsCatalog) && matched) {
+        const prices = matched.variants.map(v => v.price).filter(Number.isFinite);
+        if (!prices.length && matched.defaultPrice != null) prices.push(matched.defaultPrice);
+        const priceText = prices.length ? (Math.min(...prices) === Math.max(...prices)
+          ? `${Math.min(...prices).toLocaleString('fa-IR')} تومان`
+          : `از ${Math.min(...prices).toLocaleString('fa-IR')} تا ${Math.max(...prices).toLocaleString('fa-IR')} تومان`) : 'برای قیمت با فروشنده هماهنگ کنید';
+        const stock = matched.variants.length ? (matched.variants.some(v => v.stock > 0) ? 'موجود' : 'فعلاً ناموجود') : '';
+        answer = `🛍 ${matched.title}\n💰 ${priceText}${stock ? `\n📦 ${stock}` : ''}${matched.description ? `\n${matched.description}` : ''}`;
+      } else if (wantsCatalog || wantsPrice) {
+        answer = products.length
+          ? `🛍 محصولات فروشگاه:\n${products.slice(0, 20).map(p => `• ${p.title}${p.defaultPrice != null ? ` — ${p.defaultPrice.toLocaleString('fa-IR')} تومان` : ''}`).join('\n')}\n\nبرای جزئیات، نام محصول را بفرستید.`
+          : 'هنوز محصولی در کاتالوگ فروشگاه ثبت نشده است.';
+      } else if (/ارسال|تحویل/.test(normalized)) answer = shop?.shipping || 'اطلاعات ارسال هنوز ثبت نشده؛ پیام‌تان را برای فروشنده فرستادم.';
+      else if (/پرداخت|کارت|واریز/.test(normalized)) answer = shop?.payment || 'اطلاعات پرداخت را فروشنده برایتان می‌فرستد.';
+      else if (/ساعت کاری|چه ساعتی|کی باز/.test(normalized)) answer = shop?.workingHours || 'ساعت کاری در تنظیمات فروشگاه ثبت نشده است.';
+      else if (/مرجوع|تعویض/.test(normalized)) answer = shop?.returns || 'برای مرجوعی یا تعویض لطفاً با فروشنده هماهنگ کنید.';
+      else answer = 'ممنون از پیامتان! می‌توانم درباره قیمت و موجودی، ارسال، پرداخت و ساعت کاری راهنمایی کنم. نام محصول یا موضوع سؤال‌تان را بنویسید.';
+
+      const delivered = await adapter.send({ chatId: message.chatId, text: answer });
       if (delivered.ok) {
         const reply = await this.db.chatMessage.create({
-          data: { shopId, chatId, direction: 'out', author: 'bot', text: acknowledgement },
+          data: { shopId, chatId, direction: 'out', author: 'bot', text: answer },
           select: { id: true },
         });
         this.realtime.emitShop(shopId, 'chat', { chatId, messageId: reply.id, author: 'bot' });
