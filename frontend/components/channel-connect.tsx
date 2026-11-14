@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { api, ApiError, type ChannelConnection } from '@/lib/api';
-import { Field, Modal, SkeletonBlock, Spinner, useToast } from '@/components/ui';
-import { IconAlertCircle, IconCheckCircle, IconCopy, IconPlus } from '@/components/icons';
+import { Field, SkeletonBlock, Spinner, useToast } from '@/components/ui';
+import { IconAlertCircle, IconCopy, IconPlus } from '@/components/icons';
 
 type Platform = 'BALE' | 'RUBIKA';
 
@@ -28,8 +28,8 @@ const PLATFORM_INFO: Record<Platform, { label: string; hint: string }> = {
 export function ChannelConnect({ platform, onChanged }: { platform: Platform; onChanged?: () => void }) {
   const toast = useToast();
   const [connections, setConnections] = useState<ChannelConnection[] | null>(null);
-  const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [displayName, setDisplayName] = useState('بات فروشگاه');
   const [shopLink, setShopLink] = useState<string | null>(null);
   const [shopLinkConfigured, setShopLinkConfigured] = useState(false);
   const info = PLATFORM_INFO[platform];
@@ -67,6 +67,20 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
     }
   }
 
+  async function activate() {
+    setBusy(true);
+    try {
+      await api.connectChannel({ platform, externalId: 'bot', displayName: displayName.trim() || 'بات فروشگاه' });
+      toast.success(`${info.label} وصل شد.`);
+      load();
+      onChanged?.();
+    } catch (problem) {
+      toast.error('اتصال انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const isConnected = Boolean(connections?.some(connection => connection.status === 'CONNECTED' || connection.status === 'ACTIVE'));
 
   return (
@@ -91,9 +105,23 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
           </button>
         </div>
       ))}
-      <button className="btn btn-primary" onClick={() => setOpen(true)} style={{ width: '100%' }}>
-        <IconPlus size={15} />اتصال {info.label}
-      </button>
+      {!isConnected && connections !== null && (
+        <Field label="نام نمایشی بات" htmlFor={`channel-name-${platform}`}>
+          <input
+            id={`channel-name-${platform}`}
+            className="input"
+            maxLength={200}
+            placeholder="بات فروشگاه من"
+            value={displayName}
+            onChange={event => setDisplayName(event.target.value)}
+          />
+        </Field>
+      )}
+      {!isConnected && (
+        <button className="btn btn-primary" onClick={() => void activate()} disabled={busy || connections === null} style={{ width: '100%' }}>
+          {busy ? <Spinner size={15} /> : <IconPlus size={15} />}فعال‌سازی اتصال {info.label}
+        </button>
+      )}
 
       {isConnected && !shopLink && !shopLinkConfigured && (
         <div className="alert alert-warn" role="status">
@@ -124,60 +152,6 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
         </div>
       )}
 
-      {open && (
-        <ConnectModal
-          platform={platform}
-          onClose={() => setOpen(false)}
-          onSaved={() => { setOpen(false); load(); onChanged?.(); }}
-        />
-      )}
     </div>
-  );
-}
-
-function ConnectModal({ platform, onClose, onSaved }: { platform: Platform; onClose: () => void; onSaved: () => void }) {
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  const info = PLATFORM_INFO[platform];
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    setBusy(true);
-    try {
-      await api.connectChannel({
-        platform,
-        externalId: 'bot',
-        displayName: String(data.get('displayName') ?? '').trim(),
-      });
-      toast.success(`${info.label} وصل شد.`);
-      onSaved();
-    } catch (problem) {
-      toast.error('اتصال انجام نشد', problem instanceof ApiError ? problem.message : undefined);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      open onClose={onClose} title={`اتصال ${info.label}`}
-      description={info.hint}
-      footer={<><button className="btn btn-ghost" onClick={onClose}>انصراف</button><button className="btn btn-primary" form="channel-form" disabled={busy}>{busy && <Spinner size={14} />}فعال‌سازی اتصال</button></>}
-    >
-      <form id="channel-form" onSubmit={submit} style={{ display: 'grid', gap: 14 }}>
-        <Field label="نام نمایشی بات" htmlFor="displayName">
-          <input id="displayName" name="displayName" className="input" maxLength={200} placeholder="بات فروشگاه من" autoFocus />
-        </Field>
-        <div className="alert alert-info">
-          <IconCheckCircle />
-          <span>توکن بات {info.label} را فروش‌یار تنظیم می‌کند؛ شما فقط اتصال را فعال می‌کنید. بعد از فعال‌سازی، یک پیام آزمایشی به بات بفرستید تا مطمئن شوید وصل است.</span>
-        </div>
-        <div className="alert alert-info">
-          <IconAlertCircle />
-          <span>مشتری‌ها از لینک فروشگاه وارد بات می‌شوند؛ پیام‌هایشان مستقیم به همین پنل می‌آید.</span>
-        </div>
-      </form>
-    </Modal>
   );
 }
