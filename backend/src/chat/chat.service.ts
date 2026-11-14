@@ -27,9 +27,21 @@ export function pseudonymNumber(chatId: string): number {
  * همه «مشتری تلگرام» برگردانیم، در پنلِ اینستاگرام دکمه‌ی «آزمایش به مشتری
  * تلگرام» دیده می‌شود. پس نامِ پیش‌فرض به کانال بستگی دارد.
  */
+export function visibleUsername(chatId: string, username: string): string {
+  const value = (username ?? '').trim().replace(/^@/, '');
+  if (!value) return '';
+  const isIranianMessenger = chatId.startsWith('bale:') || chatId.startsWith('rubika:');
+  const rawChatId = chatId.slice(chatId.indexOf(':') + 1);
+  const looksLikeOpaqueId = /^[0-9a-f]{24,}$/i.test(value)
+    || /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value)
+    || value === rawChatId;
+  return isIranianMessenger && looksLikeOpaqueId ? '' : value;
+}
+
 export function displayName(row: { chatId: string; firstName: string; username: string }): string {
   if (row.firstName) return row.firstName;
-  if (row.username) return `@${row.username.replace(/^@/, '')}`;
+  const username = visibleUsername(row.chatId, row.username);
+  if (username) return `@${username}`;
   const channel = row.chatId.startsWith('ig:')
     ? 'اینستاگرام'
     : row.chatId.startsWith('bale:')
@@ -102,7 +114,7 @@ export class ChatService {
         id: row.id,
         chatId: row.chatId,
         name: displayName(row),
-        username: row.username,
+        username: visibleUsername(row.chatId, row.username),
         platform: row.chatId.startsWith('ig:') ? 'INSTAGRAM' : row.chatId.startsWith('bale:') ? 'BALE' : row.chatId.startsWith('rubika:') ? 'RUBIKA' : 'TELEGRAM',
         humanTakeover: row.humanTakeover,
         lastReplySource: row.lastReplySource,
@@ -154,7 +166,7 @@ export class ChatService {
         id: conversation.id,
         chatId: conversation.chatId,
         name: displayName(conversation),
-        username: conversation.username,
+        username: visibleUsername(conversation.chatId, conversation.username),
         platform: conversation.chatId.startsWith('ig:') ? 'INSTAGRAM' : conversation.chatId.startsWith('bale:') ? 'BALE' : conversation.chatId.startsWith('rubika:') ? 'RUBIKA' : 'TELEGRAM',
         humanTakeover: conversation.humanTakeover,
         lastReplySource: conversation.lastReplySource,
@@ -293,7 +305,7 @@ export class ChatService {
       return {
         chatId: row.chatId,
         name: displayName(row),
-        username: row.username,
+        username: visibleUsername(row.chatId, row.username),
         messageCount: messageCount.get(row.chatId) ?? row.messageCount,
         orders: order?.orders ?? 0,
         paidOrders: order?.paid ?? 0,

@@ -973,14 +973,14 @@ export class InstagramService {
    * نفرستاده بود. به‌صورت ترتیبی و با سقف انجام می‌شود تا BoxAPI را بمباران
    * نکنیم؛ نتیجه برای نمایش در پنل برمی‌گردد.
    */
-  async backfillProfiles(shopId: string, limit = 100): Promise<{ checked: number; updated: number; failed: number }> {
+  async backfillProfiles(shopId: string, limit = 100, force = false): Promise<{ checked: number; updated: number; failed: number }> {
     const staleBefore = new Date(Date.now() - PROFILE_CACHE_MS);
     const rows = await this.db.telegramConversation.findMany({
       where: {
         shopId,
         chatId: { startsWith: InstagramService.CHAT_PREFIX },
         OR: [{ firstName: '' }, { username: '' }],
-        AND: [{ OR: [{ profileEnrichedAt: null }, { profileEnrichedAt: { lt: staleBefore } }] }],
+        ...(!force ? { AND: [{ OR: [{ profileEnrichedAt: null }, { profileEnrichedAt: { lt: staleBefore } }] }] } : {}),
       },
       orderBy: { lastSeenAt: 'desc' },
       take: Math.min(Math.max(limit, 1), 500),

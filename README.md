@@ -106,3 +106,11 @@ ledger the panel uses.
 - محدودیت Meta: گیت «فالوکننده باشد» در اتوماسیون پشتیبانی نمی‌شود (API رسمی ندارد) و رد می‌شود؛ بقیه‌ی قابلیت‌ها (دایرکت، پاسخ کامنت، private reply، پروفایل، تشخیص پست) کامل کار می‌کنند.
 - پست فورواردشده در دایرکت: اگر مشتری پست را share کند و لینکش در متن/پیوست باشد و آن پست به محصولی لینک شده باشد، اطلاعات همان محصول (قیمت/موجودی واریانت‌ها) ارسال می‌شود.
 - سؤال قیمت در کامنت: اگر زیر پستی که به محصول لینک شده کامنت «قیمت چنده؟» بگذارند، قیمت واریانت‌های همان محصول به‌صورت عمومی در کامنت جواب داده می‌شود.
+
+## Feedback round 9 — Bale/Rubika + conversations
+
+- Rubika webhook parsing follows its Bot API v3 envelope (`update.new_message`, `chat_id`, `aux_data.start_id`); outbound replies use `/v3/{token}/sendMessage`.
+- Seller replies in the conversations panel route through the matching Telegram/Bale/Rubika adapter. Bale/Rubika send a visible receipt acknowledgement for each incoming message unless human takeover is active.
+- Conversation labels and filters distinguish Telegram, Instagram, Bale, and Rubika. Opaque Bale/Rubika sender IDs are not presented as usernames; a stable channel-specific customer alias is used when no public name is available.
+- The conversations list includes a manual retry for Instagram profile enrichment. A username is only available when the provider/platform exposes it.
+- Current limitation: Bale/Rubika acknowledge and store messages for seller replies; their full catalog/order/AI conversation flow is not yet ported.

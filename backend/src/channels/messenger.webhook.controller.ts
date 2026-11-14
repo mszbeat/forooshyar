@@ -23,9 +23,9 @@ import {
  * می‌شود؛ همیشه ۲۰۰ برمی‌گردانیم تا ارائه‌دهنده همان update را دوباره
  * نفرستد. هیچ AuthGuardای اینجا نیست چون ارائه‌دهنده توکن ما را ندارد.
  *
- * دامنه‌ی این فاز: پیام در گفتگو ذخیره می‌شود و فروشنده از پنل جواب می‌دهد؛
- * فقط برای اولین پیام یک پاسخ «دریافت شد» می‌رود. مغز کامل بات (کاتالوگ و
- * سفارش) برای این دو پلتفرم در فاز بعد می‌آید.
+ * دامنه‌ی این فاز: پیام در گفتگو ذخیره می‌شود و پاسخ فروشنده از پنل به همان
+ * پلتفرم می‌رود؛ تا زمان پیاده‌سازی مغز کامل بات، برای هر پیام تأیید دریافت
+ * ارسال می‌شود. پاسخ کاتالوگی و سفارش‌گیری هنوز برای این دو پلتفرم فعال نیست.
  */
 @Controller()
 @SkipThrottle()
@@ -147,12 +147,19 @@ export class MessengerWebhookController {
     });
     this.realtime.emitShop(shopId, 'chat', { chatId, messageId: saved.id, author: 'customer' });
 
-    // فقط اولین پیام پاسخ «دریافت شد» می‌گیرد؛ بقیه را فروشنده از پنل جواب می‌دهد.
-    if (conversation.messageCount <= 1) {
-      await adapter.send({
-        chatId: message.chatId,
-        text: 'سلام! پیام شما دریافت شد و فروشنده به‌زودی پاسخ می‌دهد. اگر برای خرید آماده‌اید، همین‌جا بنویسید.',
-      });
+    // در این نسخه منطق کاتالوگ/سفارش برای بله و روبیکا فعال نیست؛
+    // هر پیام را تأیید می‌کنیم تا مشتری بی‌پاسخ نماند. در حالت تحویل به فروشنده
+    // فقط پیام ثبت می‌شود و فروشنده از پنل پاسخ می‌دهد.
+    if (!conversation.humanTakeover) {
+      const acknowledgement = 'پیام شما به فروشگاه رسید و در گفت‌وگو ثبت شد؛ فروشنده از همین‌جا پاسخ‌تان را می‌دهد.';
+      const delivered = await adapter.send({ chatId: message.chatId, text: acknowledgement });
+      if (delivered.ok) {
+        const reply = await this.db.chatMessage.create({
+          data: { shopId, chatId, direction: 'out', author: 'bot', text: acknowledgement },
+          select: { id: true },
+        });
+        this.realtime.emitShop(shopId, 'chat', { chatId, messageId: reply.id, author: 'bot' });
+      }
     }
   }
 }

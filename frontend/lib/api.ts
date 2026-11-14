@@ -314,7 +314,7 @@ export type ConversationSummary = {
   chatId: string;
   name: string;
   username: string;
-  platform?: 'INSTAGRAM' | 'TELEGRAM';
+  platform?: 'INSTAGRAM' | 'TELEGRAM' | 'BALE' | 'RUBIKA';
   humanTakeover?: boolean;
   lastReplySource?: string;
   messageCount: number;
@@ -343,7 +343,7 @@ export type ThreadMessage = {
 export type ConversationThread = {
   conversation: {
     id: string; chatId: string; name: string; username: string;
-    platform?: 'INSTAGRAM' | 'TELEGRAM'; humanTakeover?: boolean; lastReplySource?: string;
+    platform?: 'INSTAGRAM' | 'TELEGRAM' | 'BALE' | 'RUBIKA'; humanTakeover?: boolean; lastReplySource?: string;
     lastSeenAt: string; createdAt: string;
   };
   messages: ThreadMessage[];
@@ -464,8 +464,8 @@ export const api = {
   instagramUnlink: () => request<{ ok: boolean; error?: string }>('/instagram/link', { method: 'DELETE' }),
   instagramTest: (recipientId: string) =>
     request<{ ok: boolean; error?: string; message?: string }>('/instagram/test', { method: 'POST', body: { recipientId } }),
-  instagramBackfillProfiles: () =>
-    request<{ checked: number; updated: number; failed: number }>('/instagram/backfill-profiles', { method: 'POST' }),
+  instagramBackfillProfiles: (force = false) =>
+    request<{ checked: number; updated: number; failed: number }>(`/instagram/backfill-profiles${force ? '?force=true' : ''}`, { method: 'POST' }),
 
   orders: (query: { status?: string; limit?: number } = {}) => {
     const params = new URLSearchParams();

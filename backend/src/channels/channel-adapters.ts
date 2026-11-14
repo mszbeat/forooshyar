@@ -159,7 +159,8 @@ export class RubikaAdapter {
       chatId,
       text,
       senderName: String(sender.first_name ?? sender.name ?? '').trim(),
-      senderUsername: String(sender.username ?? senderId).trim(),
+      // Rubika sender_id یک شناسه است، نه username؛ آن را در فیلد نام کاربری ذخیره نکن.
+      senderUsername: String(sender.username ?? '').trim(),
       updateId: root.update_id != null ? String(root.update_id) : update.update_id != null ? String(update.update_id) : undefined,
       startCode: startCode || undefined,
       hasPhoto: Boolean(message.file),

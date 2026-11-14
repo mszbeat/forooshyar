@@ -12,6 +12,17 @@ import { EmptyState, SkeletonBlock, Spinner, useToast } from '@/components/ui';
 import { IconAlertCircle, IconArrowRight, IconChat, IconRefresh, IconSearch, IconSend } from '@/components/icons';
 
 type Filter = 'all' | 'pending';
+type PlatformFilter = 'all' | 'INSTAGRAM' | 'TELEGRAM' | 'BALE' | 'RUBIKA';
+
+function platformLabel(platform?: PlatformFilter): string {
+  switch (platform) {
+    case 'INSTAGRAM': return 'اینستاگرام';
+    case 'BALE': return 'بله';
+    case 'RUBIKA': return 'روبیکا';
+    case 'TELEGRAM': return 'تلگرام';
+    default: return 'نامشخص';
+  }
+}
 
 /**
  * گفت‌وگوها — چیدمان تمام‌صفحه مثل تلگرام/واتس‌اپ وب.
@@ -28,6 +39,8 @@ export default function ConversationsPage() {
   const [loadError, setLoadError] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
+  const [profileBackfillBusy, setProfileBackfillBusy] = useState(false);
 
   const [active, setActive] = useState<string | null>(null);
   const [targetMsg, setTargetMsg] = useState<string | null>(null);
@@ -137,16 +150,31 @@ export default function ConversationsPage() {
     }
   }
 
+  async function retryInstagramProfiles() {
+    if (profileBackfillBusy) return;
+    setProfileBackfillBusy(true);
+    try {
+      const result = await api.instagramBackfillProfiles(true);
+      toast.success('بررسی نام‌های اینستاگرام تمام شد', `${faNum(result.updated)} نام تکمیل شد؛ ${faNum(result.failed)} مورد قابل دریافت نبود.`);
+      await load();
+    } catch (problem) {
+      toast.error('به‌روزرسانی نام‌ها انجام نشد', problem instanceof ApiError ? problem.message : undefined);
+    } finally {
+      setProfileBackfillBusy(false);
+    }
+  }
+
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
     return items.filter(item => {
       if (filter === 'pending' && !item.pending) return false;
+      if (platformFilter !== 'all' && item.platform !== platformFilter) return false;
       if (!term) return true;
       return item.name.toLowerCase().includes(term)
         || (item.username ?? '').toLowerCase().includes(term)
         || (item.lastMessage?.text ?? '').toLowerCase().includes(term);
     });
-  }, [items, query, filter]);
+  }, [items, query, filter, platformFilter]);
 
 
   return (
@@ -172,6 +200,28 @@ export default function ConversationsPage() {
                 بی‌پاسخ {faNum(counts.pending)}
               </button>
             </div>
+            <select
+              className="input input-sm conv-platform-filter"
+              aria-label="فیلتر گفتگو بر اساس پلتفرم"
+              value={platformFilter}
+              onChange={event => setPlatformFilter(event.target.value as PlatformFilter)}
+            >
+              <option value="all">همهٔ پلتفرم‌ها</option>
+              <option value="TELEGRAM">تلگرام</option>
+              <option value="INSTAGRAM">اینستاگرام</option>
+              <option value="BALE">بله</option>
+              <option value="RUBIKA">روبیکا</option>
+            </select>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => void retryInstagramProfiles()}
+              disabled={profileBackfillBusy}
+              title="تلاش دوباره برای دریافت نام و نام کاربری مشتریان اینستاگرام"
+            >
+              {profileBackfillBusy ? <Spinner size={13} /> : <IconRefresh size={13} />}
+              تکمیل نام‌های اینستاگرام
+            </button>
           </div>
 
           <div className="conv-list-body">
@@ -210,7 +260,7 @@ export default function ConversationsPage() {
                       </span>
                       <span className="conv-snippet">{item.lastMessage?.text ?? 'بدون پیام'}</span>
                       <span className="conv-tags">
-                        <span className="badge b-gray">{item.platform === 'INSTAGRAM' ? 'اینستاگرام' : 'تلگرام'}</span>
+                        <span className="badge b-gray">{platformLabel(item.platform)}</span>
                         {item.humanTakeover && <span className="badge b-blue">در دست فروشنده</span>}
                         {item.orders > 0 && <span className="badge b-gray">{faNum(item.orders)} سفارش</span>}
                         {item.spent > 0 && <span className="badge b-green">خریدار</span>}
@@ -242,7 +292,7 @@ export default function ConversationsPage() {
                   <strong>{thread?.conversation.name ?? 'گفتگو'}</strong>
                   <span className="small muted">
                     {thread?.conversation.username ? `@${thread.conversation.username} · ` : ''}
-                    {thread ? `${faNum(thread.messages.length)} پیام` : 'در حال بارگذاری…'}
+                    {thread ? `${platformLabel(thread.conversation.platform)} · ${faNum(thread.messages.length)} پیام` : 'در حال بارگذاری…'}
                     {thread?.conversation.lastReplySource ? ` · پاسخ AI (${thread.conversation.lastReplySource === 'llm' ? 'مدل' : 'قاعده‌محور'})` : ''}
                   </span>
                 </div>

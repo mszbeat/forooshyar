@@ -92,7 +92,7 @@ describe('Rubika update normalization', () => {
     assert.equal(message.chatId, 'c1');
     assert.equal(message.text, '/start shop-42_X');
     assert.equal(message.startCode, 'shop-42_X');
-    assert.equal(message.senderUsername, 'user-1');
+    assert.equal(message.senderUsername, '');
     assert.equal(message.updateId, 'u1');
   });
 

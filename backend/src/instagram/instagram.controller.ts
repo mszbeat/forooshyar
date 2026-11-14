@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { AuthGuard, Principal } from '../auth/auth.guard';
 import { InstagramService } from './instagram.service';
@@ -75,8 +75,8 @@ export class InstagramController {
    * می‌شود و اگر `BOXAPI_DATA_TOKEN` ست نشده باشد، چیزی تغییر نمی‌کند.
    */
   @Post('backfill-profiles')
-  backfillProfiles(@Req() req: { principal: Principal }) {
-    return this.instagram.backfillProfiles(req.principal.shopId);
+  backfillProfiles(@Req() req: { principal: Principal }, @Query('force') force?: string) {
+    return this.instagram.backfillProfiles(req.principal.shopId, 100, force === 'true');
   }
 
   @Post('test')

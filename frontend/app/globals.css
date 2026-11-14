@@ -947,6 +947,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .conv-shell.is-idle .conv-thread { min-height: 240px; }
 .conv-list { display: flex; flex-direction: column; border-inline-end: 1px solid var(--line); min-width: 0; min-height: 0; }
 .conv-list-head { display: grid; gap: 8px; padding: 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.conv-platform-filter { width: 100%; min-width: 0; cursor: pointer; }
 .conv-list-body { flex: 1; overflow-y: auto; }
 .conv-row { display: flex; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: 0; border-bottom: 1px solid var(--line); font-family: inherit; text-align: start; cursor: pointer; transition: background 0.14s var(--ease); }
 .conv-row:hover { background: var(--surface-2); }

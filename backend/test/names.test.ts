@@ -16,6 +16,13 @@ describe('نام نمایشی مشتری', () => {
     assert.equal(displayName({ chatId: '456', firstName: '', username: '@ali' }), '@ali');
   });
 
+  it('شناسه‌ی فنی روبیکا و بله را به‌جای username نشان نمی‌دهد', () => {
+    const uuid = '2Kn0d009ae6122b5f6e7cd4fc537';
+    assert.match(displayName({ chatId: `rubika:${uuid}`, firstName: '', username: uuid }), /^مشتری روبیکا /u);
+    assert.match(displayName({ chatId: 'bale:123456789012345678901234', firstName: '', username: '123456789012345678901234' }), /^مشتری بله /u);
+    assert.equal(displayName({ chatId: 'rubika:c1', firstName: '', username: 'real_user' }), '@real_user');
+  });
+
   it('بدون هیچ نام، مستعار پایدار و کانال‌دار برمی‌گردد', () => {
     const ig = displayName({ chatId: 'ig:123456', firstName: '', username: '' });
     const tg = displayName({ chatId: '987654', firstName: '', username: '' });
