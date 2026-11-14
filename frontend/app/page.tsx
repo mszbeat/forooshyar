@@ -118,6 +118,20 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
+    const selector = '.land .plan-card, .land .tile, .land .land-robot-card, .land .compare-col, .land .flow-step, .land .rule, .land .faq details, .land .land-robot-copy, .land .float-card';
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') return;
+      const target = event.target instanceof Element ? event.target.closest<HTMLElement>(selector) : null;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      target.style.setProperty('--mx', `${event.clientX - rect.left}px`);
+      target.style.setProperty('--my', `${event.clientY - rect.top}px`);
+    };
+    document.addEventListener('pointermove', onPointerMove, { passive: true });
+    return () => document.removeEventListener('pointermove', onPointerMove);
+  }, []);
+
+  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });

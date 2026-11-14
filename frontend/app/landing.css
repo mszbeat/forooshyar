@@ -93,7 +93,7 @@
 @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
 /* نوار اعداد */
-.fact-strip { margin-top: 72px; border-block: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.fact-strip { margin-top: 72px; border-block: 1px solid var(--line); background: transparent; }
 .fact-strip-in { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .fact { padding: 26px 20px; border-inline-start: 1px solid var(--line); }
 .fact:first-child { border-inline-start: 0; }
@@ -105,9 +105,10 @@
 .fact:nth-child(4) .fact-v { color: var(--info); }
 
 /* بخش‌ها */
-.sec { padding: 96px 0; }
+.sec { padding: 96px 0; border-bottom: 1px solid var(--line); }
 .sec.tight { padding: 72px 0; }
-.sec.alt { background: linear-gradient(180deg, var(--surface), var(--bg-deep)); border-block: 1px solid var(--line); }
+.sec.alt { background: transparent; }
+.sec:last-of-type { border-bottom: 0; }
 .sec-head { max-width: 680px; }
 .sec-head.center { margin-inline: auto; text-align: center; }
 .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.02em; color: var(--brand-700); background: var(--brand-50); border: 1px solid var(--brand-100); border-radius: var(--r-full); padding: 4px 12px; }
@@ -150,7 +151,7 @@
 .flow-step .mini { display: inline-block; margin-top: 14px; font-size: 11px; font-weight: 700; color: var(--brand-700); background: var(--brand-50); border: 1px solid var(--brand-100); padding: 3px 10px; border-radius: var(--r-full); }
 
 /* اصول */
-.night-sec { padding: 96px 0; background: radial-gradient(70% 90% at 92% 0%, rgba(124,108,255,.16) 0%, transparent 70%), radial-gradient(60% 80% at 0% 100%, rgba(34,211,238,.10) 0%, transparent 72%), var(--surface-2); border-block: 1px solid var(--line); }
+.night-sec { padding: 96px 0; background: transparent; border-block: 0; border-bottom: 1px solid var(--line); }
 .rules { margin-top: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .rule { background: color-mix(in srgb, var(--surface) 84%, var(--brand-50)); border: 1px solid var(--line); border-radius: var(--r-xl); padding: 24px; box-shadow: var(--sh-sm); }
 .rule .n { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; color: var(--brand); font-family: ui-monospace, monospace; }
@@ -187,7 +188,7 @@
 .foot-bottom .links a:hover { color: var(--ink); }
 
 /* ربات */
-.land-robot-showcase { background: transparent; border-block: 0; }
+.land-robot-showcase { background: transparent; border-block: 0; border-bottom: 1px solid var(--line); }
 .land-robot-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
 .land-robot-card { min-width: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
 .land-robot-card:hover { transform: translateY(-4px); border-color: var(--brand-200); box-shadow: var(--sh-md); }
@@ -397,14 +398,19 @@
 }
 .btn-primary:hover::after { transform: translateX(-120%); }
 
-/* کارت‌های امکانات — براقیت دنبال‌کننده‌ی نشانگر */
-.bento .tile, .land-robot-card { position: relative; overflow: hidden; }
-.bento .tile::before, .land-robot-card::before {
-  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
-  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(124,108,255,.13), transparent 65%);
-  transition: opacity .35s;
+/* باکس‌های قابل هاور — هاله‌ی نرم که با نشانگر داخل کارت حرکت می‌کند. */
+.land :is(.plan-card, .tile, .land-robot-card, .compare-col, .flow-step, .rule, .faq details, .land-robot-copy, .float-card) { position: relative; overflow: hidden; }
+.land :is(.plan-card, .tile, .land-robot-card, .compare-col, .flow-step, .rule, .faq details, .land-robot-copy, .float-card)::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(124,108,255,.15), transparent 68%);
+  transition: opacity .28s ease;
 }
-.bento .tile:hover::before, .land-robot-card:hover::before { opacity: 1; }
+.land :is(.plan-card, .tile, .land-robot-card, .compare-col, .flow-step, .rule, .faq details, .land-robot-copy, .float-card):hover::before,
+.land :is(.plan-card, .tile, .land-robot-card, .compare-col, .flow-step, .rule, .faq details, .land-robot-copy, .float-card):focus-within::before { opacity: 1; }
+.land :is(.plan-card, .tile, .land-robot-card, .compare-col, .flow-step, .rule, .faq details, .land-robot-copy, .float-card) > * { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .land :is(.plan-card, .tile, .land-robot-card, .compare-col, .flow-step, .rule, .faq details, .land-robot-copy)::before { transition: none; }
+}
 
 /* FAQ — بازشدن نرم */
 .faq details { transition: background .3s; }

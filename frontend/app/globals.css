@@ -257,7 +257,9 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 @media (min-width: 901px) {
   #nav-collapse { display: inline-flex; }
   /* منوی بسته: محتوا کل عرض صفحه را می‌گیرد. */
-  .shell.collapsed .sidebar { display: none; }
+  .shell .sidebar { transition: width .32s cubic-bezier(.22,1,.36,1), flex-basis .32s cubic-bezier(.22,1,.36,1), padding .32s ease, opacity .22s ease, transform .32s cubic-bezier(.22,1,.36,1); }
+  .shell.collapsed .sidebar { width: 0; flex-basis: 0; padding-inline: 0; border-inline-end-width: 0; opacity: 0; transform: translateX(18px); overflow: hidden; pointer-events: none; }
+  .shell .main { transition: flex-basis .32s cubic-bezier(.22,1,.36,1), width .32s cubic-bezier(.22,1,.36,1); }
 }
 .side-card {
   background: var(--grad-soft); border: 1px solid var(--brand-100); color: var(--ink-2);
