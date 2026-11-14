@@ -106,8 +106,8 @@ const bento = [
 ];
 
 const robotScenes = [
-  { src: '/assistant/mascot.png', title: 'دستیار فروش', detail: 'یک همراه ثابت و هوشمند' },
-  { src: '/assistant/orders.png', title: 'سفارش‌ها', detail: 'از ثبت تا آماده‌سازی' },
+  { src: '/assistant/mascot.webp', title: 'دستیار فروش', detail: 'یک همراه ثابت و هوشمند' },
+  { src: '/assistant/orders.webp', title: 'سفارش‌ها', detail: 'از ثبت تا آماده‌سازی' },
   { src: '/assistant/inventory.webp', title: 'موجودی', detail: 'کاتالوگ دقیق و به‌روز' },
   { src: '/assistant/customer-chat.webp', title: 'گفت‌وگو', detail: 'پاسخ‌گویی به مشتری' },
   { src: '/assistant/insights.webp', title: 'بینش فروش', detail: 'روندها در یک نگاه' },

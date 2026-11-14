@@ -66,6 +66,16 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
+  // جمع‌شدن منو در دسکتاپ: محتوا کل عرض را می‌گیرد. در localStorage می‌ماند.
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem('forooshyar.sidebarCollapsed') === '1');
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem('forooshyar.sidebarCollapsed', collapsed ? '1' : '0');
+  }, [collapsed]);
 
   useEffect(() => {
     if (ready && !token) router.replace('/login');
@@ -97,17 +107,19 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
         </div>
       </Link>
 
-      {NAV_GROUPS.map(group => (
-        <div className="nav-group" key={group.label}>
-          <div className="nav-label">{group.label}</div>
-          {group.items.map(item => (
-            <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href, item.exact) ? 'active' : ''}`}>
-              <item.icon className="nav-icon" />
-              <span>{item.label}</span>
-            </Link>
-          ))}
-        </div>
-      ))}
+      <nav className="sidebar-nav" aria-label="منوی پنل فروشنده">
+        {NAV_GROUPS.map(group => (
+          <div className="nav-group" key={group.label}>
+            <div className="nav-label">{group.label}</div>
+            {group.items.map(item => (
+              <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href, item.exact) ? 'active' : ''}`}>
+                <item.icon className="nav-icon" />
+                <span>{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        ))}
+      </nav>
 
       <div className="sidebar-foot">
         <div className="side-card">
@@ -123,7 +135,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="shell">
+    <div className={`shell${collapsed ? ' collapsed' : ''}`}>
       {drawer && <div className="scrim" onClick={() => setDrawer(false)} />}
       {sidebar}
 
@@ -135,6 +147,14 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
             onClick={() => setDrawer(true)} aria-label="باز کردن منو"
           >
             <IconMenu size={18} />
+          </button>
+          <button
+            type="button" className="btn btn-ghost btn-icon" id="nav-collapse"
+            onClick={() => setCollapsed(value => !value)}
+            aria-label={collapsed ? 'باز کردن منو' : 'بستن منو'} aria-expanded={!collapsed}
+            title={collapsed ? 'باز کردن منو' : 'بستن منو'}
+          >
+            {collapsed ? <IconMenu size={18} /> : <IconX size={18} />}
           </button>
           <style>{`@media (max-width: 900px){#nav-toggle{display:inline-flex !important} .sidebar .hide-sm{display:inline-flex !important} .topbar .topbar-heading{display:block !important; min-width:0; flex:1 1 auto} .topbar .topbar-title{overflow:hidden; text-overflow:ellipsis; white-space:nowrap} .topbar-sub{display:none}}`}</style>
 

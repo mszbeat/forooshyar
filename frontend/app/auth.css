@@ -42,10 +42,11 @@
 .authx-visual-card {
   position: relative; margin: 14px; border-radius: 28px; overflow: hidden;
   flex: 1 1 auto; min-height: calc(100dvh - 28px);
+  /* پایه مشکیِ هم‌رنگ body تا پنل با صفحه یکدست شود؛ فقط هاله‌های ملایم رنگی می‌ماند. */
   background:
-    radial-gradient(80% 55% at 80% 8%, rgba(124,108,255,.5), transparent 70%),
-    radial-gradient(70% 60% at 8% 94%, rgba(34,211,238,.22), transparent 68%),
-    linear-gradient(145deg, #12101f, #14161c 68%, #0f1a24);
+    radial-gradient(80% 55% at 80% 8%, rgba(124,108,255,.32), transparent 70%),
+    radial-gradient(70% 60% at 8% 94%, rgba(34,211,238,.14), transparent 68%),
+    linear-gradient(145deg, #08090a, #0c0d10 68%, #08090a);
   border: 1px solid rgba(255,255,255,.1);
   box-shadow: 0 34px 80px -34px rgba(8,9,10,.6), inset 0 1px 0 rgba(255,255,255,.08);
 }

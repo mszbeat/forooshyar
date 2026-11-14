@@ -187,7 +187,7 @@
 .foot-bottom .links a:hover { color: var(--ink); }
 
 /* ربات */
-.land-robot-showcase { background: var(--surface-2); border-block: 1px solid var(--line); }
+.land-robot-showcase { background: transparent; border-block: 0; }
 .land-robot-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
 .land-robot-card { min-width: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; transition: transform 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
 .land-robot-card:hover { transform: translateY(-4px); border-color: var(--brand-200); box-shadow: var(--sh-md); }
