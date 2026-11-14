@@ -717,8 +717,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 /* ==========================================================================
    7. پنل ادمین — «اتاق کنترل»
    ========================================================================== */
-.adm-shell { display: grid; width: 100%; max-width: none; min-width: 0; grid-template-columns: minmax(0, 258px) minmax(0, 1fr); height: 100dvh; background: var(--bg); transition: grid-template-columns 1.5s ease; }
-.adm-side { height: 100dvh; max-height: 100dvh; display: flex; flex-direction: column; background: linear-gradient(180deg, #0c0d10, #101114 55%, #0c0d10); color: var(--night-ink); padding: 20px 16px; gap: 18px; border-inline-start: 1px solid var(--night-line); overflow: hidden; padding-bottom: max(20px, env(safe-area-inset-bottom)); transition: padding 1.5s ease; }
+.adm-shell { display: grid; width: 100%; max-width: none; min-width: 0; grid-template-columns: 258px minmax(0, 1fr); height: 100dvh; background: var(--bg); transition: grid-template-columns .9s cubic-bezier(.22,1,.36,1); }
+.adm-side { height: 100dvh; max-height: 100dvh; display: flex; flex-direction: column; background: linear-gradient(180deg, #0c0d10, #101114 55%, #0c0d10); color: var(--night-ink); padding: 20px 16px; gap: 18px; border-inline-start: 1px solid var(--night-line); overflow: hidden; padding-bottom: max(20px, env(safe-area-inset-bottom)); transition: padding .9s ease; }
 .adm-brand { display: flex; align-items: center; gap: 11px; min-height: 60px; flex: 0 0 auto; padding: 4px 6px 14px; border-bottom: 1px solid var(--night-line); }
 .adm-brand .glyph { width: 40px; height: 40px; border-radius: 0; display: grid; place-items: center; flex: 0 0 auto; background: transparent; box-shadow: none; color: #fff; }
 .adm-brand .nm { font-weight: 800; font-size: 15px; letter-spacing: -0.01em; }
@@ -892,10 +892,10 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-scrim { display: none; }
 @media (max-width: 980px) {
   .adm-shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100dvh; }
-  .adm-scrim { display: block; position: fixed; inset: 0; z-index: 89; border: 0; background: rgba(8,9,10,.55); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity 1.5s ease; }
+  .adm-scrim { display: block; position: fixed; inset: 0; z-index: 89; border: 0; background: rgba(8,9,10,.55); backdrop-filter: blur(3px); opacity: 0; pointer-events: none; transition: opacity .9s ease; }
   .adm-shell.nav-open .adm-scrim { opacity: 1; pointer-events: auto; }
   /* در RTL، inset-inline-end یعنی سمت چپ؛ برای پنهان‌کردن باید به چپ برود (-105%). */
-  .adm-side { position: fixed; z-index: 90; inset-block: 0; inset-inline-start: 0; width: min(86vw, 320px); height: 100dvh; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 18px 16px; overflow-y: auto; transform: translateX(105%); visibility: hidden; transition: transform 1.5s ease, visibility 1.5s; }
+  .adm-side { position: fixed; z-index: 90; inset-block: 0; inset-inline-start: 0; width: min(86vw, 320px); height: 100dvh; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 16px; padding: 18px 16px; overflow-y: auto; transform: translateX(105%); visibility: hidden; transition: transform .9s cubic-bezier(.22,1,.36,1), visibility .9s; }
   .adm-shell.nav-open .adm-side { transform: translateX(0); visibility: visible; }
   .adm-brand { border-bottom: 1px solid var(--night-line); padding: 0 4px 14px; flex: 0 0 auto; }
   .adm-brand .rl { display: block; }
