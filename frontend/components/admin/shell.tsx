@@ -136,7 +136,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href} className={`adm-nav-item${active ? ' active' : ''}`} onClick={() => setNavOpen(false)}>
+              <Link key={item.href} href={item.href} className={`adm-nav-item${active ? ' active' : ''}`} title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined} onClick={() => setNavOpen(false)}>
                 <Icon size={16} />
                 <span>{item.label}</span>
                 <span className="sp">{item.note}</span>
