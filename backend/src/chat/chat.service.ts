@@ -103,7 +103,7 @@ export class ChatService {
         chatId: row.chatId,
         name: displayName(row),
         username: row.username,
-        platform: row.chatId.startsWith('ig:') ? 'INSTAGRAM' : 'TELEGRAM',
+        platform: row.chatId.startsWith('ig:') ? 'INSTAGRAM' : row.chatId.startsWith('bale:') ? 'BALE' : row.chatId.startsWith('rubika:') ? 'RUBIKA' : 'TELEGRAM',
         humanTakeover: row.humanTakeover,
         lastReplySource: row.lastReplySource,
         messageCount: counts.get(row.chatId) ?? row.messageCount,
@@ -155,7 +155,7 @@ export class ChatService {
         chatId: conversation.chatId,
         name: displayName(conversation),
         username: conversation.username,
-        platform: conversation.chatId.startsWith('ig:') ? 'INSTAGRAM' : 'TELEGRAM',
+        platform: conversation.chatId.startsWith('ig:') ? 'INSTAGRAM' : conversation.chatId.startsWith('bale:') ? 'BALE' : conversation.chatId.startsWith('rubika:') ? 'RUBIKA' : 'TELEGRAM',
         humanTakeover: conversation.humanTakeover,
         lastReplySource: conversation.lastReplySource,
         lastSeenAt: conversation.lastSeenAt.toISOString(),
@@ -203,7 +203,7 @@ export class ChatService {
     const conversation = await this.db.telegramConversation.findFirst({ where: { shopId, chatId } });
     if (!conversation) throw new NotFoundException('این گفتگو پیدا نشد.');
 
-    const sent = await this.telegram.sendTo(chatId, text);
+    const sent = await this.sendByChannel(chatId, text);
     if (!sent) {
       return { ok: false as const, error: 'ارسال نشد؛ اتصال تلگرام را بررسی کنید.' };
     }

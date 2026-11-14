@@ -19,6 +19,8 @@ export interface IncomingMessage {
   senderName: string;
   senderUsername: string;
   updateId?: string;
+  /** کد start که در Rubika داخل aux_data.start_id می‌آید. */
+  startCode?: string;
   hasPhoto: boolean;
 }
 
@@ -116,7 +118,7 @@ export class RubikaAdapter {
   }
 
   private url(method: string): string {
-    return `https://botapi.rubika.ir/${method}`;
+    return `https://botapi.rubika.ir/v3/${encodeURIComponent(this.token)}/${method}`;
   }
 
   async send(message: OutgoingMessage): Promise<AdapterResult> {
@@ -124,36 +126,42 @@ export class RubikaAdapter {
     try {
       const response = await fetch(this.url('sendMessage'), {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'Auth-Token': this.token },
-        body: JSON.stringify({
-          chat_id: message.chatId,
-          text: message.text,
-        }),
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: message.chatId, text: message.text }),
         signal: AbortSignal.timeout(15000),
       });
       if (!response.ok) return { ok: false, error: `روبیکا پاسخ ${response.status} داد.` };
+      const payload = (await response.json().catch(() => null)) as { status?: string; message?: string; error?: string } | null;
+      if (payload?.status && payload.status.toUpperCase() !== 'OK') {
+        return { ok: false, error: payload.message ?? payload.error ?? 'روبیکا ارسال پیام را نپذیرفت.' };
+      }
       return { ok: true };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : 'خطای شبکه' };
     }
   }
 
-  /** نرمال‌سازی update روبیکا به IncomingMessage. */
-  static normalize(update: unknown): IncomingMessage | null {
-    const root = (update ?? {}) as Record<string, unknown>;
-    const message = (root.message ?? root) as Record<string, unknown>;
+  /** نرمال‌سازی ساختار رسمی update روبیکا به IncomingMessage. */
+  static normalize(input: unknown): IncomingMessage | null {
+    const root = (input ?? {}) as Record<string, unknown>;
+    const update = (root.update ?? root) as Record<string, unknown>;
+    const message = (update.new_message ?? update.message ?? root.message ?? update) as Record<string, unknown>;
     const chat = (message.chat ?? {}) as Record<string, unknown>;
     const sender = (message.sender ?? {}) as Record<string, unknown>;
-    const chatId = String(chat.chat_id ?? chat.id ?? message.chat_id ?? '');
+    const aux = (message.aux_data ?? update.aux_data ?? {}) as Record<string, unknown>;
+    const chatId = String(update.chat_id ?? chat.chat_id ?? chat.id ?? message.chat_id ?? '');
     if (!chatId) return null;
-    const text = String(message.text ?? '').trim();
+    const startCode = String(aux.start_id ?? update.start_id ?? '').trim();
+    const text = String(message.text ?? '').trim() || (startCode ? `/start ${startCode}` : '');
+    const senderId = String(message.sender_id ?? sender.user_id ?? sender.id ?? '').trim();
     return {
       platform: 'RUBIKA',
       chatId,
       text,
-      senderName: String(sender.first_name ?? '').trim(),
-      senderUsername: String(sender.username ?? '').trim(),
-      updateId: root.update_id != null ? String(root.update_id) : undefined,
+      senderName: String(sender.first_name ?? sender.name ?? '').trim(),
+      senderUsername: String(sender.username ?? senderId).trim(),
+      updateId: root.update_id != null ? String(root.update_id) : update.update_id != null ? String(update.update_id) : undefined,
+      startCode: startCode || undefined,
       hasPhoto: Boolean(message.file),
     };
   }

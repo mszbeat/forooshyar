@@ -74,20 +74,59 @@ describe('Bale update normalization', () => {
 });
 
 describe('Rubika update normalization', () => {
-  it('normalizes a Rubika update', () => {
+  it('normalizes the official Rubika webhook shape and extracts deep-link start_id', () => {
     const message = RubikaAdapter.normalize({
       update_id: 'u1',
-      message: {
-        chat: { chat_id: 'c1' },
-        sender: { first_name: 'سارا', username: 'sara' },
-        text: 'سلام',
+      update: {
+        type: 'NewMessage',
+        chat_id: 'c1',
+        new_message: {
+          sender_id: 'user-1',
+          text: '',
+          aux_data: { start_id: 'shop-42_X' },
+        },
       },
     });
     assert.ok(message);
     assert.equal(message.platform, 'RUBIKA');
     assert.equal(message.chatId, 'c1');
+    assert.equal(message.text, '/start shop-42_X');
+    assert.equal(message.startCode, 'shop-42_X');
+    assert.equal(message.senderUsername, 'user-1');
+    assert.equal(message.updateId, 'u1');
+  });
+
+  it('normalizes a regular Rubika message from the official update envelope', () => {
+    const message = RubikaAdapter.normalize({
+      update_id: 'u2',
+      update: {
+        type: 'NewMessage',
+        chat_id: 'c2',
+        new_message: { sender_id: 'user-2', text: 'سلام' },
+      },
+    });
+    assert.ok(message);
+    assert.equal(message.chatId, 'c2');
     assert.equal(message.text, 'سلام');
-    assert.equal(message.senderName, 'سارا');
+  });
+
+  it('sends Rubika messages through the v3 token-scoped API endpoint', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestedUrl = '';
+    let requestBody = '';
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      requestedUrl = String(input);
+      requestBody = String(init?.body ?? '');
+      return new Response(JSON.stringify({ status: 'OK' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    try {
+      const result = await new RubikaAdapter('token-123').send({ chatId: 'chat-1', text: 'سلام' });
+      assert.deepEqual(result, { ok: true });
+      assert.equal(requestedUrl, 'https://botapi.rubika.ir/v3/token-123/sendMessage');
+      assert.deepEqual(JSON.parse(requestBody), { chat_id: 'chat-1', text: 'سلام' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('returns null when there is no chat id', () => {

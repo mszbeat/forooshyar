@@ -95,7 +95,7 @@ export class MessengerWebhookController {
     const chatId = `${message.platform === 'BALE' ? 'bale' : 'rubika'}:${message.chatId}`;
 
     // مسیریابی به فروشگاه با کد لینک؛ بدون کد، فروشگاه معلوم نیست.
-    const code = extractShopCode(message.text);
+    const code = message.startCode || extractShopCode(message.text);
     let shopId = '';
     if (code) {
       const channel = await this.db.channel.findUnique({ where: { code }, select: { shopId: true } });
