@@ -2,10 +2,12 @@ import { Body, Controller, HttpCode, Logger, Param, Post } from '@nestjs/common'
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../database/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { TelegramService } from '../telegram/telegram.service';
 import {
   BaleAdapter,
   RubikaAdapter,
   extractShopCode,
+  extractButtonClick,
   verifyWebhookSecret,
   type IncomingMessage,
 } from './channel-adapters';
@@ -23,9 +25,8 @@ import {
  * می‌شود؛ همیشه ۲۰۰ برمی‌گردانیم تا ارائه‌دهنده همان update را دوباره
  * نفرستد. هیچ AuthGuardای اینجا نیست چون ارائه‌دهنده توکن ما را ندارد.
  *
- * دامنه‌ی این فاز: پیام در گفتگو ذخیره می‌شود و پاسخ فروشنده از پنل به همان
- * پلتفرم می‌رود؛ تا زمان پیاده‌سازی مغز کامل بات، برای هر پیام تأیید دریافت
- * ارسال می‌شود. پاسخ کاتالوگی و سفارش‌گیری هنوز برای این دو پلتفرم فعال نیست.
+ * تمام پاسخ‌گویی، کاتالوگ، دکمه‌های انتخابی و فلو سفارش از موتور مشترک بات
+ * استفاده می‌کند؛ انتقال پیام و کلیک دکمه به آداپتور بومی هر پلتفرم انجام می‌شود.
  */
 @Controller()
 @SkipThrottle()
@@ -37,6 +38,7 @@ export class MessengerWebhookController {
   constructor(
     private readonly db: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly telegram: TelegramService,
   ) {}
 
   @Post('bale/webhook/:secret')
@@ -51,6 +53,13 @@ export class MessengerWebhookController {
     return this.handle('RUBIKA', secret, update);
   }
 
+  /** Rubika inline keypad clicks arrive on the separate ReceiveInlineMessage endpoint. */
+  @Post('rubika/inline-webhook/:secret')
+  @HttpCode(200)
+  async rubikaInline(@Param('secret') secret: string, @Body() update: unknown) {
+    return this.handle('RUBIKA', secret, update);
+  }
+
   private async handle(platform: 'BALE' | 'RUBIKA', secret: string, update: unknown) {
     const expected = (process.env[platform === 'BALE' ? 'BALE_WEBHOOK_SECRET' : 'RUBIKA_WEBHOOK_SECRET'] ?? '').trim();
     if (!verifyWebhookSecret(expected, secret)) {
@@ -58,11 +67,18 @@ export class MessengerWebhookController {
       return { ok: false, error: 'unauthorized' };
     }
 
+    const click = extractButtonClick(platform, update);
     const message = platform === 'BALE' ? BaleAdapter.normalize(update) : RubikaAdapter.normalize(update);
-    if (!message) return { ok: true };
+    if (!message && !click) return { ok: true };
 
     try {
-      await this.route(message);
+      if (click) {
+        const synthetic: IncomingMessage = {
+          platform, chatId: click.chatId, text: '', senderName: '', senderUsername: '',
+          updateId: click.updateId, hasPhoto: false,
+        };
+        await this.route(synthetic, click.data);
+      } else if (message) await this.route(message);
     } catch (error) {
       this.logger.error(
         `پردازش پیام ${platform} ناموفق بود: ${error instanceof Error ? error.message : 'unknown'}`,
@@ -71,7 +87,7 @@ export class MessengerWebhookController {
     return { ok: true };
   }
 
-  private async route(message: IncomingMessage) {
+  private async route(message: IncomingMessage, buttonData?: string) {
     // حذف تکراری: ارائه‌دهنده ممکن است همان update را دوباره بفرستد.
     if (message.updateId) {
       const key = `${message.platform}:${message.updateId}`;
@@ -125,74 +141,30 @@ export class MessengerWebhookController {
         chatId,
         username: message.senderUsername,
         firstName: message.senderName,
-        messageCount: 1,
       },
       update: {
         username: message.senderUsername || undefined,
         firstName: message.senderName || undefined,
-        messageCount: { increment: 1 },
         lastSeenAt: new Date(),
       },
     });
 
-    const saved = await this.db.chatMessage.create({
-      data: {
-        shopId,
-        chatId,
-        direction: 'in',
-        author: 'customer',
-        text: message.text || '(پیام بدون متن)',
-      },
-      select: { id: true },
-    });
-    this.realtime.emitShop(shopId, 'chat', { chatId, messageId: saved.id, author: 'customer' });
-
-    // پاسخ‌های کاربردی برای بله و روبیکا: سلام، کاتالوگ/قیمت، ارسال، پرداخت و ساعت کاری.
-    // اگر موضوع محصول مشخص باشد قیمت/موجودی از کاتالوگ همان فروشگاه خوانده می‌شود.
-    if (!conversation.humanTakeover) {
-      const normalized = message.text.toLocaleLowerCase('fa-IR').replace(/[؟?!.،,]/g, ' ').trim();
-      const shop = await this.db.shop.findUnique({
-        where: { id: shopId },
-        select: { name: true, shipping: true, payment: true, workingHours: true, returns: true },
+    if (buttonData) {
+      const clicked = await this.db.chatMessage.create({
+        data: { shopId, chatId, direction: 'in', author: 'customer', text: `[button] ${buttonData}` },
+        select: { id: true },
       });
-      const products = await this.db.product.findMany({
-        where: { shopId, active: true },
-        select: { title: true, description: true, defaultPrice: true, variants: { where: { active: true }, select: { price: true, stock: true } } },
-        take: 100,
-      });
-      const isGreeting = /^(سلام|درود|hi|hello|وقت بخیر)(\s|$)/i.test(normalized);
-      const wantsCatalog = /محصول|کالا|لیست|فهرست|کاتالوگ/.test(normalized);
-      const wantsPrice = /قیمت|چنده|چند تومان|موجود/.test(normalized);
-      const matched = products.find(product => normalized.includes(product.title.toLocaleLowerCase('fa-IR')));
-      let answer: string;
-      if (isGreeting) {
-        answer = `سلام! به ${shop?.name ?? 'فروشگاه'} خوش آمدید 🌷\nنام محصول یا «محصولات» را بفرستید تا قیمت و موجودی را ببینید.`;
-      } else if ((wantsPrice || wantsCatalog) && matched) {
-        const prices = matched.variants.map(v => v.price).filter(Number.isFinite);
-        if (!prices.length && matched.defaultPrice != null) prices.push(matched.defaultPrice);
-        const priceText = prices.length ? (Math.min(...prices) === Math.max(...prices)
-          ? `${Math.min(...prices).toLocaleString('fa-IR')} تومان`
-          : `از ${Math.min(...prices).toLocaleString('fa-IR')} تا ${Math.max(...prices).toLocaleString('fa-IR')} تومان`) : 'برای قیمت با فروشنده هماهنگ کنید';
-        const stock = matched.variants.length ? (matched.variants.some(v => v.stock > 0) ? 'موجود' : 'فعلاً ناموجود') : '';
-        answer = `🛍 ${matched.title}\n💰 ${priceText}${stock ? `\n📦 ${stock}` : ''}${matched.description ? `\n${matched.description}` : ''}`;
-      } else if (wantsCatalog || wantsPrice) {
-        answer = products.length
-          ? `🛍 محصولات فروشگاه:\n${products.slice(0, 20).map(p => `• ${p.title}${p.defaultPrice != null ? ` — ${p.defaultPrice.toLocaleString('fa-IR')} تومان` : ''}`).join('\n')}\n\nبرای جزئیات، نام محصول را بفرستید.`
-          : 'هنوز محصولی در کاتالوگ فروشگاه ثبت نشده است.';
-      } else if (/ارسال|تحویل/.test(normalized)) answer = shop?.shipping || 'اطلاعات ارسال هنوز ثبت نشده؛ پیام‌تان را برای فروشنده فرستادم.';
-      else if (/پرداخت|کارت|واریز/.test(normalized)) answer = shop?.payment || 'اطلاعات پرداخت را فروشنده برایتان می‌فرستد.';
-      else if (/ساعت کاری|چه ساعتی|کی باز/.test(normalized)) answer = shop?.workingHours || 'ساعت کاری در تنظیمات فروشگاه ثبت نشده است.';
-      else if (/مرجوع|تعویض/.test(normalized)) answer = shop?.returns || 'برای مرجوعی یا تعویض لطفاً با فروشنده هماهنگ کنید.';
-      else answer = 'ممنون از پیامتان! می‌توانم درباره قیمت و موجودی، ارسال، پرداخت و ساعت کاری راهنمایی کنم. نام محصول یا موضوع سؤال‌تان را بنویسید.';
+      this.realtime.emitShop(shopId, 'chat', { chatId, messageId: clicked.id, author: 'customer' });
+      await this.telegram.handleMessengerCallback(chatId, buttonData);
+      return;
+    }
 
-      const delivered = await adapter.send({ chatId: message.chatId, text: answer });
-      if (delivered.ok) {
-        const reply = await this.db.chatMessage.create({
-          data: { shopId, chatId, direction: 'out', author: 'bot', text: answer },
-          select: { id: true },
-        });
-        this.realtime.emitShop(shopId, 'chat', { chatId, messageId: reply.id, author: 'bot' });
-      }
+    // کل کاتالوگ، پاسخ‌گویی و فلو سفارش از موتور مشترک تلگرام می‌آید؛ sendها
+    // با chatId پلتفرمی به آداپتور بله/روبیکا هدایت می‌شوند.
+    if (code && (/^\/?start\b/i.test(message.text) || message.startCode)) {
+      await this.telegram.handleMessengerStart(chatId, code, message.senderName, message.senderUsername);
+    } else {
+      await this.telegram.handleMessengerText(chatId, message.text);
     }
   }
 }

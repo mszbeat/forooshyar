@@ -129,6 +129,29 @@ export class TelegramService {
     return out;
   }
 
+  /** شروع فروشگاه از لینک بله/روبیکا با همان پیام خوش‌آمد و منوی تلگرام. */
+  async handleMessengerStart(chatId: string, code: string, name: string, username: string): Promise<HandleResult> {
+    const message: IncomingMessage = {
+      message_id: 0, date: Math.floor(Date.now() / 1000), chat: { id: chatId, first_name: name, username },
+      from: { id: chatId, first_name: name, username },
+    };
+    return this.start(chatId, message, code);
+  }
+
+  /** پیام متنی از بله/روبیکا را به همان موتور سفارش و پاسخ تلگرام می‌سپارد. */
+  async handleMessengerText(chatId: string, text: string): Promise<HandleResult> {
+    const action = actionOf(text);
+    if (/^\/?products$/i.test(text.trim()) || action === 'catalog' || action === 'order') return this.catalogMessage(chatId);
+    if (/^\/?help$/i.test(text.trim()) || action === 'help') return this.help(chatId);
+    if (/^\/?orders$/i.test(text.trim())) return this.myOrders(chatId);
+    return this.customerMessage(chatId, text);
+  }
+
+  /** کلیک دکمه‌ی بله/روبیکا از همان callbackهای کاتالوگ و فلو سفارش استفاده می‌کند. */
+  async handleMessengerCallback(chatId: string, data: string): Promise<HandleResult> {
+    return this.handleCallback({ id: 'messenger-callback', from: { id: chatId }, data, message: { message_id: 0, chat: { id: chatId } } });
+  }
+
   async handleUpdate(update: IncomingUpdate): Promise<HandleResult> {
     if (!Number.isInteger(update?.update_id)) return { status: 'ignored', reason: 'bad_update' };
 
@@ -705,7 +728,9 @@ export class TelegramService {
     const chatId = String(callback.message?.chat.id ?? callback.from.id);
     const data = callback.data ?? '';
     // بدون این، چرخ‌لودینگ دکمه در گوشی مشتری گیر می‌کند.
-    await this.client.answerCallbackQuery(callback.id).catch(() => undefined);
+    if (!chatId.startsWith('bale:') && !chatId.startsWith('rubika:')) {
+      await this.client.answerCallbackQuery(callback.id).catch(() => undefined);
+    }
 
     const conversation = await this.db.telegramConversation.findFirst({ where: { chatId, shop: { is: { active: true } } }, orderBy: { lastSeenAt: 'desc' } });
     if (!conversation) {
@@ -872,6 +897,9 @@ export class TelegramService {
       return this.continueOrder(conversation, draft, { data, telegramName: conversation.firstName });
     }
 
+    const action = actionOf(data);
+    if (action === 'catalog' || action === 'order') return this.catalogMessage(chatId);
+    if (action === 'help') return this.help(chatId);
     return { status: 'ignored', reason: 'unknown_callback' };
   }
 
@@ -1341,6 +1369,18 @@ export class TelegramService {
    * شد، دکمه‌ی نصفه وسط پیام نمی‌آید.
    */
   private async sendWithButtons(chatId: string, text: string, buttons?: BotButton[][], parseMode?: 'HTML'): Promise<boolean> {
+    if (chatId.startsWith('bale:') || chatId.startsWith('rubika:')) {
+      const adapter = chatId.startsWith('bale:')
+        ? new BaleAdapter((process.env.BALE_BOT_TOKEN ?? '').trim())
+        : new RubikaAdapter((process.env.RUBIKA_BOT_TOKEN ?? '').trim());
+      const chunks = splitMessage(text);
+      let ok = true;
+      for (const [index, chunk] of chunks.entries()) {
+        const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text: chunk, parseMode, buttons: index === chunks.length - 1 ? buttons : undefined });
+        if (!result.ok) ok = false;
+      }
+      return ok;
+    }
     if (!buttons?.length) return this.send(chatId, text, undefined, parseMode);
     if (!this.client.configured) {
       this.logger.warn(`TELEGRAM_BOT_TOKEN ست نشده؛ پیام به ${chatId} ارسال نشد.`);
@@ -1407,6 +1447,18 @@ export class TelegramService {
   }
 
   private async sendPart(chatId: string, text: string, parseMode?: 'HTML', replyMarkup?: ReplyMarkup): Promise<boolean> {
+    if (chatId.startsWith('bale:') || chatId.startsWith('rubika:')) {
+      const adapter = chatId.startsWith('bale:')
+        ? new BaleAdapter((process.env.BALE_BOT_TOKEN ?? '').trim())
+        : new RubikaAdapter((process.env.RUBIKA_BOT_TOKEN ?? '').trim());
+      const keyboard = replyMarkup && 'keyboard' in replyMarkup
+        ? replyMarkup.keyboard.map(row => row.map(button => ({ text: button.text, data: button.text })))
+        : replyMarkup && 'inline_keyboard' in replyMarkup
+          ? replyMarkup.inline_keyboard.map(row => row.map(button => ({ text: button.text, data: button.callback_data, url: button.url })))
+          : undefined;
+      const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text, parseMode, buttons: keyboard });
+      return result.ok;
+    }
     const mode = TelegramService.parseModeOf(text, parseMode);
     const body = { chat_id: chatId, text, ...(mode ? { parse_mode: mode } : {}) };
 

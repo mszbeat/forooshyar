@@ -31,6 +31,7 @@ export default function AdminMessengersPage() {
 
   const webhookUrl = (platform: 'bale' | 'rubika') =>
     apiBase ? `${apiBase}/${platform}/webhook/<secret>` : `/${platform}/webhook/<secret>`;
+  const rubikaInlineUrl = () => apiBase ? `${apiBase}/rubika/inline-webhook/<secret>` : '/rubika/inline-webhook/<secret>';
 
   return (
     <>
@@ -45,13 +46,20 @@ export default function AdminMessengersPage() {
           </p>
           {(['bale', 'rubika'] as const).map(platform => (
             <div key={platform}>
-              <div className="kv-k">{platform === 'bale' ? 'بله' : 'روبیکا'}</div>
+              <div className="kv-k">{platform === 'bale' ? 'بله — دریافت پیام و کلیک‌ها' : 'روبیکا — دریافت پیام‌ها'}</div>
               <code dir="ltr" style={{ display: 'block', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 10, fontSize: 12.5, overflowWrap: 'anywhere', wordBreak: 'break-all', textAlign: 'left' }}>
                 {webhookUrl(platform)}
               </code>
               <button type="button" className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={() => void copy(webhookUrl(platform))}>
                 <IconCopy size={14} /> کپی آدرس
               </button>
+              {platform === 'rubika' && <>
+                <div className="kv-k" style={{ marginTop: 12 }}>روبیکا — کلیک روی دکمه‌های شیشه‌ای (ReceiveInlineMessage)</div>
+                <code dir="ltr" style={{ display: 'block', padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 10, fontSize: 12.5, overflowWrap: 'anywhere', wordBreak: 'break-all', textAlign: 'left' }}>{rubikaInlineUrl()}</code>
+                <button type="button" className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={() => void copy(rubikaInlineUrl())}>
+                  <IconCopy size={14} /> کپی آدرس کلیک‌ها
+                </button>
+              </>}
             </div>
           ))}
         </section>
@@ -64,9 +72,9 @@ export default function AdminMessengersPage() {
           <ol className="steps-plain">
             <li><span className="n num">۱</span><span>بات بله را از <b dir="ltr">@BotFather</b> و بات روبیکا را از بخش بات‌های روبیکا بسازید.</span></li>
             <li><span className="n num">۲</span><span>توکن هر بات و یک سکرت webhook (حداقل ۱۶ کاراکتر) را در تنظیمات بالا ذخیره کنید.</span></li>
-            <li><span className="n num">۳</span><span>webhook هر بات را با آدرس بالا ثبت کنید (بله: <code dir="ltr">setWebhook</code>).</span></li>
+            <li><span className="n num">۳</span><span>بله: آدرس دریافت پیام را با <code dir="ltr">setWebhook</code> ثبت کنید. روبیکا: با <code dir="ltr">updateBotEndpoints</code> هم آدرس دریافت پیام‌ها را با نوع <code dir="ltr">ReceiveUpdate</code> و هم آدرس کلیک‌ها را با نوع <code dir="ltr">ReceiveInlineMessage</code> ثبت کنید.</span></li>
             <li><span className="n num">۴</span><span>فروشنده در پنل خودش ← اکانت‌ها، اتصال بله/روبیکا را فعال می‌کند؛ توکنی از او گرفته نمی‌شود.</span></li>
-            <li><span className="n num">۵</span><span>مشتری از لینک فروشگاه وارد بات می‌شود و پیامش مستقیم به پنل همان فروشگاه می‌آید.</span></li>
+            <li><span className="n num">۵</span><span>مشتری از لینک فروشگاه وارد بات می‌شود؛ انتخاب‌های کاتالوگ و سفارش را با دکمه‌های قابل‌کلیک انجام می‌دهد و مراحل بعدی همان فلو سفارش تلگرام است.</span></li>
           </ol>
           <div className="adm-note">
             <IconInfo size={16} />

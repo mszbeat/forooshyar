@@ -24,13 +24,34 @@ export interface IncomingMessage {
   hasPhoto: boolean;
 }
 
+export interface OutgoingButton { text: string; data?: string; url?: string }
 export interface OutgoingMessage {
   chatId: string;
   text: string;
   parseMode?: 'HTML' | 'Markdown';
+  buttons?: OutgoingButton[][];
 }
 
 export type AdapterResult = { ok: true } | { ok: false; error: string };
+
+/** Normalize native inline-button click updates from Bale and Rubika. */
+export function extractButtonClick(platform: 'BALE' | 'RUBIKA', input: unknown): { chatId: string; data: string; updateId?: string } | null {
+  const root = (input ?? {}) as Record<string, unknown>;
+  const update = (root.update ?? root) as Record<string, unknown>;
+  if (platform === 'BALE') {
+    const callback = (root.callback_query ?? update.callback_query ?? {}) as Record<string, unknown>;
+    const msg = (callback.message ?? {}) as Record<string, unknown>;
+    const chat = (msg.chat ?? {}) as Record<string, unknown>;
+    const chatId = String(chat.id ?? '');
+    const data = String(callback.data ?? '');
+    return chatId && data ? { chatId, data, updateId: root.update_id != null ? String(root.update_id) : undefined } : null;
+  }
+  const inline = (update.inline_message ?? root.inline_message ?? {}) as Record<string, unknown>;
+  const aux = (inline.aux_data ?? {}) as Record<string, unknown>;
+  const chatId = String(inline.chat_id ?? update.chat_id ?? '');
+  const data = String(aux.button_id ?? inline.button_id ?? '');
+  return chatId && data ? { chatId, data, updateId: root.update_id != null ? String(root.update_id) : update.update_id != null ? String(update.update_id) : undefined } : null;
+}
 
 /**
  * بررسی سکرت webhook با مقایسه‌ی زمان‌ثابت (مثل کنترلر webhook تلگرام).
@@ -56,6 +77,12 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function plainText(value: string): string {
+  return value.replace(/<\/?(?:b|i|u|s|code|pre|a)(?:\s[^>]*)?>/gi, '')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+}
+
 export class BaleAdapter {
   constructor(private readonly token: string) {}
 
@@ -77,6 +104,9 @@ export class BaleAdapter {
           chat_id: message.chatId,
           text: message.parseMode === 'HTML' ? message.text : escapeHtml(message.text),
           parse_mode: message.parseMode === 'HTML' ? 'HTML' : undefined,
+          ...(message.buttons?.length ? { reply_markup: { inline_keyboard: message.buttons.map(row => row.map(button => button.url
+            ? { text: button.text, url: button.url }
+            : { text: button.text, callback_data: button.data ?? '' })) } } : {}),
         }),
         signal: AbortSignal.timeout(15000),
       });
@@ -127,7 +157,14 @@ export class RubikaAdapter {
       const response = await fetch(this.url('sendMessage'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ chat_id: message.chatId, text: message.text }),
+        body: JSON.stringify({
+          chat_id: message.chatId,
+          text: message.parseMode === 'HTML' ? plainText(message.text) : message.text,
+          ...(message.buttons?.length ? { inline_keypad: { rows: message.buttons.map(row => ({ buttons: row.map(button => ({
+            id: button.data ?? button.url ?? '', type: button.url ? 'Link' : 'Simple', button_text: button.text,
+            ...(button.url ? { url: button.url } : {}),
+          })) })) } } : {}),
+        }),
         signal: AbortSignal.timeout(15000),
       });
       if (!response.ok) return { ok: false, error: `روبیکا پاسخ ${response.status} داد.` };

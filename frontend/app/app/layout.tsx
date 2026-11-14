@@ -106,13 +106,16 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
           <div className="brand-sub">رفتن به سایت اصلی</div>
         </div>
       </Link>
+      <button type="button" className="app-drawer-close" aria-label="بستن منو" onClick={() => setDrawer(false)}>
+        <IconX size={18} />
+      </button>
 
       <nav className="sidebar-nav" aria-label="منوی پنل فروشنده">
         {NAV_GROUPS.map(group => (
           <div className="nav-group" key={group.label}>
             <div className="nav-label">{group.label}</div>
             {group.items.map(item => (
-              <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href, item.exact) ? 'active' : ''}`}>
+              <Link key={item.href} href={item.href} className={`nav-item ${isActive(item.href, item.exact) ? 'active' : ''}`} title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined}>
                 <item.icon className="nav-icon" />
                 <span>{item.label}</span>
               </Link>

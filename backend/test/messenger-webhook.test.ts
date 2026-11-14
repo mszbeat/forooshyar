@@ -4,6 +4,7 @@ import {
   BaleAdapter,
   RubikaAdapter,
   extractShopCode,
+  extractButtonClick,
   verifyWebhookSecret,
 } from '../src/channels/channel-adapters';
 
@@ -68,6 +69,12 @@ describe('Bale update normalization', () => {
     assert.equal(message.updateId, '42');
   });
 
+  it('normalizes Bale callback_query button clicks', () => {
+    assert.deepEqual(extractButtonClick('BALE', {
+      callback_query: { data: 'flow:q:2', message: { chat: { id: 88 } } }, update_id: 9,
+    }), { chatId: '88', data: 'flow:q:2', updateId: '9' });
+  });
+
   it('returns null when there is no chat id', () => {
     assert.equal(BaleAdapter.normalize({ update_id: 1, message: {} }), null);
   });
@@ -110,6 +117,12 @@ describe('Rubika update normalization', () => {
     assert.equal(message.text, 'سلام');
   });
 
+  it('normalizes Rubika inline keypad click events', () => {
+    assert.deepEqual(extractButtonClick('RUBIKA', {
+      update_id: 'u3', update: { chat_id: 'chat-3', inline_message: { chat_id: 'chat-3', aux_data: { button_id: 'ord:variant-1' } } },
+    }), { chatId: 'chat-3', data: 'ord:variant-1', updateId: 'u3' });
+  });
+
   it('sends Rubika messages through the v3 token-scoped API endpoint', async () => {
     const originalFetch = globalThis.fetch;
     let requestedUrl = '';
@@ -124,6 +137,25 @@ describe('Rubika update normalization', () => {
       assert.deepEqual(result, { ok: true });
       assert.equal(requestedUrl, 'https://botapi.rubika.ir/v3/token-123/sendMessage');
       assert.deepEqual(JSON.parse(requestBody), { chat_id: 'chat-1', text: 'سلام' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('sends clickable Rubika inline keypad buttons with stable callback ids', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = '';
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requestBody = String(init?.body ?? '');
+      return new Response(JSON.stringify({ status: 'OK' }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      const result = await new RubikaAdapter('token').send({
+        chatId: 'chat-1', text: 'انتخاب محصول', buttons: [[{ text: 'کالا', data: 'p:123' }]],
+      });
+      assert.deepEqual(result, { ok: true });
+      const body = JSON.parse(requestBody);
+      assert.deepEqual(body.inline_keypad.rows[0].buttons[0], { id: 'p:123', type: 'Simple', button_text: 'کالا' });
     } finally {
       globalThis.fetch = originalFetch;
     }

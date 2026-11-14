@@ -252,13 +252,21 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 /* گزینه‌های منو در لیست قابل اسکرول؛ بخش خروج همیشه پایین و در دسترس می‌ماند. */
 .sidebar-nav { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .sidebar-foot { flex: 0 0 auto; }
+.app-drawer-close { display: none; }
 /* دکمه‌ی جمع‌کردن منو فقط در دسکتاپ دیده می‌شود (موبایل دکمه‌ی خودش را دارد). */
 #nav-collapse { display: none; }
 @media (min-width: 901px) {
   #nav-collapse { display: inline-flex; }
-  /* منوی بسته: محتوا کل عرض صفحه را می‌گیرد. */
-  .shell .sidebar { transition: width .32s cubic-bezier(.22,1,.36,1), flex-basis .32s cubic-bezier(.22,1,.36,1), padding .32s ease, opacity .22s ease, transform .32s cubic-bezier(.22,1,.36,1); }
-  .shell.collapsed .sidebar { width: 0; flex-basis: 0; padding-inline: 0; border-inline-end-width: 0; opacity: 0; transform: translateX(18px); overflow: hidden; pointer-events: none; }
+  /* دسکتاپ: منو همیشه حاضر است؛ حالت فشرده فقط ریل آیکن‌هاست. */
+  .shell .sidebar { transition: width .32s cubic-bezier(.22,1,.36,1), flex-basis .32s cubic-bezier(.22,1,.36,1), padding .32s ease; }
+  .shell.collapsed .sidebar { width: 76px; flex-basis: 76px; padding-inline: 10px; align-items: center; overflow: visible; }
+  .shell.collapsed .brand { padding-inline: 0; justify-content: center; }
+  .shell.collapsed .brand > div, .shell.collapsed .nav-label, .shell.collapsed .nav-item > span,
+  .shell.collapsed .side-card, .shell.collapsed .sidebar-foot button > span { display: none; }
+  .shell.collapsed .sidebar-nav, .shell.collapsed .nav-group, .shell.collapsed .sidebar-foot { width: 100%; }
+  .shell.collapsed .nav-item { justify-content: center; padding: 10px; }
+  .shell.collapsed .nav-item .nav-icon { width: 20px; height: 20px; }
+  .shell.collapsed .sidebar-foot button { justify-content: center; padding: 10px; }
   .shell .main { transition: flex-basis .32s cubic-bezier(.22,1,.36,1), width .32s cubic-bezier(.22,1,.36,1); }
 }
 .side-card {
@@ -661,6 +669,15 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 @media (max-width: 900px) {
   .sidebar { position: fixed; inset-block: 0; inset-inline-start: 0; transform: translateX(102%); transition: transform 0.26s var(--ease); box-shadow: var(--sh-lg); width: 288px; flex-basis: 288px; border-left: 0; z-index: 40; overflow: hidden; }
   .sidebar.open { transform: none; }
+  .app-drawer-close { display: grid; place-items: center; margin-inline-start: auto; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink-2); background: var(--surface); cursor: pointer; }
+  .shell.collapsed .sidebar { width: 288px; flex-basis: 288px; padding: var(--sp-5) var(--sp-4) var(--sp-4); align-items: stretch; }
+  .shell.collapsed .brand { justify-content: flex-start; padding-inline: 8px; }
+  .shell.collapsed .brand > div, .shell.collapsed .nav-label, .shell.collapsed .nav-item > span,
+  .shell.collapsed .side-card, .shell.collapsed .sidebar-foot button > span { display: initial; }
+  .shell.collapsed .nav-group, .shell.collapsed .sidebar-nav, .shell.collapsed .sidebar-foot { width: auto; }
+  .shell.collapsed .nav-item { justify-content: flex-start; padding: 9px 12px; }
+  .shell.collapsed .sidebar-foot button { justify-content: flex-start; padding: 9px 12px; }
+  #nav-collapse { display: none !important; }
   .scrim { position: fixed; inset: 0; background: rgba(8, 9, 10, 0.55); z-index: 35; animation: fade 0.2s var(--ease); backdrop-filter: blur(4px); }
   .topbar { padding: 0 var(--sp-4); gap: 8px; }
   .page, .page-tight { padding: var(--sp-5) var(--sp-4) var(--sp-10); }
