@@ -37,8 +37,8 @@
   color: #f7f8f8;
   min-height: 100dvh;
   display: flex; flex-direction: column;
-  /* بخش تصویری همیشه تیره می‌ماند، مستقل از تم روز/شب فرم. */
-  background: #08090a;
+  /* حاشیه‌ی بیرونی پنل با زمینه‌ی صفحه هماهنگ می‌شود؛ خود کارت داخل آن تیره می‌ماند. */
+  background: var(--bg);
 }
 .authx-visual-card {
   position: relative; margin: 14px; border-radius: 28px; overflow: hidden;
