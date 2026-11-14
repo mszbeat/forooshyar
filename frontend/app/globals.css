@@ -866,6 +866,8 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-table td.act { font-weight: 700; font-size: 12px; }
 .adm-table td.path { font-family: ui-monospace, monospace; font-size: 11px; direction: ltr; text-align: left; color: var(--ink-3); }
 .adm-mobile-menu { display: none; }
+.adm-desktop-menu-toggle { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink-2); cursor: pointer; transition: background .16s, color .16s, border-color .16s; }
+.adm-desktop-menu-toggle:hover { background: var(--surface-2); color: var(--ink); border-color: var(--line-strong); }
 .adm-nav-toggle { display: none !important; }
 .adm-scrim { display: none; }
 @media (max-width: 980px) {
@@ -1217,3 +1219,28 @@ section[id] { scroll-margin-top: 70px; }
 .account-card-clickable:hover { border-color: var(--brand); transform: translateY(-1px); }
 
 .plan-tabs { flex-wrap: wrap; }
+
+/* دسکتاپ: سایدبار همیشه حاضر است و فقط بین متن‌دار و ریل آیکن جابه‌جا می‌شود. */
+@media (min-width: 981px) {
+  .adm-shell.collapsed { grid-template-columns: 76px minmax(0, 1fr); }
+  .adm-shell.collapsed .adm-side { padding: 16px 9px; align-items: stretch; }
+  .adm-shell.collapsed .adm-brand { justify-content: center; padding-inline: 0; }
+  .adm-shell.collapsed .adm-brand > div, .adm-shell.collapsed .adm-nav-lab,
+  .adm-shell.collapsed .adm-nav-item span, .adm-shell.collapsed .adm-status,
+  .adm-shell.collapsed .adm-ident .av, .adm-shell.collapsed .adm-ident > div { display: none; }
+  .adm-shell.collapsed .adm-nav { width: 100%; min-width: 0; }
+  .adm-shell.collapsed .adm-nav-item { width: 100%; min-width: 0; box-sizing: border-box; justify-content: center; padding: 10px 0; }
+  .adm-shell.collapsed .adm-ident { grid-template-columns: 1fr; justify-items: center; justify-content: center; padding: 8px 0; }
+  .adm-shell.collapsed .adm-ident > button { margin: 0 !important; }
+}
+@media (max-width: 980px) {
+  .adm-desktop-menu-toggle { display: none; }
+  .adm-shell.collapsed { grid-template-columns: minmax(0, 1fr); }
+  .adm-shell.collapsed .adm-brand > div, .adm-shell.collapsed .adm-nav-lab,
+  .adm-shell.collapsed .adm-nav-item span, .adm-shell.collapsed .adm-ident > div { display: revert; }
+  .adm-shell.collapsed .adm-status { display: grid; }
+  .adm-shell.collapsed .adm-ident .av { display: grid; }
+  .adm-shell.collapsed .adm-brand { justify-content: flex-start; padding-inline: 4px; }
+  .adm-shell.collapsed .adm-nav-item { justify-content: flex-start; padding: 10px 11px; }
+  .adm-shell.collapsed .adm-ident { grid-template-columns: 32px minmax(0, 1fr) 30px; justify-items: stretch; padding: 10px 9px; }
+}

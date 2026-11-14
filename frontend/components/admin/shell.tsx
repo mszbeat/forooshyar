@@ -56,8 +56,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [admin, setAdmin] = useState<AdminIdentity | null>(null);
-  // منوی موبایل: در عرض کم، نوار کنار جمع می‌شود و از همین دکمه باز/بسته می‌شود.
+  // منوی موبایل به‌شکل کشویی کامل؛ دسکتاپ فقط بین منوی کامل و ریل آیکن جابه‌جا می‌شود.
   const [navOpen, setNavOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try { setCollapsed(window.localStorage.getItem('forooshyar.adminSidebarCollapsed') === '1'); } catch { /* ignore */ }
+  }, []);
+  const toggleCollapsed = () => setCollapsed(current => {
+    const next = !current;
+    try { window.localStorage.setItem('forooshyar.adminSidebarCollapsed', next ? '1' : '0'); } catch { /* ignore */ }
+    return next;
+  });
   const [state, setState] = useState<'loading' | 'ready' | 'out'>('loading');
   const { overview } = usePlatformStatus();
 
@@ -88,7 +97,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const db = overview?.services.database;
 
   return (
-    <div className={`adm-shell${navOpen ? ' nav-open' : ''}`}>
+    <div className={`adm-shell${navOpen ? ' nav-open' : ''}${collapsed ? ' collapsed' : ''}`}>
       {/* در موبایل، لایه‌ی تاریک پشت منو؛ با لمس بیرون بسته می‌شود. */}
       <button
         type="button" className="adm-scrim" aria-label="بستن منو"
@@ -116,7 +125,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
-              <Link key={item.href} href={item.href} className={`adm-nav-item${active ? ' active' : ''}`} onClick={() => setNavOpen(false)}>
+              <Link key={item.href} href={item.href} className={`adm-nav-item${active ? ' active' : ''}`} title={collapsed ? item.label : undefined} aria-label={collapsed ? item.label : undefined} onClick={() => setNavOpen(false)}>
                 <Icon size={16} />
                 <span>{item.label}</span>
                 <span className="sp">{item.note}</span>
@@ -124,11 +133,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
             );
           })}
           <div className="adm-nav-lab">دسترسی سریع</div>
-          <Link href="/app" className="adm-nav-item" onClick={() => setNavOpen(false)}>
+          <Link href="/app" className="adm-nav-item" title={collapsed ? 'پنل فروشنده' : undefined} aria-label={collapsed ? 'پنل فروشنده' : undefined} onClick={() => setNavOpen(false)}>
             <IconStore size={16} />
             <span>پنل فروشنده</span>
           </Link>
-          <Link href="/" className="adm-nav-item" onClick={() => setNavOpen(false)}>
+          <Link href="/" className="adm-nav-item" title={collapsed ? 'سایت اصلی' : undefined} aria-label={collapsed ? 'سایت اصلی' : undefined} onClick={() => setNavOpen(false)}>
             <IconDashboard size={16} />
             <span>سایت اصلی</span>
           </Link>
@@ -176,6 +185,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       <main className="adm-main">
         <header className="adm-top">
+          <button
+            type="button" className="adm-desktop-menu-toggle"
+            aria-label={collapsed ? 'نمایش کامل منو' : 'نمایش منو به‌شکل آیکن'}
+            aria-pressed={collapsed}
+            title={collapsed ? 'نمایش کامل منو' : 'نمایش منو به‌شکل آیکن'}
+            onClick={toggleCollapsed}
+          ><IconMenu size={17} /></button>
           <button
             type="button" className="adm-mobile-menu btn btn-ghost btn-icon btn-sm"
             aria-label="باز کردن منوی ادمین" aria-expanded={navOpen}
