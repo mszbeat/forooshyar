@@ -7,7 +7,7 @@ import { TelegramConnect } from '@/components/telegram-connect';
 import { ChannelConnect } from '@/components/channel-connect';
 import { InstagramConnect } from '@/components/instagram-connect';
 import { PlatformIcon } from '@/components/platform-icon';
-import { IconCheckCircle, IconX } from '@/components/icons';
+import { IconCheckCircle, IconChevronDown, IconX } from '@/components/icons';
 import { relativeTime } from '@/lib/format';
 
 type Platform = 'INSTAGRAM' | 'TELEGRAM' | 'BALE' | 'RUBIKA';
@@ -45,6 +45,7 @@ export default function AccountsPage() {
   const [channels, setChannels] = useState<ChannelConnection[] | null>(null);
   const [extraCards, setExtraCards] = useState<ConnectedCard[]>([]);
   const [openPlatform, setOpenPlatform] = useState<Platform | null>(null);
+  const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
 
   const load = () => {
     api.channels().then(setChannels).catch(() => setChannels([]));
@@ -135,26 +136,38 @@ export default function AccountsPage() {
           <div className="card-body" style={{ display: 'grid', gap: 10 }}>
             {connected.map((channel, index) => {
               const chip = statusChip(channel.status);
+              const expanded = expandedAccount === channel.id;
               return (
-                <button
-                  key={channel.id}
-                  type="button"
-                  className="account-card account-card-clickable"
-                  style={{ animationDelay: `${index * 0.08}s`, textAlign: 'start', font: 'inherit', cursor: 'pointer', width: '100%' }}
-                  onClick={() => setOpenPlatform(channel.platform)}
-                  aria-label={`ویرایش حساب ${channel.displayName || platformName(channel.platform)}`}
-                >
-                  <PlatformIcon platform={channel.platform} size={40} />
-                  <span style={{ minWidth: 0, flex: 1 }}>
-                    <strong style={{ display: 'block' }}>{channel.displayName || platformName(channel.platform)}</strong>
-                    <span className="small muted">
-                      {platformName(channel.platform)}
-                      {channel.username ? ` · @${channel.username}` : ''}
-                      {channel.lastSeenAt ? ` · آخرین فعالیت ${relativeTime(channel.lastSeenAt)}` : ''}
+                <div key={channel.id} className="account-accordion">
+                  <button
+                    type="button"
+                    className={`account-card account-card-clickable${expanded ? ' expanded' : ''}`}
+                    style={{ animationDelay: `${index * 0.08}s`, textAlign: 'start', font: 'inherit', cursor: 'pointer', width: '100%' }}
+                    onClick={() => setExpandedAccount(expanded ? null : channel.id)}
+                    aria-expanded={expanded}
+                    aria-controls={`account-details-${channel.id}`}
+                    aria-label={`${expanded ? 'بستن' : 'نمایش'} جزئیات ${channel.displayName || platformName(channel.platform)}`}
+                  >
+                    <PlatformIcon platform={channel.platform} size={40} />
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <strong style={{ display: 'block' }}>{channel.displayName || platformName(channel.platform)}</strong>
+                      <span className="small muted">
+                        {platformName(channel.platform)}
+                        {channel.username ? ` · @${channel.username}` : ''}
+                        {channel.lastSeenAt ? ` · آخرین فعالیت ${relativeTime(channel.lastSeenAt)}` : ''}
+                      </span>
                     </span>
-                  </span>
-                  <span className={`badge ${chip.cls}`}><span className="dot" />{chip.label}</span>
-                </button>
+                    <span className={`badge ${chip.cls}`}><span className="dot" />{chip.label}</span>
+                    <IconChevronDown size={16} className={`account-accordion-chevron${expanded ? ' open' : ''}`} />
+                  </button>
+                  {expanded && (
+                    <div id={`account-details-${channel.id}`} className="account-accordion-details">
+                      {channel.platform === 'INSTAGRAM' && <InstagramConnect onChanged={load} />}
+                      {channel.platform === 'TELEGRAM' && <TelegramConnect onChanged={load} />}
+                      {(channel.platform === 'BALE' || channel.platform === 'RUBIKA') && <ChannelConnect platform={channel.platform} onChanged={load} />}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

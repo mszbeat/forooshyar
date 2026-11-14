@@ -31,11 +31,14 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [shopLink, setShopLink] = useState<string | null>(null);
+  const [shopLinkConfigured, setShopLinkConfigured] = useState(false);
   const info = PLATFORM_INFO[platform];
 
   const load = () => {
     api.channels().then(all => setConnections(all.filter(c => c.platform === platform))).catch(() => setConnections([]));
-    api.channelShopLink(platform).then(result => setShopLink(result.link)).catch(() => setShopLink(null));
+    api.channelShopLink(platform)
+      .then(result => { setShopLink(result.link); setShopLinkConfigured(Boolean(result.botUsername)); })
+      .catch(() => { setShopLink(null); setShopLinkConfigured(false); });
   };
 
   useEffect(load, [platform]);
@@ -64,6 +67,8 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
     }
   }
 
+  const isConnected = Boolean(connections?.some(connection => connection.status === 'CONNECTED' || connection.status === 'ACTIVE'));
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {connections === null && <SkeletonBlock height={60} />}
@@ -90,7 +95,13 @@ export function ChannelConnect({ platform, onChanged }: { platform: Platform; on
         <IconPlus size={15} />اتصال {info.label}
       </button>
 
-      {shopLink && (
+      {isConnected && !shopLink && !shopLinkConfigured && (
+        <div className="alert alert-warn" role="status">
+          <IconAlertCircle />
+          <span>اتصال فعال است؛ برای ساخت لینک مشتری، مدیر سامانه باید نام کاربری بات {info.label} را در تنظیمات پیام‌رسان‌ها ثبت کند.</span>
+        </div>
+      )}
+      {isConnected && shopLink && (
         <div style={{ display: 'grid', gap: 8 }}>
           <div className="small muted">لینک فروشگاه برای مشتریان {info.label}:</div>
           <div className="row" style={{ gap: 8 }}>

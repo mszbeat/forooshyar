@@ -1217,6 +1217,15 @@ section[id] { scroll-margin-top: 70px; }
 
 .account-card-clickable { transition: border-color .18s var(--ease), transform .18s var(--ease); }
 .account-card-clickable:hover { border-color: var(--brand); transform: translateY(-1px); }
+.account-accordion { display: grid; gap: 0; min-width: 0; }
+.account-accordion .account-card { position: relative; }
+.account-accordion .account-card.expanded { border-color: var(--brand); border-end-start-radius: 10px; border-end-end-radius: 10px; }
+.account-accordion-chevron { flex: 0 0 auto; color: var(--ink-3); transition: transform .22s var(--ease); }
+.account-accordion-chevron.open { transform: rotate(180deg); }
+.account-accordion-details { min-width: 0; padding: 14px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--r-lg) var(--r-lg); background: color-mix(in srgb, var(--surface) 70%, transparent); animation: authxPane .2s ease both; }
+.account-accordion-details > .card { border: 0; box-shadow: none; background: transparent; }
+.account-accordion-details > .card > .card-head { display: none; }
+.account-accordion-details > .card > .card-body { padding: 0; }
 
 .plan-tabs { flex-wrap: wrap; }
 
