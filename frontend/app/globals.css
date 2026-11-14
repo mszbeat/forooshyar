@@ -700,7 +700,7 @@ input, textarea, select { font-family: inherit; font-size: inherit; color: inher
 .adm-shell { display: grid; width: 100%; max-width: none; min-width: 0; grid-template-columns: minmax(0, 258px) minmax(0, 1fr); height: 100dvh; background: var(--bg); }
 .adm-side { height: 100dvh; max-height: 100dvh; display: flex; flex-direction: column; background: linear-gradient(180deg, #0c0d10, #101114 55%, #0c0d10); color: var(--night-ink); padding: 20px 16px; gap: 18px; border-inline-start: 1px solid var(--night-line); overflow: hidden; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
 .adm-brand { display: flex; align-items: center; gap: 11px; padding: 4px 6px 14px; border-bottom: 1px solid var(--night-line); }
-.adm-brand .glyph { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex: 0 0 auto; background: var(--grad); box-shadow: inset 0 0 0 1px rgba(255,255,255,.18), var(--sh-brand); color: #fff; }
+.adm-brand .glyph { width: 40px; height: 40px; border-radius: 0; display: grid; place-items: center; flex: 0 0 auto; background: transparent; box-shadow: none; color: #fff; }
 .adm-brand .nm { font-weight: 800; font-size: 15px; letter-spacing: -0.01em; }
 .adm-brand .rl { font-size: 10.5px; color: var(--night-ink-2); letter-spacing: 0.14em; font-family: ui-monospace, monospace; }
 .adm-nav { display: grid; gap: 3px; align-content: start; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { adminApi, adminToken, AdminError, type AdminIdentity, type Overview } from '@/lib/admin';
 import { Spinner } from '@/components/ui';
+import { BrandLogo } from '@/components/brand-logo';
 import { ThemeToggle } from '@/components/theme';
 import {
   IconAlertCircle, IconBolt, IconChat, IconDashboard, IconLogout, IconMenu, IconSettings, IconShield,
@@ -95,7 +96,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       />
       <aside className="adm-side">
         <div className="adm-brand">
-          <span className="glyph"><IconShield size={19} /></span>
+          <span className="glyph"><BrandLogo size={38} animated /></span>
           <div>
             <div className="nm">فروش‌یار</div>
             <div className="rl">ADMIN</div>
