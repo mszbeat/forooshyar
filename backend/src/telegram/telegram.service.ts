@@ -1247,11 +1247,13 @@ export class TelegramService {
     if (chatId.startsWith('bale:')) {
       const result = await new BaleAdapter((process.env.BALE_BOT_TOKEN ?? '').trim())
         .send({ chatId: chatId.slice('bale:'.length), text: plain });
+      if (!result.ok) this.logger.warn(`ارسال اعلان موجودی به بله ناموفق بود: ${result.error}`);
       return result.ok;
     }
     if (chatId.startsWith('rubika:')) {
       const result = await new RubikaAdapter((process.env.RUBIKA_BOT_TOKEN ?? '').trim())
         .send({ chatId: chatId.slice('rubika:'.length), text: plain });
+      if (!result.ok) this.logger.warn(`ارسال اعلان موجودی به روبیکا ناموفق بود: ${result.error}`);
       return result.ok;
     }
     return this.sendWithButtons(chatId, htmlText, [[{ text: '🛍 دیدن و سفارش', data: `p:${productId}` }]], 'HTML');
@@ -1377,7 +1379,10 @@ export class TelegramService {
       let ok = true;
       for (const [index, chunk] of chunks.entries()) {
         const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text: chunk, parseMode: TelegramService.parseModeOf(chunk, parseMode), buttons: index === chunks.length - 1 ? buttons : undefined });
-        if (!result.ok) ok = false;
+        if (!result.ok) {
+          ok = false;
+          this.logger.warn(`ارسال پیام به ${chatId.startsWith('bale:') ? 'بله' : 'روبیکا'} ناموفق بود: ${result.error}`);
+        }
       }
       return ok;
     }
@@ -1458,6 +1463,7 @@ export class TelegramService {
           ? replyMarkup.inline_keyboard.map(row => row.map(button => ({ text: button.text, data: button.callback_data, url: button.url })))
           : undefined;
       const result = await adapter.send({ chatId: chatId.slice(chatId.indexOf(':') + 1), text, parseMode: mode, buttons: keyboard });
+      if (!result.ok) this.logger.warn(`ارسال پیام به ${chatId.startsWith('bale:') ? 'بله' : 'روبیکا'} ناموفق بود: ${result.error}`);
       return result.ok;
     }
     const body = { chat_id: chatId, text, ...(mode ? { parse_mode: mode } : {}) };

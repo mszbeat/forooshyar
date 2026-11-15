@@ -145,8 +145,8 @@ export class SettingsService implements OnModuleInit {
     );
 
     applyOverrides(prepared.map(({ def, value }) => ({ key: def.key, value })));
-    // اعمال فوری: اتصال‌های وابسته (کش) همین‌جا از نو ساخته می‌شوند.
-    this.runtime.apply(prepared.map(({ def }) => def.key));
+    // مقادیر env همین حالا به‌روز شدند؛ بازسازی اتصال‌های وابسته در انتهای
+    // ذخیره دقیقاً یک‌بار انجام می‌شود تا اتصال‌هایی مثل Redis دوبار reload نشوند.
     // برنامه‌ی کلیدهایی که مقدارشان از لحظه‌ی بوت عوض شده و اتصال از پیش ساخته شده است
     for (const { def, value } of prepared) {
       if (!def.restart) continue;
