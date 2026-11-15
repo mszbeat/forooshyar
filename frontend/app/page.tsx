@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import './landing.css';
 import {
   IconArrowLeft, IconBolt, IconChat, IconCheckCircle, IconPackage,
-  IconShield, IconSparkles, IconStore, IconTrendUp, IconUpload, IconClock,
+  IconShield, IconSparkles, IconStore, IconUpload, IconClock,
 } from '@/components/icons';
 import { ThemeToggle } from '@/components/theme';
 import { LandingPlans } from '@/components/landing-plans';
@@ -215,15 +215,6 @@ export default function LandingPage() {
           {/* نمونه‌ی گفتگو با متن واقعی بات */}
           <div className="stage" data-depth="0.35">
             <div className="stage-glow" aria-hidden="true" />
-            <div className="float-card a">
-              <span className="ico-box"><IconTrendUp size={14} /></span>
-              <span>پاسخ از کاتالوگ<b>موجودی: ۳ عدد</b></span>
-            </div>
-            <div className="float-card b">
-              <span className="ico-box"><IconCheckCircle size={14} /></span>
-              <span>سفارش ثبت شد<b>لینک پرداخت آماده است</b></span>
-            </div>
-
             <div className="phone" aria-hidden="true">
               <div className="phone-screen">
                 <div className="phone-head">
