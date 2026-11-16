@@ -42,7 +42,7 @@ export default function AdminMessengersPage() {
           <div className="card-title" style={{ margin: 0 }}>آدرس webhook</div>
           <p className="small muted" style={{ margin: 0, lineHeight: 1.9 }}>
             بخش <code dir="ltr">&lt;secret&gt;</code> همان سکرتی است که در تنظیمات بالا ذخیره کرده‌اید؛
-            سکرت در این صفحه نمایش داده نمی‌شود. بعد از ذخیره‌ی توکن و سکرت، webhook را با همین آدرس ثبت کنید.
+            سکرت در این صفحه نمایش داده نمی‌شود. پس از ذخیره‌ی توکن یا سکرت، سرور تلاش می‌کند webhook را خودکار روی بات تازه ثبت کند؛ اگر خطای ثبت دیدید، همین آدرس را طبق روش پایین در پنل پلتفرم ثبت کنید.
           </p>
           {(['bale', 'rubika'] as const).map(platform => (
             <div key={platform}>
@@ -72,7 +72,7 @@ export default function AdminMessengersPage() {
           <ol className="steps-plain">
             <li><span className="n num">۱</span><span>بات بله را از <b dir="ltr">@BotFather</b> و بات روبیکا را از بخش بات‌های روبیکا بسازید.</span></li>
             <li><span className="n num">۲</span><span>توکن هر بات و یک سکرت webhook (حداقل ۱۶ کاراکتر) را در تنظیمات بالا ذخیره کنید.</span></li>
-            <li><span className="n num">۳</span><span>بله: آدرس دریافت پیام را با <code dir="ltr">setWebhook</code> ثبت کنید. روبیکا: با <code dir="ltr">updateBotEndpoints</code> هم آدرس دریافت پیام‌ها را با نوع <code dir="ltr">ReceiveUpdate</code> و هم آدرس کلیک‌ها را با نوع <code dir="ltr">ReceiveInlineMessage</code> ثبت کنید.</span></li>
+            <li><span className="n num">۳</span><span>با ذخیره‌ی توکن و سکرت، فروش‌یار به‌صورت خودکار webhook بله و هر دو endpoint روبیکا (پیام و کلیک دکمه) را ثبت می‌کند. اگر سرور نشانی HTTPS عمومی نداشته باشد یا ثبت ناموفق شود، خطا را نشان می‌دهد و می‌توانید آدرس‌های بالای صفحه را دستی ثبت کنید.</span></li>
             <li><span className="n num">۴</span><span>فروشنده در پنل خودش ← اکانت‌ها، اتصال بله/روبیکا را فعال می‌کند؛ توکنی از او گرفته نمی‌شود.</span></li>
             <li><span className="n num">۵</span><span>مشتری از لینک فروشگاه وارد بات می‌شود؛ انتخاب‌های کاتالوگ و سفارش را با دکمه‌های قابل‌کلیک انجام می‌دهد و مراحل بعدی همان فلو سفارش تلگرام است.</span></li>
           </ol>

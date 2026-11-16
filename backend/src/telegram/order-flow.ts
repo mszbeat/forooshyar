@@ -58,6 +58,10 @@ export type OrderDraft = {
   price: number;
   stock: number;
   quantity?: number;
+  /** اقلام سبد برای پیش‌فاکتور چندمحصولی؛ مبلغ نهایی همچنان از سفارش سمت سرور می‌آید. */
+  items?: { title: string; spec: string; price: number; quantity: number }[];
+  shippingCost?: number;
+  total?: number;
   name?: string;
   phone?: string;
   province?: string;
@@ -353,8 +357,15 @@ export function promptFor(draft: OrderDraft, telegramName = ''): BotReply {
           head,
           '<b>🧾 پیش‌فاکتور سفارش شما</b>',
           '',
-          `🛍 ${escapeHtml(draftTitle(draft))}`,
-          `🔢 ${fa(draft.quantity ?? 1)} عدد × ${toman(draft.price)} = <b>${toman(draft.price * (draft.quantity ?? 1))}</b>`,
+          ...(draft.items?.length
+            ? draft.items.map(item => `🛍 ${escapeHtml(item.title)}${item.spec ? ` (${escapeHtml(item.spec)})` : ''} · ${fa(item.quantity)} × ${toman(item.price)} = <b>${toman(item.quantity * item.price)}</b>`)
+            : [
+                `🛍 ${escapeHtml(draftTitle(draft))}`,
+                `🔢 ${fa(draft.quantity ?? 1)} عدد × ${toman(draft.price)} = <b>${toman(draft.price * (draft.quantity ?? 1))}</b>`,
+              ]),
+          ...(draft.items?.length ? [`جمع کالاها: <b>${toman(draft.items.reduce((sum, item) => sum + item.price * item.quantity, 0))}</b>`] : []),
+          ...(draft.shippingCost != null ? [`هزینه‌ی ارسال: <b>${toman(draft.shippingCost)}</b>`] : []),
+          ...(draft.total != null ? [`مبلغ نهایی: <b>${toman(draft.total)}</b>`] : []),
           '',
           `👤 ${escapeHtml(draft.name ?? '—')}`,
           `📱 ${escapeHtml(draft.phone ?? '—')}`,

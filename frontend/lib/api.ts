@@ -280,6 +280,32 @@ function describe(payload: unknown): string | null {
 
 type Options = Omit<RequestInit, 'body'> & { body?: unknown; auth?: boolean };
 
+let sessionCheckAt = 0;
+let sessionCheckResult = false;
+let sessionCheckInFlight: Promise<boolean> | null = null;
+let sessionCheckToken = '';
+
+/** Confirm a session failure against the canonical shop endpoint before logging the user out.
+ * A feature endpoint can return 401 for its own access/configuration issue; that must not
+ * erase a valid browser session or kick the user to the login page. */
+async function sessionIsInvalid(token: string): Promise<boolean> {
+  if (sessionCheckToken !== token) {
+    sessionCheckToken = token;
+    sessionCheckAt = 0;
+  }
+  if (Date.now() - sessionCheckAt < 2500) return sessionCheckResult;
+  if (sessionCheckInFlight) return sessionCheckInFlight;
+  sessionCheckInFlight = fetch(`${API_BASE}/shop`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  }).then(response => response.status === 401).catch(() => false).then(invalid => {
+    sessionCheckAt = Date.now();
+    sessionCheckResult = invalid;
+    return invalid;
+  }).finally(() => { sessionCheckInFlight = null; });
+  return sessionCheckInFlight;
+}
+
 export async function request<T>(path: string, { body, auth = true, headers = {}, ...rest }: Options = {}): Promise<T> {
   const token = auth ? tokenStore.get() : null;
   const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
@@ -299,8 +325,11 @@ export async function request<T>(path: string, { body, auth = true, headers = {}
 
   if (!response.ok) {
     if (response.status === 401 && auth && typeof window !== 'undefined') {
-      tokenStore.clear();
-      if (!window.location.pathname.startsWith('/login')) window.location.assign('/login');
+      const invalidSession = path === '/shop' || (token ? await sessionIsInvalid(token) : true);
+      if (invalidSession) {
+        tokenStore.clear();
+        if (!window.location.pathname.startsWith('/login')) window.location.assign('/login');
+      }
     }
     const detail = describe(payload);
     throw new ApiError(detail || messages[response.status] || `درخواست انجام نشد (${response.status}).`, response.status, payload);

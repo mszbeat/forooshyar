@@ -184,7 +184,7 @@ export const adminApi = {
     call<{ ok: true }>(`/admin/shops/${encodeURIComponent(id)}`, { method: 'DELETE', body: { confirm: true } }),
   settings: () => call<SettingsPayload>('/admin/settings'),
   save: (values: Record<string, string>) =>
-    call<{ saved: string[]; skipped: string[]; restartRequired: string[]; appliedLive?: string[] }>(
+    call<{ saved: string[]; skipped: string[]; restartRequired: string[]; appliedLive?: string[]; warnings?: string[] }>(
       '/admin/settings', { method: 'PUT', body: { values } },
     ),
 

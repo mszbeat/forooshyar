@@ -1231,7 +1231,10 @@ section[id] { scroll-margin-top: 70px; }
 .conv-list-title { font-size: 14px; font-weight: 800; }
 
 /* کارت حساب متصل — با انیمیشن وارد می‌شود (تسک ۴) */
-.account-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); animation: authxRise .5s cubic-bezier(.22,1,.36,1) both; }
+.account-card { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); animation: authxRise .5s cubic-bezier(.22,1,.36,1) both; }
+.account-card > span { min-width: 0; }
+.account-card > span strong, .account-card > span .small { display: block; overflow: hidden; text-overflow: ellipsis; }
+.account-accordion { width: 100%; box-sizing: border-box; }
 
 .progress { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 6px; }
 .progress > span { display: block; height: 100%; border-radius: 999px; transition: width .4s var(--ease); }

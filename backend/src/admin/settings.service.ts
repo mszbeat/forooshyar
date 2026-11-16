@@ -51,6 +51,17 @@ export class SettingsService implements OnModuleInit {
       const { applied, ignored } = applyOverrides(rows);
       if (applied.length) this.logger.log(`تنظیمات پنل ادمین اعمال شد: ${applied.join('، ')}`);
       if (ignored.length) this.logger.warn(`کلید تنظیمات ناشناخته نادیده گرفته شد: ${ignored.join('، ')}`);
+      // ثبت دوبارهٔ endpointها در startup هم لازم است: توکن تازه ممکن است در
+      // نسخه‌ی قبلی ذخیره شده باشد ولی هنوز webhook به بات جدید وصل نشده باشد.
+      const messengerKeys = (['BALE', 'RUBIKA'] as const).flatMap(platform => {
+        const tokenKey = `${platform}_BOT_TOKEN`;
+        const secretKey = `${platform}_WEBHOOK_SECRET`;
+        return process.env[tokenKey]?.trim() && process.env[secretKey]?.trim() ? [tokenKey, secretKey] : [];
+      });
+      if (messengerKeys.length) {
+        const result = await this.runtime.apply(messengerKeys);
+        for (const warning of result.warnings) this.logger.warn(warning);
+      }
     } catch (error) {
       // نبودِ جدول (مثلاً پیش از migrate) نباید بالا آمدن سرویس را متوقف کند.
       this.logger.warn(`خواندن تنظیمات پنل ادمین انجام نشد: ${error instanceof Error ? error.message : 'unknown'}`);
@@ -112,7 +123,7 @@ export class SettingsService implements OnModuleInit {
    *  - کلیدهای `restart` بلافاصله اعمال می‌شوند ولی اثر واقعی‌شان بعد از
    *    ری‌استارت است؛ پنل هم همین را نشان می‌دهد.
    */
-  async save(input: Record<string, string>, actor: { id: string; email: string }): Promise<{ saved: string[]; skipped: string[]; restartRequired: string[]; appliedLive: string[] }> {
+  async save(input: Record<string, string>, actor: { id: string; email: string }): Promise<{ saved: string[]; skipped: string[]; restartRequired: string[]; appliedLive: string[]; warnings: string[] }> {
     const entries = Object.entries(input);
     if (entries.length === 0) throw new BadRequestException('هیچ تنظیمی ارسال نشد.');
 
@@ -132,7 +143,7 @@ export class SettingsService implements OnModuleInit {
     }
 
     if (errors.length) throw new BadRequestException(errors.join(' | '));
-    if (prepared.length === 0) return { saved: [], skipped: entries.map(([key]) => key), restartRequired: [], appliedLive: [] };
+    if (prepared.length === 0) return { saved: [], skipped: entries.map(([key]) => key), restartRequired: [], appliedLive: [], warnings: [] };
 
     await this.db.$transaction(
       prepared.map(({ def, value }) =>
@@ -163,12 +174,13 @@ export class SettingsService implements OnModuleInit {
     // آدرس/کلید مدل عوض شده؟ فهرست مدل‌ها باید از نو گرفته شود.
     clearModelCache();
     this.realtime.emitAdmin('settings', { keys: prepared.map(entry => entry.def.key) });
-    const applied = this.runtime.apply(prepared.map(entry => entry.def.key));
+    const applied = await this.runtime.apply(prepared.map(entry => entry.def.key));
     return {
       saved: prepared.map(entry => entry.def.key),
       skipped: [],
       restartRequired: this.restartRequired(),
       appliedLive: applied.hot,
+      warnings: applied.warnings,
     };
   }
 

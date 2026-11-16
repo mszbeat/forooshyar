@@ -82,6 +82,9 @@ export function SettingsPanel({
               ? `${result.saved.length} تنظیم ذخیره و بی‌درنگ اعمال شد (بدون ری‌استارت).`
               : `${result.saved.length} تنظیم به‌روزرسانی شد.`,
       );
+      if (result.warnings?.length) {
+        toast.error('تنظیم ذخیره شد، اما webhook کامل ثبت نشد', result.warnings.join(' '));
+      }
       await load();
     } catch (problem) {
       const message = problem instanceof AdminError ? problem.message : 'ذخیره انجام نشد.';

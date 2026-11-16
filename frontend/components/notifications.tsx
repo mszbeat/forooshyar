@@ -46,7 +46,7 @@ export function NotificationBell() {
     setLoading(true);
     try {
       const data = await api.notifications();
-      setItems(data.items);
+      setItems(Array.isArray(data?.items) ? data.items : []);
       setError('');
     } catch (problem) {
       setError(problem instanceof ApiError ? problem.message : 'دریافت اعلان‌ها انجام نشد.');

@@ -17,6 +17,7 @@ import { actionOf, actionsKeyboard, BOT_COMMANDS, helpText, welcomeText } from '
 import { isDeliveryConfirmation } from './delivery';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CartService } from '../orders/cart.service';
+import { pickDefaultMethod, shippingCostFor } from '../orders/shipping';
 import { InstagramService } from '../instagram/instagram.service';
 import { BaleAdapter, RubikaAdapter } from '../channels/channel-adapters';
 
@@ -839,39 +840,8 @@ export class TelegramService {
         return { status: 'handled', replies: 1, kind: 'out_of_stock' };
       }
       const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
-      // سبد چندقلمی (تسک ۱۲): قلم به سبد اضافه می‌شود و مشتری انتخاب می‌کند.
-      await this.cart.add(conversation.shopId, chatId, variant.id, 1);
-      const items = await this.cart.get(conversation.shopId, chatId);
-      const buttons: BotButton[][] = [
-        [{ text: '🧾 ثبت سفارش', data: `cart:checkout:${variant.id}` }],
-        [{ text: '➕ افزودن محصول جدید', data: 'cart:add' }],
-      ];
-      const text = `🛒 به سبد اضافه شد: ${escapeHtml(variant.product.title)}${spec ? ` (${escapeHtml(spec)})` : ''}\nسبد شما: ${items.length.toLocaleString('fa-IR')} قلم\n\nچه کار کنم؟`;
-      const replies = (await this.sendWithButtons(chatId, text, buttons, 'HTML')) ? 1 : 0;
-      this.audit.record({ action: 'telegram.cart_added', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title, cartSize: items.length } });
-      return { status: 'handled', replies, kind: 'cart_added' };
-    }
-
-    // سبد: افزودن محصول جدید (بازگشت به انتخاب، سبد حفظ می‌شود)
-    if (data === 'cart:add') {
-      const products = await this.catalog(conversation.shopId);
-      const reply = clarifyProducts(products, 'کاتالوگ فروشگاه', 0);
-      const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons, reply.parseMode)) ? 1 : 0;
-      return { status: 'handled', replies, kind: 'cart_add_more' };
-    }
-
-    // سبد: ثبت سفارش (شروع فلو ارسال با همه‌ی اقلام سبد)
-    if (data.startsWith('cart:checkout:')) {
-      const variantId = data.slice('cart:checkout:'.length);
-      const variant = await this.db.variant.findFirst({
-        where: { id: variantId, shopId: conversation.shopId, active: true },
-        select: { id: true, size: true, color: true, price: true, stock: true, product: { select: { id: true, title: true, active: true } } },
-      });
-      if (!variant || !variant.product.active) {
-        await this.send(chatId, 'این محصول دیگر در دسترس نیست.');
-        return { status: 'handled', replies: 1, kind: 'variant_gone' };
-      }
-      const spec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
+      // تعداد را قبل از افزودن به سبد می‌پرسیم؛ وگرنه انتخاب تعداد در فلو سفارش
+      // با مقدار پیش‌فرض یک در سبد نادیده گرفته می‌شد.
       const draft = startDraft({
         productId: variant.product.id,
         variantId: variant.id,
@@ -885,6 +855,53 @@ export class TelegramService {
       const replies = (await this.sendWithButtons(chatId, prompt.text, prompt.buttons, prompt.parseMode)) ? 1 : 0;
       this.audit.record({ action: 'telegram.order_started', entity: 'conversation', entityId: conversation.id, shopId: conversation.shopId, meta: { variantId, title: variant.product.title } });
       return { status: 'handled', replies, kind: 'order_started' };
+    }
+
+    // سبد: افزودن محصول جدید (بازگشت به انتخاب، سبد حفظ می‌شود)
+    if (data === 'cart:add') {
+      const products = await this.catalog(conversation.shopId);
+      const reply = clarifyProducts(products, 'کاتالوگ فروشگاه', 0);
+      const replies = (await this.sendWithButtons(chatId, reply.text, reply.buttons, reply.parseMode)) ? 1 : 0;
+      return { status: 'handled', replies, kind: 'cart_add_more' };
+    }
+
+    // سبد: شروع ثبت سفارش از همه‌ی اقلامی که مشتری انتخاب و تعدادشان را تأیید کرده.
+    if (data === 'cart:checkout' || data.startsWith('cart:checkout:')) {
+      const items = await this.cart.get(conversation.shopId, chatId);
+      if (!items.length) {
+        await this.send(chatId, 'سبد خرید خالی است. ابتدا محصولی انتخاب کنید.');
+        return { status: 'handled', replies: 1, kind: 'empty_cart' };
+      }
+      const first = await this.db.variant.findFirst({
+        where: { id: items[0].variantId, shopId: conversation.shopId, active: true },
+        select: { id: true, size: true, color: true, price: true, stock: true, product: { select: { id: true, title: true, active: true } } },
+      });
+      if (!first || !first.product.active) {
+        await this.cart.remove(conversation.shopId, chatId, items[0].variantId);
+        await this.send(chatId, 'یکی از محصولات سبد دیگر در دسترس نیست؛ آن را حذف کردم. دوباره سفارش را نهایی کنید.');
+        return { status: 'handled', replies: 1, kind: 'cart_item_gone' };
+      }
+      const variants = await this.db.variant.findMany({
+        where: { shopId: conversation.shopId, id: { in: items.map(item => item.variantId) }, active: true, product: { active: true } },
+        select: { id: true, size: true, color: true, price: true, product: { select: { title: true } } },
+      });
+      const summaries = items.flatMap(item => {
+        const variant = variants.find(candidate => candidate.id === item.variantId);
+        if (!variant) return [];
+        const itemSpec = [variant.size ? `سایز ${variant.size}` : '', variant.color ? `رنگ ${variant.color}` : ''].filter(Boolean).join('، ');
+        return [{ title: variant.product.title, spec: itemSpec, price: variant.price, quantity: item.quantity }];
+      });
+      const spec = [first.size ? `سایز ${first.size}` : '', first.color ? `رنگ ${first.color}` : ''].filter(Boolean).join('، ');
+      const draft = {
+        ...startDraft({ productId: first.product.id, variantId: first.id, title: first.product.title, spec, price: first.price, stock: first.stock }),
+        quantity: items[0].quantity,
+        items: summaries,
+        step: 'name' as const,
+      };
+      await this.saveDraft(conversation.id, draft);
+      const prompt = promptFor(draft, conversation.firstName);
+      const replies = (await this.sendWithButtons(chatId, prompt.text, prompt.buttons, prompt.parseMode)) ? 1 : 0;
+      return { status: 'handled', replies, kind: 'checkout_started' };
     }
 
     // مراحل سفارش
@@ -925,6 +942,21 @@ export class TelegramService {
   ): Promise<HandleResult> {
     const outcome = applyInput(draft, input);
 
+    // انتخاب تعداد، پایان مرحله‌ی انتخاب محصول است: قلم دقیقاً با همان تعداد
+    // به سبد می‌رود و مشتری بین افزودن محصول دیگر یا نهایی‌کردن انتخاب می‌کند.
+    if (draft.step === 'quantity' && outcome.kind === 'prompt' && outcome.draft.step === 'name') {
+      await this.cart.add(conversation.shopId, conversation.chatId, draft.variantId, outcome.draft.quantity ?? 1);
+      await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
+      const cartItems = await this.cart.get(conversation.shopId, conversation.chatId);
+      const buttons: BotButton[][] = [
+        [{ text: '✅ نهایی‌کردن سفارش', data: 'cart:checkout' }],
+        [{ text: '➕ انتخاب محصول دیگر', data: 'cart:add' }],
+      ];
+      const text = `🛒 ${escapeHtml(draftTitle(draft))} × ${(outcome.draft.quantity ?? 1).toLocaleString('fa-IR')} به سبد اضافه شد.\nتعداد قلم‌های سبد: ${cartItems.length.toLocaleString('fa-IR')}\n\nمحصول دیگری انتخاب می‌کنید یا سفارش را نهایی کنیم؟`;
+      const sent = await this.sendWithButtons(conversation.chatId, text, buttons, 'HTML');
+      return { status: 'handled', replies: sent ? 1 : 0, kind: 'cart_quantity_added' };
+    }
+
     if (outcome.kind === 'cancel') {
       await this.db.telegramConversation.update({ where: { id: conversation.id }, data: { draft: Prisma.DbNull } });
       await this.send(conversation.chatId, outcome.reply.text);
@@ -933,6 +965,20 @@ export class TelegramService {
     }
 
     if (outcome.kind === 'ready') return this.finishOrder(conversation, outcome.draft);
+
+    if (outcome.kind === 'prompt' && outcome.draft.step === 'confirm' && outcome.draft.items?.length) {
+      const subtotal = outcome.draft.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const methods = await this.db.shippingMethod.findMany({ where: { shopId: conversation.shopId, active: true }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] });
+      const method = pickDefaultMethod(methods);
+      const shippingCost = method ? shippingCostFor(method, {
+        subtotal,
+        province: outcome.draft.province ?? '',
+        city: outcome.draft.city ?? '',
+      }) : 0;
+      outcome.draft.shippingCost = shippingCost;
+      outcome.draft.total = subtotal + shippingCost;
+      outcome.reply = promptFor(outcome.draft, input.telegramName);
+    }
 
     await this.saveDraft(conversation.id, outcome.draft);
     const sent = await this.sendWithButtons(conversation.chatId, outcome.reply.text, outcome.reply.buttons, outcome.reply.parseMode);
@@ -985,8 +1031,8 @@ export class TelegramService {
           '🧾 <b>سفارش شما ساخته شد</b>',
           '',
           `🆔 کد سفارش: <code>${order.code}</code>`,
-          `🛍 ${escapeHtml(draftTitle(draft))}`,
-          `🔢 ${(draft.quantity ?? 1).toLocaleString('fa-IR')} عدد`,
+          ...order.items.map(item => `🛍 ${escapeHtml(item.title)}${item.spec ? ` (${escapeHtml(item.spec)})` : ''} × ${item.quantity.toLocaleString('fa-IR')} · ${item.price.toLocaleString('fa-IR')} تومان`),
+          `🔢 مجموع تعداد: ${order.items.reduce((sum, item) => sum + item.quantity, 0).toLocaleString('fa-IR')} عدد`,
           `💰 مبلغ قابل پرداخت: <b>${order.total.toLocaleString('fa-IR')} تومان</b>`,
           `📍 ${escapeHtml(fullAddress(draft))}`,
           '',
