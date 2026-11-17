@@ -22,6 +22,8 @@ export interface IncomingMessage {
   /** کد start که در Rubika داخل aux_data.start_id می‌آید. */
   startCode?: string;
   hasPhoto: boolean;
+  /** Provider-specific uploaded image identifier for receipt vision processing. */
+  photoFileId?: string;
 }
 
 export interface OutgoingButton { text: string; data?: string; url?: string }
@@ -77,8 +79,7 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function plainText(value: string): string {
-  // API wrappers may escape HTML once or twice; decode before stripping formatting.
+function decodeHtml(value: string): string {
   let text = value;
   for (let i = 0; i < 3; i += 1) {
     const decoded = text.replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&quot;/gi, '"')
@@ -86,10 +87,66 @@ function plainText(value: string): string {
     if (decoded === text) break;
     text = decoded;
   }
-  return text.replace(/<br\s*\/?>/gi, '\n')
+  return text;
+}
+
+function decodeEscapedFormatting(value: string): string {
+  // Decode only allow-listed formatting tags; never turn escaped customer data
+  // such as a product title containing `<a ...>` back into active markup.
+  return value.replace(/(?:&amp;)?&lt;(\/?)(b|i|u|s|code|pre)&gt;/gi, '<$1$2>');
+}
+
+function plainText(value: string): string {
+  // API wrappers may escape HTML once or twice; decode before stripping formatting.
+  return decodeHtml(value).replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/?(?:b|i|u|s|code|pre|a)(?:\s[^>]*)?>/gi, '')
     .replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')
     .replace(/:moneybag:/gi, '💰').replace(/:warning:/gi, '⚠️');
+}
+
+
+function largestPhotoId(value: unknown): string | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const photo = [...value].sort((a, b) => Number((b as Record<string, unknown>).file_size ?? 0) - Number((a as Record<string, unknown>).file_size ?? 0)).at(0) as Record<string, unknown> | undefined;
+  return photo?.file_id ? String(photo.file_id) : undefined;
+}
+
+export type DownloadedImage = { buffer: Buffer; mimeType: 'image/jpeg' | 'image/png' | 'image/webp' };
+
+async function readImage(url: string): Promise<DownloadedImage> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:') throw new Error('آدرس فایل تصویر امن نیست.');
+  const response = await fetch(parsed, { signal: AbortSignal.timeout(10000) });
+  if (!response.ok) throw new Error(`دریافت تصویر از پیام‌رسان ناموفق بود (${response.status}).`);
+  const declaredMime = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  if (declaredMime && !['image/jpeg', 'image/png', 'image/webp', 'application/octet-stream', 'binary/octet-stream'].includes(declaredMime)) throw new Error('رسید باید تصویر JPEG، PNG یا WebP باشد.');
+  const declaredSize = Number(response.headers.get('content-length') ?? 0);
+  if (declaredSize > 5 * 1024 * 1024) throw new Error('حجم تصویر رسید بیش از ۵ مگابایت است.');
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('محتوای تصویر رسید خالی است.');
+  const chunks: Buffer[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > 5 * 1024 * 1024) {
+      await reader.cancel();
+      throw new Error('حجم تصویر رسید باید کمتر از ۵ مگابایت باشد.');
+    }
+    chunks.push(Buffer.from(value));
+  }
+  if (total === 0) throw new Error('محتوای تصویر رسید خالی است.');
+  const buffer = Buffer.concat(chunks, total);
+  const mimeType: DownloadedImage['mimeType'] | undefined = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+    ? 'image/jpeg'
+    : buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      ? 'image/png'
+      : buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP'
+        ? 'image/webp'
+        : undefined;
+  if (!mimeType || (declaredMime.startsWith('image/') && declaredMime !== mimeType)) throw new Error('محتوای فایل دریافتی تصویر معتبر JPEG، PNG یا WebP نیست.');
+  return { buffer, mimeType };
 }
 
 export class BaleAdapter {
@@ -103,6 +160,15 @@ export class BaleAdapter {
     return `https://tapi.bale.ai/bot${this.token}/${method}`;
   }
 
+  async downloadPhoto(fileId: string): Promise<DownloadedImage> {
+    const response = await fetch(this.url('getFile'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ file_id: fileId }), signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`بله فایل رسید را پیدا نکرد (${response.status}).`);
+    const payload = await response.json() as { ok?: boolean; result?: { file_path?: string } };
+    const path = payload.result?.file_path;
+    if (!payload.ok || !path || path.startsWith('/') || path.includes('..')) throw new Error('مسیر دانلود رسید از بله معتبر نیست.');
+    return readImage(`https://tapi.bale.ai/file/bot${this.token}/${path}`);
+  }
+
   async send(message: OutgoingMessage): Promise<AdapterResult> {
     if (!this.configured) return { ok: false, error: 'توکن بات بله تنظیم نشده است.' };
     try {
@@ -112,7 +178,7 @@ export class BaleAdapter {
         body: JSON.stringify({
           chat_id: message.chatId,
           text: message.parseMode === 'HTML'
-            ? message.text.replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')
+            ? decodeEscapedFormatting(message.text).replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')
             : escapeHtml(message.text.replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')),
           parse_mode: message.parseMode === 'HTML' ? 'HTML' : undefined,
           ...(message.buttons?.length ? { reply_markup: { inline_keyboard: message.buttons.map(row => row.map(button => button.url
@@ -146,7 +212,8 @@ export class BaleAdapter {
       senderName: String(from.first_name ?? '').trim(),
       senderUsername: String(from.username ?? '').trim(),
       updateId: root.update_id != null ? String(root.update_id) : undefined,
-      hasPhoto: Boolean(message.photo),
+      hasPhoto: (Array.isArray(message.photo) && message.photo.length > 0) || Boolean(message.document && String((message.document as Record<string, unknown>).mime_type ?? '').startsWith('image/')),
+      photoFileId: largestPhotoId(message.photo) ?? (String(((message.document ?? {}) as Record<string, unknown>).file_id ?? '') || undefined),
     };
   }
 }
@@ -160,6 +227,15 @@ export class RubikaAdapter {
 
   private url(method: string): string {
     return `https://botapi.rubika.ir/v3/${encodeURIComponent(this.token)}/${method}`;
+  }
+
+  async downloadPhoto(fileId: string): Promise<DownloadedImage> {
+    const response = await fetch(this.url('getFile'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ file_id: fileId }), signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`روبیکا فایل رسید را پیدا نکرد (${response.status}).`);
+    const payload = await response.json() as { status?: string; data?: { download_url?: string }; download_url?: string };
+    const downloadUrl = payload.data?.download_url ?? payload.download_url;
+    if (payload.status && payload.status.toUpperCase() !== 'OK' || !downloadUrl) throw new Error('روبیکا لینک دانلود رسید را برنگرداند.');
+    return readImage(downloadUrl);
   }
 
   async send(message: OutgoingMessage): Promise<AdapterResult> {
@@ -211,7 +287,8 @@ export class RubikaAdapter {
       senderUsername: String(sender.username ?? '').trim(),
       updateId: root.update_id != null ? String(root.update_id) : update.update_id != null ? String(update.update_id) : undefined,
       startCode: startCode || undefined,
-      hasPhoto: Boolean(message.file),
+      hasPhoto: Boolean(message.file && (String((message.file as Record<string, unknown>).type ?? '').toLowerCase() === 'image' || /\.(png|jpe?g|webp|gif)$/i.test(String((message.file as Record<string, unknown>).file_name ?? '')))),
+      photoFileId: String(((message.file ?? {}) as Record<string, unknown>).file_id ?? '') || undefined,
     };
   }
 }

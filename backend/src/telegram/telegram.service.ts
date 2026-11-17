@@ -17,6 +17,7 @@ import { actionOf, actionsKeyboard, BOT_COMMANDS, helpText, welcomeText } from '
 import { isDeliveryConfirmation } from './delivery';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CartService } from '../orders/cart.service';
+import { ReceiptsService } from '../orders/receipts.service';
 import { pickDefaultMethod, shippingCostFor } from '../orders/shipping';
 import { InstagramService } from '../instagram/instagram.service';
 import { BaleAdapter, RubikaAdapter } from '../channels/channel-adapters';
@@ -146,6 +147,63 @@ export class TelegramService {
     if (/^\/?help$/i.test(text.trim()) || action === 'help') return this.help(chatId);
     if (/^\/?orders$/i.test(text.trim())) return this.myOrders(chatId);
     return this.customerMessage(chatId, text);
+  }
+
+  async handleMessengerPhotoError(chatId: string): Promise<void> {
+    await this.send(chatId, 'نتوانستم فایل تصویر را از پیام‌رسان دریافت کنم. لطفاً رسید را دوباره به‌صورت عکس واضح (JPEG/PNG/WebP و حداکثر ۵ مگابایت) بفرستید.');
+  }
+
+  /** Analyze a messenger receipt against the latest pending order and notify both parties. */
+  async handleMessengerPhoto(chatId: string, image: { buffer: Buffer; mimeType: string }): Promise<HandleResult> {
+    const conversation = await this.db.telegramConversation.findFirst({
+      where: { chatId, shop: { is: { active: true } } },
+      orderBy: { lastSeenAt: 'desc' },
+      select: { shopId: true },
+    });
+    if (!conversation) {
+      await this.send(chatId, 'برای ثبت رسید، ابتدا از لینک فروشگاه وارد شوید و سفارش‌تان را ثبت کنید.');
+      return { status: 'handled', replies: 1, kind: 'receipt_no_conversation' };
+    }
+
+    const order = await this.db.order.findFirst({
+      where: { shopId: conversation.shopId, chatId, status: OrderStatus.AWAITING_PAYMENT },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, code: true, total: true },
+    });
+    if (!order) {
+      await this.send(chatId, 'سفارشِ در انتظار پرداختی برای این گفتگو پیدا نشد. اگر سفارش تازه ثبت کرده‌اید، کد سفارش را برای فروشنده بفرستید.');
+      return { status: 'handled', replies: 1, kind: 'receipt_no_pending_order' };
+    }
+
+    try {
+      // Acknowledge immediately so the customer knows the image arrived while
+      // OCR/vision and deterministic bank/order checks run.
+      await this.send(chatId, `🧾 تصویر رسید سفارش ${order.code} دریافت شد؛ در حال تطبیق مبلغ، کارت مقصد و اطلاعات پیش‌فاکتور هستم.`);
+      const receipts = this.moduleRef.get(ReceiptsService, { strict: false });
+      const result = await receipts.submitReceipt(conversation.shopId, order.id, image);
+      const channel = await this.db.channel.findFirst({ where: { shopId: conversation.shopId, active: true }, select: { ownerChat: true } });
+      if (channel?.ownerChat?.trim()) {
+        const label = result.verdict === 'CONFIRMED' ? 'پرداخت با پیش‌فاکتور تطبیق و تأیید شد' : result.verdict === 'REJECTED' ? 'رسید با سفارش تطبیق نداشت' : 'رسید نیازمند بررسی دستی است';
+        await this.send(channel.ownerChat.trim(), [
+          `🧾 رسید پرداخت سفارش <b>${escapeHtml(order.code)}</b> دریافت شد.`,
+          `مبلغ سفارش: <b>${order.total.toLocaleString('fa-IR')} تومان</b>`,
+          `نتیجه بررسی تصویر با هوش مصنوعی و کنترل‌های بانکی: <b>${label}</b>.`,
+          `جزئیات: ${escapeHtml(result.reason)}`,
+          result.verdict === 'CONFIRMED' ? 'پرداخت ثبت شده است؛ لطفاً برای آماده‌سازی و پیگیری سفارش اقدام کنید.' : 'لطفاً رسید را در پنل بررسی و وضعیت سفارش را پیگیری کنید.',
+        ].join('\\n'));
+      }
+      const customerText = result.verdict === 'CONFIRMED'
+        ? `✅ رسید سفارش ${order.code} با مبلغ پیش‌فاکتور تطبیق و پرداخت تأیید شد. فروشنده برای آماده‌سازی سفارش مطلع شد.`
+        : result.verdict === 'REJECTED'
+          ? `⚠️ رسید سفارش ${order.code} با اطلاعات سفارش تطبیق نداشت. لطفاً مبلغ/کارت مقصد را بررسی و رسید صحیح را ارسال کنید.`
+          : `🕒 رسید سفارش ${order.code} دریافت شد، اما برای تأیید قطعی نیاز به بررسی فروشنده دارد. نتیجه به فروشنده اطلاع داده شد.`;
+      await this.send(chatId, customerText);
+      return { status: 'handled', replies: 1, kind: `receipt_${result.verdict.toLowerCase()}` };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'رسید بررسی نشد.';
+      await this.send(chatId, `نتوانستم رسید را بررسی کنم: ${message} لطفاً تصویر واضح‌تری بفرستید یا با فروشنده تماس بگیرید.`);
+      return { status: 'handled', replies: 1, kind: 'receipt_error' };
+    }
   }
 
   /** کلیک دکمه‌ی بله/روبیکا از همان callbackهای کاتالوگ و فلو سفارش استفاده می‌کند. */
@@ -449,7 +507,11 @@ export class TelegramService {
       }
     }
     if (this.ai.enabled && reply.kind !== 'order' && !aiOverLimit) {
-      const budget = Number(process.env.AI_REPLY_BUDGET_MS ?? 4000);
+      // Rubika replies prioritize latency: keep the AI clarification budget short
+      // and avoid a second sequential personality-polish call on that platform.
+      const budget = Number(chatId.startsWith('rubika:')
+        ? process.env.RUBIKA_AI_REPLY_BUDGET_MS ?? 1800
+        : process.env.AI_REPLY_BUDGET_MS ?? 4000);
       const history = await this.recentMessages(conversation.shopId, chatId, 8);
       const resolved = await this.withBudget(
         resolveReply({ ai: this.ai, shop: shop as BrainShop, products, text, rule: reply, history }),
@@ -462,7 +524,7 @@ export class TelegramService {
       // بازنویسی لحن (همان قابلیتِ «پاسخ با لحن فروشگاه») ولی با سقف زمانی:
       // اگر مدل دیر کند، متن آماده **همین حالا** می‌رود. مسیر سفارش و ارجاع
       // از این لایه بیرون‌اند تا داده و مرحله دست‌نخورده بماند.
-      const understood = resolved.kind === 'order' || resolved.kind === 'handoff'
+      const understood = resolved.kind === 'order' || resolved.kind === 'handoff' || chatId.startsWith('rubika:')
         ? resolved
         : await this.withBudget(
           addPersonality(this.ai, shop as BrainShop, resolved, text),
@@ -1494,7 +1556,10 @@ export class TelegramService {
    */
   static parseModeOf(text: string, explicit?: 'HTML'): 'HTML' | undefined {
     if (explicit) return explicit;
-    return /<(b|i|u|s|code|pre|a)[\s>]/i.test(text) ? 'HTML' : undefined;
+    // Older builders may persist HTML-escaped markup (`&lt;b&gt;`). Decode for
+    // detection; channel adapters decode the actual payload before rendering.
+    const decoded = text.replace(/(?:&amp;)?&lt;(\/?)(b|i|u|s|code|pre)&gt;/gi, '<$1$2>');
+    return /<(b|i|u|s|code|pre|a)[\s>]/i.test(decoded) ? 'HTML' : undefined;
   }
 
   private async sendPart(chatId: string, text: string, parseMode?: 'HTML', replyMarkup?: ReplyMarkup): Promise<boolean> {

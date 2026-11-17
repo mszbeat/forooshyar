@@ -15,6 +15,7 @@ describe('قالب‌بندی تلگرام', () => {
   it('متن دارای تگ بدون parse_mode، خودکار HTML می‌شود', () => {
     assert.equal(TelegramService.parseModeOf('<b>قیمت</b> ۸۹۰٬۰۰۰ تومان'), 'HTML');
     assert.equal(TelegramService.parseModeOf('کد: <code>FDD21D</code>'), 'HTML');
+    assert.equal(TelegramService.parseModeOf('&lt;b&gt;سفارش شما ساخته شد&lt;/b&gt;'), 'HTML');
     assert.equal(TelegramService.parseModeOf('سلام، در خدمتم.'), undefined);
     // مقدار صریح مقدم است.
     assert.equal(TelegramService.parseModeOf('بدون تگ', 'HTML'), 'HTML');

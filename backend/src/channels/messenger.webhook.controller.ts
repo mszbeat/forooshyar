@@ -149,6 +149,21 @@ export class MessengerWebhookController {
       },
     });
 
+    if (message.hasPhoto) {
+      if (!message.photoFileId) {
+        await this.telegram.handleMessengerPhotoError(chatId);
+        return;
+      }
+      try {
+        const image = await adapter.downloadPhoto(message.photoFileId);
+        await this.telegram.handleMessengerPhoto(chatId, image);
+      } catch (error) {
+        this.logger.warn(`دریافت تصویر رسید از ${message.platform} ناموفق بود: ${error instanceof Error ? error.message : 'unknown'}`);
+        await this.telegram.handleMessengerPhotoError(chatId);
+      }
+      return;
+    }
+
     if (buttonData) {
       const clicked = await this.db.chatMessage.create({
         data: { shopId, chatId, direction: 'in', author: 'customer', text: `[button] ${buttonData}` },

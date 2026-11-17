@@ -180,3 +180,51 @@ describe('Rubika update normalization', () => {
     assert.equal(RubikaAdapter.normalize({ message: {} }), null);
   });
 });
+
+describe('Messenger receipt attachment support', () => {
+  it('extracts the highest-quality Bale photo file id', () => {
+    const message = BaleAdapter.normalize({ update_id: 4, message: {
+      chat: { id: 9 }, photo: [{ file_id: 'small', file_size: 100 }, { file_id: 'large', file_size: 900 }],
+    } });
+    assert.equal(message?.hasPhoto, true);
+    assert.equal(message?.photoFileId, 'large');
+  });
+
+  it('extracts a Rubika image attachment file id', () => {
+    const message = RubikaAdapter.normalize({ update: {
+      chat_id: 'c9', new_message: { file: { file_id: 'receipt-1', file_name: 'receipt.jpg', type: 'Image' } },
+    } });
+    assert.equal(message?.hasPhoto, true);
+    assert.equal(message?.photoFileId, 'receipt-1');
+  });
+
+  it('downloads a Rubika photo via its official getFile download_url', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      if (calls.length === 1) return new Response(JSON.stringify({ status: 'OK', data: { download_url: 'https://files.rubika.ir/r/receipt.jpg' } }), { status: 200 });
+      return new Response(new Uint8Array([0xff, 0xd8, 0xff]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
+    }) as typeof fetch;
+    try {
+      const image = await new RubikaAdapter('token-1').downloadPhoto('file-1');
+      assert.equal(image.mimeType, 'image/jpeg');
+      assert.equal(image.buffer.length, 3);
+      assert.equal(calls[0], 'https://botapi.rubika.ir/v3/token-1/getFile');
+    } finally { globalThis.fetch = originalFetch; }
+  });
+
+  it('decodes escaped HTML in Bale outbound text before HTML rendering', async () => {
+    const originalFetch = globalThis.fetch;
+    let payload: Record<string, unknown> = {};
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      payload = JSON.parse(String(init?.body ?? '{}'));
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      await new BaleAdapter('token-1').send({ chatId: 'chat-1', text: '&lt;b&gt;سفارش شما ساخته شد&lt;/b&gt;', parseMode: 'HTML' });
+      assert.equal(payload.text, '<b>سفارش شما ساخته شد</b>');
+      assert.equal(payload.parse_mode, 'HTML');
+    } finally { globalThis.fetch = originalFetch; }
+  });
+});
