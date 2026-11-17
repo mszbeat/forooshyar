@@ -214,7 +214,7 @@ describe('Messenger receipt attachment support', () => {
     } finally { globalThis.fetch = originalFetch; }
   });
 
-  it('decodes escaped HTML in Bale outbound text before HTML rendering', async () => {
+  it('strips raw and escaped HTML tags from Bale outbound text', async () => {
     const originalFetch = globalThis.fetch;
     let payload: Record<string, unknown> = {};
     globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -223,8 +223,8 @@ describe('Messenger receipt attachment support', () => {
     }) as typeof fetch;
     try {
       await new BaleAdapter('token-1').send({ chatId: 'chat-1', text: '&lt;b&gt;سفارش شما ساخته شد&lt;/b&gt;', parseMode: 'HTML' });
-      assert.equal(payload.text, '<b>سفارش شما ساخته شد</b>');
-      assert.equal(payload.parse_mode, 'HTML');
+      assert.equal(payload.text, 'سفارش شما ساخته شد');
+      assert.equal(payload.parse_mode, undefined);
     } finally { globalThis.fetch = originalFetch; }
   });
 });

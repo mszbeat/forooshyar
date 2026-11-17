@@ -75,10 +75,6 @@ export function extractShopCode(text: string): string {
   return match ? match[1] : '';
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
 function decodeHtml(value: string): string {
   let text = value;
   for (let i = 0; i < 3; i += 1) {
@@ -90,16 +86,10 @@ function decodeHtml(value: string): string {
   return text;
 }
 
-function decodeEscapedFormatting(value: string): string {
-  // Decode only allow-listed formatting tags; never turn escaped customer data
-  // such as a product title containing `<a ...>` back into active markup.
-  return value.replace(/(?:&amp;)?&lt;(\/?)(b|i|u|s|code|pre)&gt;/gi, '<$1$2>');
-}
-
 function plainText(value: string): string {
   // API wrappers may escape HTML once or twice; decode before stripping formatting.
   return decodeHtml(value).replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/?(?:b|i|u|s|code|pre|a)(?:\s[^>]*)?>/gi, '')
+    .replace(/<\/?(?:b|i|u|s|code|pre|a)\b[^>]*\/?\s*>/gi, '')
     .replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')
     .replace(/:moneybag:/gi, '💰').replace(/:warning:/gi, '⚠️');
 }
@@ -177,10 +167,10 @@ export class BaleAdapter {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           chat_id: message.chatId,
-          text: message.parseMode === 'HTML'
-            ? decodeEscapedFormatting(message.text).replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')
-            : escapeHtml(message.text.replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇')),
-          parse_mode: message.parseMode === 'HTML' ? 'HTML' : undefined,
+          // Bale clients/providers have rendered HTML tags literally in real
+          // chats despite parse_mode; send normalized plain text to guarantee
+          // customers never see markup tokens.
+          text: plainText(message.text).replace(/:white_check_mark:/gi, '✅').replace(/:point_down:/gi, '👇'),
           ...(message.buttons?.length ? { reply_markup: { inline_keyboard: message.buttons.map(row => row.map(button => button.url
             ? { text: button.text, url: button.url }
             : { text: button.text, callback_data: button.data ?? '' })) } } : {}),
